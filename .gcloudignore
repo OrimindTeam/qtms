@@ -27,6 +27,16 @@
 **/*.exe
 functions/bin/server
 
+# ⛔⛔★★★ ولا أسرار — والملف يحلّ محلّ `.gitignore` في Cloud Build:
+#    ⟵ **فاستبعادُ `/.secrets/` هناك لا يسري هنا البتّة**، ★ **وغيابُه
+#    من هذا الملف كان يرفع كلمة مرور حساب الاختبار إلى سلّة البناء**
+#    (رُصد 2026-08-28 · `DEBT-54`).
+/.secrets/
+**/.secrets/
+
+# ⛔ هدف تحويل TEMP لبناء Gradle (DEBT-11) — 902 ميجابايت من المؤقتات.
+/.buildtmp/
+
 # ⛔ ولا أي إعداد منصة أو سرّ — secrets-management-policy.md.
 **/google-services.json
 **/*.keystore
