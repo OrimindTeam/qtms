@@ -38,6 +38,24 @@ import 'package:qtms_domain/qtms_domain.dart';
 const String functionsBaseUrl =
     String.fromEnvironment('QTMS_FUNCTIONS_BASE_URL');
 
+/// ⛔⛔★★★ **مهلة كل نداءٍ مستدعى — `DEBT-57`.**
+///
+/// ★ **ولماذا مهلةٌ صريحة أصلاً:** `http.post` **بلا مهلةٍ ينتظر مهلة نظام
+/// التشغيل** — ⟵ **وهي دقائقُ أو لا تنتهي**: ⛔ **فقطعُ الشبكة أثناء نداءٍ
+/// كاتب كان يُجمِّد الإجراء أبداً** (`_busy = true` بلا رسالة ولا مخرج)،
+/// ★ **وقيسَ حيّاً أربع دقائق بلا إخفاق ولا استئناف.**
+///
+/// ⛔⛔★★ **والحارس المكتوب كان يُخدَع:** ★ **[ConnectivityError] مكتوبةٌ في
+/// [CallableClient] منذ اليوم الأول** — ⟵ **ولم تكن تُنادى قطّ لأن النداء
+/// لا يرمي**: ★ **والمهلة هي ما يجعله يرمي فيُبلَغ الحارس فعلاً.**
+///
+/// ⚠️ **و20 ثانية لا أقل:** ★ **إقلاعُ حاويةٍ باردة على Cloud Run يبلغ
+/// عشرة ثوانٍ** (`DEBT-56` من زاويته) — ⟵ **فمهلةٌ أقصر تُخفق نداءً سليماً**،
+/// ⛔ **وهو أسوأ من انتظارٍ قصير**: ★ **والمستخدم يرى رسالةً خلالها لا بعدها.**
+///
+/// ⛔ **ولا تُطبَّق على انتظار رمز الدخول** — ★ **قراءتُه محلية بلا شبكة.**
+const Duration callableTimeout = Duration(seconds: 20);
+
 /// مزوّد رمز الدخول الحالي — ★ **يُقرأ عند كل استدعاء** ⛔ لا يُخزَّن.
 ///
 /// ⚠️ **ولماذا لكل استدعاء:** الرمز ينتهي، **والمخزَّن يصير منتهياً بلا
@@ -51,13 +69,16 @@ final class CallableClient {
     required http.Client httpClient,
     required IdTokenReader readIdToken,
     String baseUrl = functionsBaseUrl,
+    Duration timeout = callableTimeout,
   })  : _http = httpClient,
         _readIdToken = readIdToken,
-        _baseUrl = baseUrl;
+        _baseUrl = baseUrl,
+        _timeout = timeout;
 
   final http.Client _http;
   final IdTokenReader _readIdToken;
   final String _baseUrl;
+  final Duration _timeout;
 
   /// يستدعي [operation] بحمولة [data].
   ///
@@ -82,20 +103,27 @@ final class CallableClient {
 
     final http.Response response;
     try {
-      response = await _http.post(
-        Uri.parse('${_baseUrl.trimRight()}/$operation'),
-        headers: <String, String>{
-          'content-type': 'application/json; charset=utf-8',
-          // ⛔ **الرمز سرّ فعلي** — لا يُسجَّل ولا يُكتب في أي حقل.
-          'authorization': 'Bearer $idToken',
-        },
-        body: jsonEncode(<String, Object?>{'data': data}),
-      );
+      response = await _http
+          .post(
+            Uri.parse('${_baseUrl.trimRight()}/$operation'),
+            headers: <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+              // ⛔ **الرمز سرّ فعلي** — لا يُسجَّل ولا يُكتب في أي حقل.
+              'authorization': 'Bearer $idToken',
+            },
+            body: jsonEncode(<String, Object?>{'data': data}),
+          )
+          // ⛔⛔★★★ **المهلة الصريحة — `DEBT-57`:** ★ **بدونها لا يرمي
+          //   النداء أبداً** ⟵ **فالسطر التالي مكتوبٌ لا يُنادى.**
+          .timeout(_timeout);
     } on Object catch (_) {
       // ★ **انقطاع الشبكة `ConnectivityError` لا فشلاً عاماً** — ⟵ فيصل
       //   المستخدمَ نصُّ `ERR_CONN_001` الذي يُرشده لفحص اتصاله،
       //   ⛔ لا «تعذّر إتمام العملية» التي لا تُرشده لشيء.
       //   ⚠️ **والحفظ معطَّل أصلاً بلا اتصال** (`ADR-0003`).
+      //   ★★ **و[TimeoutException] تدخل من هنا كذلك** — ⟵ **فانقطاعٌ
+      //   صامت وانقطاعٌ رامٍ يصلان المستخدمَ بالنصّ نفسه**، ⛔ **ولا فرق
+      //   عملي بينهما عنده: كلاهما «تحقق من الاتصال ثم أعد المحاولة».**
       return const Failure<Map<String, Object?>>(ConnectivityError());
     }
 

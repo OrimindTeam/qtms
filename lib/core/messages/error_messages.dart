@@ -16,7 +16,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 ///
 /// ⚠️ **ولا تُضاف رسالة هنا بلا سطر في الكتالوج** — والإضافة الصامتة هي
 /// بالضبط ما يمنعه `DEBT-13`.
-enum CatalogMessage {
+enum CatalogMessageId {
   /// `ERR_AUTH_003`.
   sessionExpired,
 
@@ -162,103 +162,290 @@ enum CatalogMessage {
   operationFailed,
 }
 
-/// نصّ الرسالة كما في الكتالوج **حرفاً بحرف**.
+/// ★★ **الرسالة المعروضة — مدخلُ كتالوجٍ معتمد أو نصٌّ تشخيصي.**
+///
+/// ⛔⛔★★★ **وهذا انحرافٌ مُوثَّق عن §3 القاعدة 1** («لا يُعرَض رمز تقني
+/// للمستخدم») **لسدّ `DEBT-52`** (2026-08-28): ★ **الرسالة العامة «تعذّر
+/// إتمام العملية. أعد المحاولة.» كانت تبتلع تشخيصاً دقيقاً موجوداً فعلاً**
+/// ⟵ **فكلّفت أربع جولات تشخيص**، ⛔ **وهي تضليلٌ إيجابي: «أعد المحاولة»
+/// فعلٌ لا يمكن أن ينجح حين يكون العطل في البناء لا في اللحظة.**
+/// ⟵ ★ **فالرمز غير الكتالوجي يصل الشاشة بنصّه**، ⛔ **والرسالة العامة
+/// تبقى حدّاً أدنى للنصّ الفارغ وحده.**
+sealed class CatalogMessage {
+  /// ⛔ لا يُنشأ إلا بالشكلين أدناه.
+  const CatalogMessage();
+
+  static const CatalogMessage sessionExpired = CatalogEntry(
+    CatalogMessageId.sessionExpired,
+  );
+  static const CatalogMessage accountDisabled = CatalogEntry(
+    CatalogMessageId.accountDisabled,
+  );
+  static const CatalogMessage temporaryLock = CatalogEntry(
+    CatalogMessageId.temporaryLock,
+  );
+  static const CatalogMessage noConnection = CatalogEntry(
+    CatalogMessageId.noConnection,
+  );
+  static const CatalogMessage platformUnavailable = CatalogEntry(
+    CatalogMessageId.platformUnavailable,
+  );
+  static const CatalogMessage invalidCredentials = CatalogEntry(
+    CatalogMessageId.invalidCredentials,
+  );
+  static const CatalogMessage unexpectedSignInFailure = CatalogEntry(
+    CatalogMessageId.unexpectedSignInFailure,
+  );
+  static const CatalogMessage permissionMissing = CatalogEntry(
+    CatalogMessageId.permissionMissing,
+  );
+  static const CatalogMessage grantBeyondActor = CatalogEntry(
+    CatalogMessageId.grantBeyondActor,
+  );
+  static const CatalogMessage amendReasonMissing = CatalogEntry(
+    CatalogMessageId.amendReasonMissing,
+  );
+  static const CatalogMessage emailAlreadyExists = CatalogEntry(
+    CatalogMessageId.emailAlreadyExists,
+  );
+  static const CatalogMessage roleAssigned = CatalogEntry(
+    CatalogMessageId.roleAssigned,
+  );
+  static const CatalogMessage supplierPhoneExists = CatalogEntry(
+    CatalogMessageId.supplierPhoneExists,
+  );
+  static const CatalogMessage dealerPhoneExists = CatalogEntry(
+    CatalogMessageId.dealerPhoneExists,
+  );
+  static const CatalogMessage itemNameExists = CatalogEntry(
+    CatalogMessageId.itemNameExists,
+  );
+  static const CatalogMessage sourceNameExists = CatalogEntry(
+    CatalogMessageId.sourceNameExists,
+  );
+  static const CatalogMessage dealerBalanceBlocksDisable = CatalogEntry(
+    CatalogMessageId.dealerBalanceBlocksDisable,
+  );
+  static const CatalogMessage systemDefaultItem = CatalogEntry(
+    CatalogMessageId.systemDefaultItem,
+  );
+  static const CatalogMessage itemUnitLocked = CatalogEntry(
+    CatalogMessageId.itemUnitLocked,
+  );
+  static const CatalogMessage appSettingsAlreadyWritten = CatalogEntry(
+    CatalogMessageId.appSettingsAlreadyWritten,
+  );
+  static const CatalogMessage concurrencyConflict = CatalogEntry(
+    CatalogMessageId.concurrencyConflict,
+  );
+  static const CatalogMessage sourceOutOfScope = CatalogEntry(
+    CatalogMessageId.sourceOutOfScope,
+  );
+  static const CatalogMessage supplierRequiredForSource = CatalogEntry(
+    CatalogMessageId.supplierRequiredForSource,
+  );
+  static const CatalogMessage itemAlreadyInDocument = CatalogEntry(
+    CatalogMessageId.itemAlreadyInDocument,
+  );
+  static const CatalogMessage insufficientStock = CatalogEntry(
+    CatalogMessageId.insufficientStock,
+  );
+  static const CatalogMessage fractionalCount = CatalogEntry(
+    CatalogMessageId.fractionalCount,
+  );
+  static const CatalogMessage amendReducesBelowIssued = CatalogEntry(
+    CatalogMessageId.amendReducesBelowIssued,
+  );
+  static const CatalogMessage cancelReasonMissing = CatalogEntry(
+    CatalogMessageId.cancelReasonMissing,
+  );
+  static const CatalogMessage documentCancelled = CatalogEntry(
+    CatalogMessageId.documentCancelled,
+  );
+  static const CatalogMessage sourceInactive = CatalogEntry(
+    CatalogMessageId.sourceInactive,
+  );
+  static const CatalogMessage fractionalMoney = CatalogEntry(
+    CatalogMessageId.fractionalMoney,
+  );
+  static const CatalogMessage sackWeightsIllogical = CatalogEntry(
+    CatalogMessageId.sackWeightsIllogical,
+  );
+  static const CatalogMessage sackWeightExceeded = CatalogEntry(
+    CatalogMessageId.sackWeightExceeded,
+  );
+  static const CatalogMessage pieceWeightMissing = CatalogEntry(
+    CatalogMessageId.pieceWeightMissing,
+  );
+  static const CatalogMessage countedLineNeedsTotalWeight = CatalogEntry(
+    CatalogMessageId.countedLineNeedsTotalWeight,
+  );
+  static const CatalogMessage distributionExists = CatalogEntry(
+    CatalogMessageId.distributionExists,
+  );
+  static const CatalogMessage dealerInactive = CatalogEntry(
+    CatalogMessageId.dealerInactive,
+  );
+  static const CatalogMessage distributionPricingDenied = CatalogEntry(
+    CatalogMessageId.distributionPricingDenied,
+  );
+  static const CatalogMessage settledDebtBlocksCancel = CatalogEntry(
+    CatalogMessageId.settledDebtBlocksCancel,
+  );
+  static const CatalogMessage operationFailed = CatalogEntry(
+    CatalogMessageId.operationFailed,
+  );
+}
+
+/// مدخلُ كتالوجٍ معتمد — ★ **نصّه من الكتالوج حرفاً بحرف**.
+final class CatalogEntry extends CatalogMessage {
+  /// ينشئ المدخل بمعرّفه.
+  const CatalogEntry(this.id);
+
+  /// معرّف المدخل في الكتالوج.
+  final CatalogMessageId id;
+
+  @override
+  bool operator ==(Object other) => other is CatalogEntry && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
+}
+
+/// ★★★ **نصٌّ تشخيصي لا مقابل له في الكتالوج** — `DEBT-52`.
+///
+/// ⚠️ **ويحمل رمزَ خطأٍ خادمياً غيرَ معروفٍ للتطبيق** (`ERR_CALL_400` …)
+/// **أو نصَّ عطلٍ محلياً** — ⟵ ★ **وكلاهما يصل المستخدم**، ⛔ **ولا يُطوى.**
+final class DiagnosticMessage extends CatalogMessage {
+  /// ينشئ الرسالة بنصّها التشخيصي.
+  const DiagnosticMessage(this.diagnostic);
+
+  /// النصّ التشخيصي كما وصل — ⛔ **بلا تفسير ولا ترجمة.**
+  final String diagnostic;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DiagnosticMessage && other.diagnostic == diagnostic;
+
+  @override
+  int get hashCode => diagnostic.hashCode;
+}
+
+/// حدُّ عرض النصّ التشخيصي — ★ **ما زاد يُقصّ بعلامة قطع** ⛔ لا يُحذف كلّه.
+const int _diagnosticLimit = 140;
+
+/// نصّ الرسالة المعروضة.
 String catalogText(CatalogMessage message) => switch (message) {
-      CatalogMessage.sessionExpired =>
+      CatalogEntry(:final CatalogMessageId id) => _entryText(id),
+      DiagnosticMessage(:final String diagnostic) => _diagnosticText(diagnostic),
+    };
+
+/// ★★ يصوغ النصّ التشخيصي للعرض.
+///
+/// ⛔ **ولا «أعد المحاولة» هنا:** ★ **العطل التشخيصي غالباً بنيوي**،
+/// ⟵ **فدعوةُ الإعادة تُرسل المستخدم إلى طريقٍ مسدود بثقة** (`DEBT-52`).
+/// ★ **والفراغ وحده يسقط إلى الرسالة العامة** — ⛔ فلا شاشة بلا نصّ.
+String _diagnosticText(String diagnostic) {
+  final String trimmed = diagnostic.trim();
+  if (trimmed.isEmpty) return _entryText(CatalogMessageId.operationFailed);
+  final String shown = trimmed.length <= _diagnosticLimit
+      ? trimmed
+      : '${trimmed.substring(0, _diagnosticLimit)}…';
+  return '❌ تعذّر إتمام العملية — التفصيل التقني: $shown';
+}
+
+/// نصّ مدخل الكتالوج **حرفاً بحرف** — ⛔ **ولا صياغة جديدة.**
+String _entryText(CatalogMessageId message) => switch (message) {
+      CatalogMessageId.sessionExpired =>
         '⚠️ انتهت مدة الجلسة. يرجى تسجيل الدخول مرة أخرى.',
-      CatalogMessage.accountDisabled => '❌ الحساب معطَّل. راجع المدير.',
-      CatalogMessage.temporaryLock =>
+      CatalogMessageId.accountDisabled => '❌ الحساب معطَّل. راجع المدير.',
+      CatalogMessageId.temporaryLock =>
         '⚠️ قُفل الحساب مؤقتاً بعد محاولات دخول فاشلة.',
-      CatalogMessage.noConnection =>
+      CatalogMessageId.noConnection =>
         '❌ لا يوجد اتصال بالإنترنت — لا يمكن حفظ العملية. تحقق من الاتصال '
             'ثم أعد المحاولة.',
-      CatalogMessage.platformUnavailable =>
+      CatalogMessageId.platformUnavailable =>
         '❌ خدمات Google Play غير متوفرة على هذا الجهاز — النظام غير مدعوم '
             'عليه.',
-      CatalogMessage.invalidCredentials =>
+      CatalogMessageId.invalidCredentials =>
         '❌ البريد الإلكتروني أو كلمة المرور غير صحيحة.',
-      CatalogMessage.unexpectedSignInFailure =>
+      CatalogMessageId.unexpectedSignInFailure =>
         '❌ تعذّر تسجيل الدخول لخطأ غير متوقَّع. أعد المحاولة.',
-      CatalogMessage.permissionMissing =>
-        '❌ ليس لديك صلاحية تنفيذ هذه العملية.',
-      CatalogMessage.grantBeyondActor =>
-        '❌ لا يمكنك منح صلاحية لا تملكها.',
-      CatalogMessage.amendReasonMissing =>
-        '❌ يجب إدخال سبب التعديل قبل الحفظ.',
-      CatalogMessage.emailAlreadyExists =>
+      CatalogMessageId.permissionMissing => '❌ ليس لديك صلاحية تنفيذ هذه العملية.',
+      CatalogMessageId.grantBeyondActor => '❌ لا يمكنك منح صلاحية لا تملكها.',
+      CatalogMessageId.amendReasonMissing => '❌ يجب إدخال سبب التعديل قبل الحفظ.',
+      CatalogMessageId.emailAlreadyExists =>
         '❌ البريد الإلكتروني مسجَّل مسبقاً لمستخدم آخر.',
-      CatalogMessage.roleAssigned =>
-        '❌ لا يمكن حذف دور مُسنَد إلى مستخدم.',
+      CatalogMessageId.roleAssigned => '❌ لا يمكن حذف دور مُسنَد إلى مستخدم.',
       // ⚠️ **ونصوص الكتالوج تحمل قوالب `{الاسم}` و`{الكود}` و`{الرصيد}`** —
       //    ⛔ **ولا تُملأ هنا**: هذا المعبر لا يملك السياق أصلاً، ★ **والشاشة
       //    هي التي تعرف ما حاول المستخدم فعله**. ⟵ **فيُعرَض النصّ بلا
       //    القالب**، ⛔ **ولا يُعرَض قوسٌ فارغ يُربك القارئ.**
-      CatalogMessage.supplierPhoneExists =>
+      CatalogMessageId.supplierPhoneExists =>
         '❌ رقم الهاتف مسجَّل مسبقاً لرعوي آخر.',
-      CatalogMessage.dealerPhoneExists =>
-        '❌ رقم الهاتف مسجَّل مسبقاً لمقوت آخر.',
-      CatalogMessage.itemNameExists => '❌ اسم النوع مسجَّل مسبقاً.',
-      CatalogMessage.sourceNameExists => '❌ اسم المصدر مسجَّل مسبقاً.',
-      CatalogMessage.dealerBalanceBlocksDisable =>
+      CatalogMessageId.dealerPhoneExists => '❌ رقم الهاتف مسجَّل مسبقاً لمقوت آخر.',
+      CatalogMessageId.itemNameExists => '❌ اسم النوع مسجَّل مسبقاً.',
+      CatalogMessageId.sourceNameExists => '❌ اسم المصدر مسجَّل مسبقاً.',
+      CatalogMessageId.dealerBalanceBlocksDisable =>
         '⚠️ هذا المقوت له رصيد قائم. التعطيل يتطلب صلاحية وإقراراً مكتوباً.',
-      CatalogMessage.systemDefaultItem =>
+      CatalogMessageId.systemDefaultItem =>
         '❌ «السكرب» نوع افتراضي في النظام — لا يُعدَّل ولا يُحذف.',
-      CatalogMessage.itemUnitLocked =>
+      CatalogMessageId.itemUnitLocked =>
         '❌ لا يمكن تغيير وحدة القياس بعد أول حركة على النوع.',
-      CatalogMessage.appSettingsAlreadyWritten =>
+      CatalogMessageId.appSettingsAlreadyWritten =>
         '❌ الإعداد التأسيسي يُكتب مرة واحدة ولا يُعدَّل.',
-      CatalogMessage.concurrencyConflict =>
+      CatalogMessageId.concurrencyConflict =>
         '⚠️ تم تعديل البيانات من مستخدم آخر. يرجى إعادة المحاولة.',
       // ⚠️ **وقوالب `{المصدر}` و`{النوع}` و`{المتاح}` لا تُملأ هنا** — راجع
       //    الملاحظة أعلاه: ★ **هذا المعبر لا يملك السياق**، ⟵ **فيُعرَض
       //    النصّ بلا القالب** ⛔ **لا بقوسٍ فارغ يُربك القارئ.**
-      CatalogMessage.sourceOutOfScope =>
+      CatalogMessageId.sourceOutOfScope =>
         '❌ لا تملك صلاحية العمل على هذا المصدر. راجع المدير.',
-      CatalogMessage.supplierRequiredForSource =>
+      CatalogMessageId.supplierRequiredForSource =>
         '❌ هذا المصدر يشترط اختيار الرعوي عند التوريد.',
-      CatalogMessage.itemAlreadyInDocument =>
+      CatalogMessageId.itemAlreadyInDocument =>
         '❌ هذا النوع مُدخَل مسبقاً في هذا المستند. عدّل السطر الموجود.',
-      CatalogMessage.insufficientStock =>
+      CatalogMessageId.insufficientStock =>
         '❌ الكمية غير كافية — المتوفر أقل من المطلوب.',
-      CatalogMessage.fractionalCount =>
+      CatalogMessageId.fractionalCount =>
         '❌ الكمية يجب أن تكون رقماً صحيحاً لهذا النوع — الكسور مسموحة في '
             'الأنواع الوزنية فقط.',
-      CatalogMessage.amendReducesBelowIssued =>
+      CatalogMessageId.amendReducesBelowIssued =>
         '❌ لا يمكن تخفيض الكمية — الفرق غير متاح حالياً في مخزون هذا المصدر.',
-      CatalogMessage.cancelReasonMissing => '❌ يجب إدخال سبب الإلغاء.',
-      CatalogMessage.documentCancelled =>
+      CatalogMessageId.cancelReasonMissing => '❌ يجب إدخال سبب الإلغاء.',
+      CatalogMessageId.documentCancelled =>
         '❌ لا يمكن تنفيذ العملية — المستند ملغى.',
-      CatalogMessage.sourceInactive =>
+      CatalogMessageId.sourceInactive =>
         '❌ المصدر معطَّل — لا يمكن التوريد أو التوزيع منه.',
       // ★ **منقولٌ حرفاً بحرف من `error-codes-catalog.md` §`MONEY`.**
-      CatalogMessage.fractionalMoney =>
+      CatalogMessageId.fractionalMoney =>
         '❌ المبلغ يجب أن يكون رقماً صحيحاً بالريال — بلا كسور عشرية.',
       // ★ **منقولةٌ حرفاً بحرف من `error-codes-catalog.md` §2.6.**
-      CatalogMessage.sackWeightsIllogical =>
+      CatalogMessageId.sackWeightsIllogical =>
         '❌ الوزن الكلي يجب أن يكون أكبر من مجموع الثلج والسكرب.',
       // ⚠️ **وقوالب `{المجموع}` و`{المطالب}` لا تُملأ هنا** — راجع الملاحظة
       //    أعلاه: ★ **هذا المعبر لا يملك السياق**، ⟵ **فيُعرَض النصّ بلا
       //    القالب** ⛔ **لا بقوسٍ فارغ يُربك القارئ.**
-      CatalogMessage.sackWeightExceeded =>
+      CatalogMessageId.sackWeightExceeded =>
         '❌ مجموع أوزان الأنواع يتجاوز الوزن المطالب به.',
-      CatalogMessage.pieceWeightMissing =>
+      CatalogMessageId.pieceWeightMissing =>
         '❌ هذا النوع وزني ولا يوجد له وزن حبة — أدخله يدوياً '
             '(لا يُستنتج من الوزن الكلي).',
-      CatalogMessage.countedLineNeedsTotalWeight =>
+      CatalogMessageId.countedLineNeedsTotalWeight =>
         '❌ هذا النوع عددي — أدخل الوزن الكلي ليُستنتج وزن الحبة.',
       // ★ **منقولةٌ حرفاً بحرف من `error-codes-catalog.md` §`DIST` و
       //   §`PRICE` و§`AMEND`** — ⚠️ **وقوالبها لا تُملأ هنا** (راجع أعلاه).
-      CatalogMessage.distributionExists =>
+      CatalogMessageId.distributionExists =>
         '⚠️ يوجد توزيع لهذا المقوت من هذا المصدر بمخزون اليوم. '
             'سيُفتح للتعديل بدل إنشاء توزيع ثانٍ.',
-      CatalogMessage.dealerInactive =>
+      CatalogMessageId.dealerInactive =>
         '❌ لا يمكن التوزيع — حساب المقوت معطَّل. يمكنك القبض منه فقط.',
-      CatalogMessage.distributionPricingDenied =>
+      CatalogMessageId.distributionPricingDenied =>
         '❌ ليس لديك صلاحية إدخال السعر لحظة التوزيع. سيُسعَّر لاحقاً.',
-      CatalogMessage.settledDebtBlocksCancel =>
+      CatalogMessageId.settledDebtBlocksCancel =>
         '❌ لا يمكن إلغاء توزيعة سُدِّد ضمارها كلياً أو جزئياً. '
             'عالج السداد أولاً.',
-      CatalogMessage.operationFailed => '❌ تعذّر إتمام العملية. أعد المحاولة.',
+      CatalogMessageId.operationFailed => '❌ تعذّر إتمام العملية. أعد المحاولة.',
     };
 
 /// ★★ يترجم **رمز الكتالوج القادم من عملية سحابية** إلى رسالته المعروضة.
@@ -306,7 +493,10 @@ CatalogMessage callableErrorMessage(String code) => switch (code) {
       'ERR_AMEND_005' => CatalogMessage.settledDebtBlocksCancel,
       // ── التسعير اليومي (`WU-005`) ──
       'ERR_MONEY_001' => CatalogMessage.fractionalMoney,
-      _ => CatalogMessage.operationFailed,
+      // ⛔⛔★★★ **والمجهول يصل بنصّه لا برسالةٍ عامة** — `DEBT-52`:
+      //   ★ **رمزٌ يُضيفه الخادم غداً يُقرأ فوراً** ⟵ **بلا جولة تشخيص**،
+      //   ⛔ **والفارغ وحده يسقط إلى `ERR_CALL_500`** (في [_diagnosticText]).
+      _ => DiagnosticMessage(code),
     };
 
 /// رسالة رفض الدخول — ★★ **ولكل حالة نصّ الآن، ⛔ ولا `null`** (`IQ-016`).
@@ -337,14 +527,14 @@ CatalogMessage appErrorMessage(AppError error) => switch (error) {
       ConnectivityError() => CatalogMessage.noConnection,
       ConcurrencyError() => CatalogMessage.concurrencyConflict,
       PlatformUnavailableError() => CatalogMessage.platformUnavailable,
-      InfrastructureError(:final String diagnostic) =>
-        callableErrorMessage(diagnostic),
+      InfrastructureError(:final String diagnostic) => callableErrorMessage(
+        diagnostic,
+      ),
       // ⛔ **وما بقي رسالة عامة** — ⚠️ **ورسائل قواعد العمل تُعرَض من
       //    شاشاتها بسياقها** (`{النوع}` · `{المصدر}` …) لا من هنا مجرَّدةً.
       // ★★ **ونقصُ المخزون له نصّه** — ⛔ **ولا يُطوى في «تعذّر إتمام
       //    العملية»**: `E-01` رسالةٌ **قابلة للتصرف** (`P-13`)، ⟵ **فالبائع
       //    يفهم أن الكمية لا تكفي** لا أن النظام تعطّل.
       InsufficientStockError() => CatalogMessage.insufficientStock,
-      ValidationError() || IntegrationError() =>
-        CatalogMessage.operationFailed,
+      ValidationError() || IntegrationError() => CatalogMessage.operationFailed,
     };

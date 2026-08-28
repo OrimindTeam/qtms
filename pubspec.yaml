@@ -44,6 +44,10 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # ★★ DEBT-57: اختبارُ المهلة يحتاج زمناً مُزيَّفاً — ⛔ لا انتظاراً حقيقياً
+  #    عشرين ثانية في كل تشغيل. ★ وهي تبعيةٌ ينقلها `flutter_test` أصلاً،
+  #    ⟵ **وتُعلَن صراحةً** لأن `depend_on_referenced_packages` يمنع الضمني.
+  fake_async: ^1.3.1
   # ★ AM-002: مولّد أيقونة التطبيق المتكيّفة من شعار العميل.
   #   ⛔ اعتمادية تطوير لا تدخل الحزمة المنشورة — أداة بناء تُشغَّل يدوياً
   #   عند تغيّر ملفات `assets/icons/` وحدها (`build-and-run-instructions.md`

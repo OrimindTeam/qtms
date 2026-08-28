@@ -1,8 +1,10 @@
 /// عميل العمليات السحابية — ★ **بروتوكولاً وتصنيفَ فشلٍ**، ⛔ **بلا شبكة**.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:qtms/core/callable/callable_client.dart';
@@ -27,6 +29,16 @@ final class _FakeHttp extends http.BaseClient {
   }
 }
 
+/// عميل لا يردّ أبداً — ★ **يحاكي انقطاعاً صامتاً لا يرمي** (`DEBT-57`).
+///
+/// ⛔ **وهو الحالة الحقيقية:** ★ **قطعُ الواي‑فاي أثناء نداءٍ قائم لا يُنهي
+/// المقبس** — ⟵ **فالنداء يعلق حتى مهلة نظام التشغيل** (دقائقُ أو أبداً).
+final class _SilentHttp extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      Completer<http.StreamedResponse>().future;
+}
+
 /// عميل يرمي عند الإرسال — يحاكي انقطاع الشبكة.
 final class _BrokenHttp extends http.BaseClient {
   @override
@@ -43,11 +55,13 @@ CallableClient client(
   http.Client http_, {
   String? token = 'ID-TOKEN',
   String baseUrl = 'https://example.invalid',
+  Duration timeout = callableTimeout,
 }) =>
     CallableClient(
       httpClient: http_,
       readIdToken: () async => token,
       baseUrl: baseUrl,
+      timeout: timeout,
     );
 
 String errorBody(String code) => jsonEncode(<String, Object?>{
@@ -169,6 +183,50 @@ void main() {
         (result as Failure<Map<String, Object?>>).error,
         isA<ConnectivityError>(),
       );
+    });
+  });
+
+  group('⛔⛔★★★ المهلة — `DEBT-57`', () {
+    test('★★★ نداءٌ لا يردّ أبداً يُخفق بالمهلة ⛔ لا يعلق', () {
+      // ⛅ **القياس الحيّ الذي أنشأ الديْن:** قطعُ الشبكة أثناء «حذف الدور»
+      //   ⟵ **الأزرارُ تُعطَّل أربع دقائق بلا رسالة ولا مخرج**، ⛔ **ولم
+      //   يستأنف النداءُ ولم يُخفق حتى أُعيد بناءُ الشاشة.**
+      // ★★ **والحارس المكتوب كان يُخدَع:** `ConnectivityError` مكتوبةٌ منذ
+      //   اليوم الأول ⛔ **ولم تُنادَ قطّ** — ⟵ **والمهلة هي ما يُنادِيها.**
+      fakeAsync((FakeAsync async) {
+        Outcome<Map<String, Object?>>? outcome;
+        client(_SilentHttp(), timeout: const Duration(seconds: 20))
+            .call('deleteRole', <String, Object?>{'roleId': 'R-1'})
+            .then((Outcome<Map<String, Object?>> r) => outcome = r);
+
+        // ⛔ **وقبل المهلة لا شيء** — ★ **فالانتظار انتظارٌ حقيقي.**
+        async.elapse(const Duration(seconds: 19));
+        expect(outcome, isNull);
+
+        async.elapse(const Duration(seconds: 2));
+        expect(
+          (outcome! as Failure<Map<String, Object?>>).error,
+          isA<ConnectivityError>(),
+        );
+      });
+    });
+
+    test('★ والمهلة المعتمدة 20 ثانية ⛔ لا أقل — إقلاعُ الحاوية البارد', () {
+      expect(callableTimeout, const Duration(seconds: 20));
+    });
+
+    test('★ ونداءٌ يردّ قبل المهلة لا تمسّه', () {
+      fakeAsync((FakeAsync async) {
+        Outcome<Map<String, Object?>>? outcome;
+        client(
+          _FakeHttp(200, jsonEncode(<String, Object?>{'result': <String, Object?>{}})),
+        ).call('op', <String, Object?>{}).then(
+          (Outcome<Map<String, Object?>> r) => outcome = r,
+        );
+
+        async.elapse(const Duration(seconds: 1));
+        expect(outcome, isA<Success<Map<String, Object?>>>());
+      });
     });
   });
 }

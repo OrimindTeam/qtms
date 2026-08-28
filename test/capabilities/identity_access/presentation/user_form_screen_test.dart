@@ -137,8 +137,11 @@ void main() {
       expect(find.text('أحمد المقوت'), findsOneWidget);
     });
 
-    testWidgets('★ ورمز السحابة المجهول يُعرَض برسالة عامة لا بصمت',
+    testWidgets('⛔⛔★★★ ورمز السحابة المجهول يُعرَض برمزه هو — `DEBT-52`',
         (WidgetTester tester) async {
+      // ⚠️★★ **وكان يُعرَض برسالة عامة حتى 2026-08-28** — ⟵ ⛔ **فابتلع
+      //   تشخيص `DEBT-49` أربع جولات**: ★ **والرسالة العامة تضليلٌ إيجابي
+      //   لا غموضٌ محايد** («أعد المحاولة» فعلٌ لا يمكن أن ينجح).
       final FakeUserAdmin admin = FakeUserAdmin()
         ..result = const Failure<void>(InfrastructureError('ERR_XYZ_999'));
       await pumpForm(tester, admin);
@@ -149,6 +152,10 @@ void main() {
 
       expect(
         find.text(catalogText(CatalogMessage.operationFailed)),
+        findsNothing,
+      );
+      expect(
+        find.textContaining('ERR_XYZ_999'),
         findsOneWidget,
       );
     });
