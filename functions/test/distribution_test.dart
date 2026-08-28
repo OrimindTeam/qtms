@@ -161,6 +161,7 @@ DistributionRequest request({
   Map<String, ItemRead>? items,
   Map<String, List<LedgerRead>>? ledger,
   List<DealerLedgerRead> dealerLedger = const <DealerLedgerRead>[],
+  List<SurplusPoolRead> surplusPools = const <SurplusPoolRead>[],
   String? reason,
   String sourceId = sourceA,
   String dealerId = dealerA,
@@ -189,6 +190,7 @@ DistributionRequest request({
             itemA: <LedgerRead>[movement('seed-a', 1000)],
           },
       dealerLedger: dealerLedger,
+      surplusPools: surplusPools,
       reason: reason,
     );
 
@@ -199,8 +201,6 @@ Map<String, Object?> stored({
   String dealerId = dealerA,
   CalendarDay? stockDate,
   List<String> itemIds = const <String>[itemA],
-  int? settledAmount,
-  int? discountedAmount,
 }) =>
     <String, Object?>{
       'documentNumber': docNumber,
@@ -212,9 +212,11 @@ Map<String, Object?> stored({
         for (final String id in itemIds)
           <String, Object?>{'itemId': id, 'quantity': 80},
       ],
-      'settledAmount': ?settledAmount,
-      'discountedAmount': ?discountedAmount,
     };
+// ⛔⛔★★ **ولا مبلغَ في الأب** (`ADR-0011` · `IQ-027` الخيار أ): **المسدَّد
+//    والمخصوم والمتبقي في `pricing/current`** — ★ **وقراءتُها مُختبَرةٌ في
+//    [`stored_settlement_test.dart`]**، ⛔ **وهنا تُمرَّر [DebtSettlement]
+//    جاهزةً لأن هذا اختبارُ تخطيطٍ خالص.**
 
 DistributionAccepted accepted(DistributionPlan plan) =>
     plan as DistributionAccepted;
@@ -822,10 +824,7 @@ void main() {
     DistributionPlan cancelWith({int? settled, int? discounted}) =>
         planDistribution(
           request(
-            storedDocument: stored(
-              settledAmount: settled,
-              discountedAmount: discounted,
-            ),
+            storedDocument: stored(),
             storedSettlement: (settled == null && discounted == null)
                 ? null
                 : computeDebtSettlement(
@@ -1246,6 +1245,153 @@ void main() {
       expect(
         writeFor(first, dealerBalancesCollection)['balance'],
         writeFor(second, dealerBalancesCollection)['balance'],
+      );
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ★★★ FR-M12-11 · AT-31 — تطبيق الفائض تلقائياً عند إنشاء ضمار جديد
+  // ═══════════════════════════════════════════════════════════════════════
+  group('★★★ AT-31 — الفائض يُطبَّق عند إنشاء الضمار (`FR-M12-11`)', () {
+    SurplusPoolRead pool({
+      SurplusScope scope = SurplusScope.general,
+      String? sourceId,
+      int available = 20000,
+    }) =>
+        SurplusPoolRead(
+          surplusId: dealerSurplusId(
+            dealerId: dealerA,
+            scope: scope,
+            sourceId: sourceId,
+          ),
+          scope: scope,
+          paidOn: CalendarDay(2026, 8, 20),
+          available: Money(available),
+        );
+
+    DistributionPlan create(List<SurplusPoolRead> pools) => planDistribution(
+          request(distribution: payload(), surplusPools: pools),
+          DistributionOperation.createDistribution,
+        );
+
+    test('★★★ فائضٌ عامّ ⟵ حركةٌ دائنة ببيانٍ آلي يذكر تاريخ الدفع', () {
+      final DistributionAccepted plan =
+          accepted(create(<SurplusPoolRead>[pool()]));
+      final InventoryWrite entry = plan.writes.firstWhere(
+        (InventoryWrite w) =>
+            w.collectionId == dealerLedgerCollection &&
+            w.fields['entryType'] ==
+                DealerLedgerEntryType.surplusApplication.name,
+      );
+      expect(entry.fields['amount'], 20000);
+      expect(
+        entry.fields['memo'],
+        'تسديد تلقائي من المبلغ المدفوع بتاريخ 2026/08/20',
+      );
+    });
+
+    test('★★★ والمتاح يُخصَم من سجل الفائض', () {
+      final DistributionAccepted plan =
+          accepted(create(<SurplusPoolRead>[pool()]));
+      final InventoryWrite surplus = plan.writes.firstWhere(
+        (InventoryWrite w) => w.collectionId == dealerSurplusCollection,
+      );
+      expect(surplus.documentId, 'MQT-0001_general');
+      expect(surplus.fields['availableAmount'], 0);
+    });
+
+    test('★★★ والتسوية تُكتب في `pricing/current` — والحالة في الأب', () {
+      final DistributionAccepted plan =
+          accepted(create(<SurplusPoolRead>[pool()]));
+      final InventoryWrite pricing = plan.writes.lastWhere(
+        (InventoryWrite w) =>
+            w.collectionId.endsWith(distributionPricingSubcollection),
+      );
+      expect(pricing.fields['settledAmount'], 20000);
+      // ★ **قيمة الضمار 80 × 1500 = 120,000** ⟵ **والمتبقي 100,000.**
+      expect(pricing.fields['remaining'], 100000);
+    });
+
+    test('⛔⛔★★★ E-13 · AT-32 — فائضُ مصدرٍ آخر لا يُسدَّد منه شيء', () {
+      final DistributionAccepted plan = accepted(
+        create(<SurplusPoolRead>[
+          pool(scope: SurplusScope.source, sourceId: sourceB),
+        ]),
+      );
+      expect(
+        plan.writes.any(
+          (InventoryWrite w) => w.collectionId == dealerSurplusCollection,
+        ),
+        isFalse,
+      );
+    });
+
+    test('⛔⛔★★★ ولا يُطبَّق عند التعديل — ⛔ فلا يُسحَب فائضٌ مرتين', () {
+      final DistributionPlan plan = planDistribution(
+        request(
+          distribution: payload(),
+          storedDocument: stored(),
+          surplusPools: <SurplusPoolRead>[pool()],
+          reason: 'تصحيح',
+        ),
+        DistributionOperation.amendDistribution,
+      );
+      expect(
+        accepted(plan).writes.any(
+              (InventoryWrite w) => w.collectionId == dealerSurplusCollection,
+            ),
+        isFalse,
+      );
+    });
+
+    test('★★★ والرصيد يعكس الدائن في المعاملة نفسها', () {
+      final DistributionAccepted plan =
+          accepted(create(<SurplusPoolRead>[pool()]));
+      final Map<String, Object?> balance =
+          writeFor(plan, dealerBalancesCollection);
+      expect(balance['totalDebit'], 120000);
+      expect(balance['totalCredit'], 20000);
+      expect(balance['balance'], 100000);
+    });
+
+    test('★★★ وسجلّان يُسدِّدان ضماراً واحداً ⟵ حركتان لا واحدة', () {
+      final DistributionAccepted plan = accepted(
+        create(<SurplusPoolRead>[
+          pool(available: 50000),
+          pool(scope: SurplusScope.source, sourceId: sourceA, available: 90000),
+        ]),
+      );
+      final Iterable<InventoryWrite> entries = plan.writes.where(
+        (InventoryWrite w) =>
+            w.collectionId == dealerLedgerCollection &&
+            w.fields['entryType'] ==
+                DealerLedgerEntryType.surplusApplication.name,
+      );
+      expect(entries.length, 2);
+      // ⛔⛔ **ومعرّفان مختلفان** — ★ **وإلّا كُتبت الثانيةُ فوق الأولى.**
+      expect(
+        entries.map((InventoryWrite w) => w.documentId).toSet().length,
+        2,
+      );
+      expect(
+        entries.map((InventoryWrite w) => w.fields['amount']).toList()
+          ..sort((Object? a, Object? b) => (a! as int).compareTo(b! as int)),
+        // ★ **والأقدم أولاً — وعند تساوي التاريخ يُرجَّح بمعرّف السجل**
+        //   (`MQT-0001_SRC-001` قبل `MQT-0001_general`): ⟵ **فيُستهلَك
+        //   فائضُ المصدر 90,000 كاملاً ثم 30,000 من العام** ⛔ **والترتيب
+        //   مستقرٌّ لا يتبدّل بين تشغيلين.**
+        <int>[30000, 90000],
+      );
+    });
+
+    test('⛔ ولا سجلَ فائض ⟵ لا كتابةَ تسوية إطلاقاً', () {
+      final DistributionAccepted plan =
+          accepted(create(const <SurplusPoolRead>[]));
+      expect(
+        plan.writes.any(
+          (InventoryWrite w) => w.fields.containsKey('settlementStatus'),
+        ),
+        isFalse,
       );
     });
   });

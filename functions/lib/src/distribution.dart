@@ -142,6 +142,7 @@ final class DistributionRequest {
     this.items = const <String, ItemRead>{},
     this.ledger = const <String, List<LedgerRead>>{},
     this.dealerLedger = const <DealerLedgerRead>[],
+    this.surplusPools = const <SurplusPoolRead>[],
     this.hasStoredPricing = false,
     this.reason,
     this.deviceInfo,
@@ -208,6 +209,14 @@ final class DistributionRequest {
   /// ⛔ **ولا قيود مصدرٍ آخر معها** (`GR-20`) — ★ **والفلترة في الاستعلام
   /// لا بعد الجمع.**
   final List<DealerLedgerRead> dealerLedger;
+
+  /// ★★★ **سجلات الفائض المتاح للمقوت** — **مقروءةً داخل المعاملة**.
+  ///
+  /// ⛔⛔★★★ **وهي مدخل `FR-M12-11`** («**عند إنشاء ضمار جديد للمقوت يسدد
+  /// النظام تلقائياً من فائضه المتاح**») — ★ **والتطبيق هنا لا في مسار
+  /// القبض**: ⟵ **لأن مُطلِقَه إنشاءُ الضمار لا وصولُ المال**
+  /// (`settlement-design.md` §11).
+  final List<SurplusPoolRead> surplusPools;
 
   /// ★ سبب التعديل أو الإلغاء — **إلزامي لكليهما** (`ADR-0004` الشرط 2).
   final String? reason;
@@ -348,6 +357,19 @@ DistributionPlan _planDistribution(
     writes.addAll((planned as Success<List<InventoryWrite>>).value);
   }
 
+  // ★★★ **تطبيق الفائض تلقائياً** — `FR-M12-11` · `AT-31` · `E-11`.
+  //
+  // ⛔⛔★★★ **وعلى الإنشاء وحده** — نصّ المتطلب: «**عند إنشاء ضمار جديد**»
+  //    ⟵ **والتعديل يُعيد بناء القيمة لا يُنشئ ضماراً**، ⛔ **وتطبيقُه هناك
+  //    كان يسحب فائضاً ثانياً لضمارٍ سُحِب له أصلاً.**
+  final List<SurplusApplication> applications = operation.isCreate
+      ? planSurplusApplication(
+          debtValue: distribution.debtValue,
+          sourceId: request.sourceId,
+          pools: request.surplusPools,
+        )
+      : const <SurplusApplication>[];
+
   // ★★★ **القيد المدين وأثره على الرصيد** — `design-overview.md` §2.4.
   writes.addAll(
     _dealerWrites(
@@ -356,8 +378,11 @@ DistributionPlan _planDistribution(
       isCancelled: false,
       isCreate: operation.isCreate,
       reason: reason,
+      applications: applications,
     ),
   );
+
+  writes.addAll(_surplusApplicationWrites(request, applications));
 
   final Map<String, Object?> after = _documentFields(request, distribution);
   writes.insert(0, _documentWrite(request, operation, after, reason));
@@ -744,6 +769,124 @@ Object _quantityValue(StockQuantity quantity) => switch (quantity) {
 // دفتر المقوت ورصيده — `design-overview.md` §2.4
 // ═════════════════════════════════════════════════════════════════════════
 
+/// ★★★ **كتابات تطبيق الفائض** — `FR-M12-11` · `AT-31`.
+///
+/// ```text
+/// لكل سجلِّ فائضٍ طُبِّق منه:
+///   ① حركةٌ دائنة في دفتر المقوت ببيانٍ آلي يذكر تاريخ الدفع
+///   ② خصمُ المبلغ من «المتاح» في سجل الفائض
+/// ثم للضمار كلِّه:
+///   ③ التسوية في `pricing/current` والحالة في الأب (`IQ-027`)
+/// ```
+///
+/// ⛔⛔★★★ **والبيان الآلي ليس نقضاً لـ[`ADR-0020`]** — ★ **القاعدة الباقية
+/// تخصّ «**سبب**» يكتبه إنسان** (`amendReason`)، ⟵ **وهذا `memo` نصّ عليه
+/// `FR-M12-11` صراحةً أن **النظام** يكتبه: ⛔ **وحذفُه كان يُسقِط متطلباً
+/// منصوصاً**، ★ **وإبقاؤه لا يُعبِّئ سبباً نيابةً عن أحد.**
+List<InventoryWrite> _surplusApplicationWrites(
+  DistributionRequest request,
+  List<SurplusApplication> applications,
+) {
+  if (applications.isEmpty) return const <InventoryWrite>[];
+
+  final List<InventoryWrite> writes = <InventoryWrite>[];
+  Money applied = Money.zero;
+  final Map<String, SurplusPoolRead> poolsById = <String, SurplusPoolRead>{
+    for (final SurplusPoolRead pool in request.surplusPools)
+      pool.surplusId: pool,
+  };
+
+  for (final SurplusApplication application in applications) {
+    applied = applied + application.amount;
+
+    final Map<String, Object?> entryFields = <String, Object?>{
+      'dealerId': request.dealerId,
+      'dealerName': _nameOf(request.storedDealer) ?? request.dealerId,
+      'sourceId': request.sourceId,
+      'debtLotId': request.compositeId,
+      'direction': DealerLedgerDirection.credit.name,
+      'amount': application.amount.riyals,
+      'entryType': DealerLedgerEntryType.surplusApplication.name,
+      'sourceDocType': distributionEntityType,
+      'sourceDocId': request.compositeId,
+      'sourceDocNumber': request.documentNumber,
+      // ★★ **البيان الآلي بنصّه** — `FR-M12-11`.
+      'memo': application.memo,
+      'isCancelled': false,
+    };
+    writes.add(
+      InventoryWrite(
+        collectionId: dealerLedgerCollection,
+        documentId: surplusLedgerEntryId(
+          debtLotId: request.compositeId,
+          surplusId: application.surplusId,
+        ),
+        fields: entryFields,
+        updateMask: entryFields.keys.toList(),
+        serverTimestampFields: const <String>['entryDate'],
+      ),
+    );
+
+    // ② ★ **خصمُ المُطبَّق من المتاح** — ⛔ **ولا يهبط تحت الصفر**
+    //    ([availableSurplus] — **المعادلة في طبقة النطاق وحدها**).
+    final SurplusPoolRead? pool = poolsById[application.surplusId];
+    final Map<String, Object?> surplusFields = <String, Object?>{
+      'availableAmount': availableSurplus(
+        paid: pool?.available ?? application.amount,
+        applied: application.amount,
+      ).riyals,
+    };
+    writes.add(
+      InventoryWrite(
+        collectionId: dealerSurplusCollection,
+        documentId: application.surplusId,
+        fields: surplusFields,
+        // ⛔★★ **قناعٌ ضيّق** — ⟵ **فلا يُمحى نطاقُ السجل ولا تاريخُ دفعه.**
+        updateMask: surplusFields.keys.toList(),
+        serverTimestampFields: const <String>['updatedAt'],
+      ),
+    );
+  }
+
+  // ③ ★★★ **التسوية — المبالغ في `pricing/current` والحالة في الأب**.
+  final DebtSettlement settlement = computeDebtSettlement(
+    debtValue: _debtValueOf(request),
+    settledAmount: applied,
+    discountedAmount: Money.zero,
+  );
+  final Map<String, Object?> pricingFields = <String, Object?>{
+    'settledAmount': settlement.settledAmount.riyals,
+    'discountedAmount': settlement.discountedAmount.riyals,
+    'remaining': settlement.remaining.riyals,
+  };
+  writes.add(
+    InventoryWrite(
+      collectionId: '$distributionsCollection/${request.compositeId}'
+          '/$distributionPricingSubcollection',
+      documentId: distributionPricingDocumentId,
+      fields: pricingFields,
+      updateMask: pricingFields.keys.toList(),
+    ),
+  );
+  final Map<String, Object?> parentFields = <String, Object?>{
+    'settlementStatus': settlement.status.name,
+  };
+  writes.add(
+    InventoryWrite(
+      collectionId: distributionsCollection,
+      documentId: request.compositeId,
+      fields: parentFields,
+      updateMask: parentFields.keys.toList(),
+    ),
+  );
+
+  return writes;
+}
+
+/// ★ قيمة الضمار المخطَّطة — **من المستند المُتحقَّق منه**.
+Money _debtValueOf(DistributionRequest request) =>
+    request.distribution?.debtValue ?? Money.zero;
+
 /// ★★★ **القيد المدين وأثره على الرصيد** — ⛔ **والرصيد يُجمَع من الدفتر**.
 ///
 /// ⚠️⚠️ **والقيد يُكتب ولو كانت القيمة صفراً** — ⟵ **فمستندٌ كل سطوره غير
@@ -757,6 +900,7 @@ List<InventoryWrite> _dealerWrites({
   required bool isCancelled,
   required bool isCreate,
   required String? reason,
+  List<SurplusApplication> applications = const <SurplusApplication>[],
 }) {
   final String entryId = debtLedgerEntryId(
     documentNumber: request.documentNumber,
@@ -771,8 +915,19 @@ List<InventoryWrite> _dealerWrites({
     amount: debtValue,
     isCancelled: isCancelled,
   );
+  // ★★ **وقيود الفائض المُطبَّق تدخل الرصيد في المعاملة نفسها** — ⟵ **وإلّا
+  //    لَقرأ المستخدم ديناً كاملاً على مقوتٍ سُدِّد نصفُه في اللحظة ذاتها.**
   final DealerAccountBalance projected = computeDealerBalance(
-    <DealerLedgerEntry>[...others, mine],
+    <DealerLedgerEntry>[
+      ...others,
+      mine,
+      for (final SurplusApplication application in applications)
+        DealerLedgerEntry(
+          direction: DealerLedgerDirection.credit,
+          amount: application.amount,
+          isCancelled: false,
+        ),
+    ],
   );
 
   final Map<String, Object?> entryFields = <String, Object?>{
