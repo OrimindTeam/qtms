@@ -380,6 +380,43 @@ final class CallableError {
     httpStatus: 400,
   );
 
+  /// ★★ **المبلغ الواصل يتجاوز المتبقي على الضمار** — `ERR_DIST_004`
+  /// (`FR-M12-06` · `BR-M12-02`).
+  static const CallableError receiptExceedsDebt = CallableError(
+    code: 'ERR_DIST_004',
+    status: 'FAILED_PRECONDITION',
+    httpStatus: 400,
+  );
+
+  /// ⛔⛔★★ **تاريخ مستقبلي** — `ERR_DIST_006` (`FR-M12-02` · `A-10`).
+  ///
+  /// ★ **ومرفوضٌ مطلقاً للجميع** — `permissions-catalog.md` (`receiptBackdate`):
+  /// ⛔ **ولا مفتاح يفتحه ولو للمالك**، ⟵ **والفحص يسبق فحص الصلاحية عمداً.**
+  static const CallableError futureDateRejected = CallableError(
+    code: 'ERR_DIST_006',
+    status: 'FAILED_PRECONDITION',
+    httpStatus: 400,
+  );
+
+  /// ★ **تسجيل بتاريخ سابق بلا صلاحية** — `ERR_DIST_007` (`receiptBackdate`).
+  static const CallableError backdateDenied = CallableError(
+    code: 'ERR_DIST_007',
+    status: 'PERMISSION_DENIED',
+    httpStatus: 403,
+  );
+
+  /// ★★ **ملاحظة الإيداع البنكي مفقودة** — `ERR_DIST_008` (`FR-M12-15` ·
+  /// `AT-36`).
+  ///
+  /// ⛔⛔★★ **وهي خارج [`ADR-0020`] بنصّه** — ★ **كـ`disableReason`
+  /// و`balanceAcknowledgement`**: ⟵ **ليست «سبب تعديل» بل إقرارٌ تشغيلي
+  /// يوثّق أين أُودع المال**، ⛔ **وبلا ما يوثّقه لا معنى للتأكيد أصلاً.**
+  static const CallableError depositNoteMissing = CallableError(
+    code: 'ERR_DIST_008',
+    status: 'FAILED_PRECONDITION',
+    httpStatus: 400,
+  );
+
   /// ★★ **مسار عملية غير معروف** — `ERR_CALL_404` (حسم `IQ-019`).
   ///
   /// ★ **رمزٌ تقني لا قاعدة عمل** — بنفس منطق `ERR_CALL_400`: ⛔ **لا سطر

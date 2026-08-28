@@ -38,6 +38,8 @@ import 'src/inventory.dart';
 import 'src/inventory_handler.dart';
 import 'src/owner_bootstrap_handler.dart';
 import 'src/permission_sync.dart';
+import 'src/receipt.dart';
+import 'src/receipt_handler.dart';
 import 'src/sack_intake.dart';
 import 'src/sack_intake_handler.dart';
 import 'src/permission_sync_handler.dart';
@@ -82,6 +84,7 @@ Future<MasterDataHandler>? _masterDataHandler;
 Future<InventoryHandler>? _inventoryHandler;
 Future<DailyPricingHandler>? _dailyPricingHandler;
 Future<DistributionHandler>? _distributionHandler;
+Future<ReceiptHandler>? _receiptHandler;
 
 /// ★★★ **`callables` — نقطة الدخول الوحيدة للعمليات المستدعاة** (`IQ-019`).
 ///
@@ -166,6 +169,14 @@ Future<Response> callables(Request request) async {
       _distribution(request, DistributionOperation.amendDistribution),
     CallableOperation.cancelDistribution =>
       _distribution(request, DistributionOperation.cancelDistribution),
+    CallableOperation.createReceipt =>
+      _receipt(request, ReceiptOperation.createReceipt),
+    CallableOperation.amendReceipt =>
+      _receipt(request, ReceiptOperation.amendReceipt),
+    CallableOperation.cancelReceipt =>
+      _receipt(request, ReceiptOperation.cancelReceipt),
+    CallableOperation.confirmReceiptDeposit =>
+      _receipt(request, ReceiptOperation.confirmReceiptDeposit),
   };
 }
 
@@ -183,6 +194,24 @@ Future<Response> _distribution(
   final DistributionHandler handler =
       await (_distributionHandler ??= _buildDistribution());
   return handler.handle(request, operation);
+}
+
+/// ★ المسار المشترك لعمليات القبض الأربع (`WU-007`).
+///
+/// ⛔★★ **ولا يحتاج `QTMS_OWNER_UID`:** حارس المالك (`BR-M1-02`) يخصّ
+/// **حسابات المستخدمين** وحدها — ★ **وتفويض القبض مفاتيحُه الستة**
+/// (`receiptCreate` · `receiptAmend` · `receiptCancel` · `receiptBackdate` ·
+/// `receiptDepositView` · `receiptDepositConfirm`) **مع نطاق المصادر**،
+/// وتُفحَص في `receiptGate` و`planReceipt`.
+Future<Response> _receipt(Request request, ReceiptOperation operation) async {
+  final ReceiptHandler handler = await (_receiptHandler ??= _buildReceipt());
+  return handler.handle(request, operation);
+}
+
+Future<ReceiptHandler> _buildReceipt() async {
+  final (IdentityGateway identity, AuditedTransaction transaction) =
+      await _connectDependencies();
+  return ReceiptHandler(identity: identity, transaction: transaction);
 }
 
 /// ★ المسار المشترك لعمليات المخزون الثلاث (`WU-003`).
