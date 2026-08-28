@@ -20,6 +20,7 @@ import '../../../core/design/theme_extensions.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/entity_tile.dart';
 import '../../../core/ui/skeleton.dart';
+import '../../../core/ui/status_pill.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../oversight/presentation/audit_trail_view.dart';
 import '../application/admin_providers.dart';
@@ -157,59 +158,38 @@ class _UserTile extends ConsumerWidget {
   final bool isSelf;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      padding: const EdgeInsets.all(Spacing.space16),
-      decoration: BoxDecoration(
-        color: SemanticColors.surface,
-        border: Border.all(color: SemanticColors.border),
-        borderRadius: BorderRadius.circular(Radii.card),
-      ),
-      child: Row(
-        children: <Widget>[
-          // ★★ **أيقونة 🕘 في أول الصفّ** — `FR-M18-10` · `FR-M18-11`
-          //   («**المستخدمون**» آخرُ الشاشات المشمولة).
-          //
-          // ⚠️ **وهذه البطاقة ليست [EntityTile]** — ★ **فالمقدّمة تُوضَع
-          //   يدوياً أولَ الصفّ**، ⛔ **ولا تُبنى بطاقةٌ ثانية لأجلها.**
-          if (auditTrailLeading(
-            ref,
-            entityType: userEntityType,
-            entityId: user.userId,
-            title: user.name,
-          ) case final Widget trail)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: Spacing.space8),
-              child: trail,
-            ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(user.name, style: TypeScale.titleSm),
-                const SizedBox(height: Spacing.space4),
-                Text(
-                  // ★ الدور أوضح للمدير من البريد، ⛔ والبريد بديلٌ لا زينة.
-                  user.roleName ?? user.email ?? 'بلا دور',
-                  style: TypeScale.bodyMd
-                      .copyWith(color: SemanticColors.textSecondary),
-                ),
-              ],
-            ),
-          ),
+  Widget build(BuildContext context, WidgetRef ref) => EntityTile(
+        title: user.name,
+        // ★ الدور أوضح للمدير من البريد، ⛔ والبريد بديلٌ لا زينة.
+        subtitle: user.roleName ?? user.email ?? 'بلا دور',
+        // ★★ **أيقونة 🕘 مقدّمةً** — `FR-M18-10` · `FR-M18-11`
+        //   («**المستخدمون**» آخرُ الشاشات المشمولة).
+        //
+        // ★★ **وكانت تُوضَع يدوياً أولَ صفٍّ مبنيٍّ في هذه الشاشة** —
+        //   ⛔ **و[EntityTile.leading] تحمل الحالتين معاً**، ⟵ **فسقط
+        //   المبررُ الذي كان يُبقي البطاقة خارج المكوّن.**
+        leading: auditTrailLeading(
+          ref,
+          entityType: userEntityType,
+          entityId: user.userId,
+          title: user.name,
+        ),
+        badges: <Widget>[
+          // ★★ **«أنت» حالةٌ لا قيمة** — ⟵ **فموضعُها سطرُ الحالات**،
+          //   ⛔ **لا [EntityTile.trailing]** الذي يرسم **أرقاماً جدولية.**
           if (isSelf)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: Spacing.space8),
-              child: Text(
-                'أنت',
-                style: TypeScale.bodyMd
-                    .copyWith(color: SemanticColors.textTertiary),
-              ),
-            ),
+            const StatusPill(label: 'أنت', triad: SemanticTriads.info),
           // ★★ **حبّة حالة صريحة للمعطَّل** — ⟵ **فالمعطَّل يُرى في القائمة
           //   ولا يختفي**: `FR-M1-12` تمنع الحذف، **والإخفاء يجعله كالمحذوف
           //   في عين المدير** فيظنّه ذهب وهو باقٍ بقيوده في سجل التدقيق.
-          if (!user.isActive) const _DisabledBadge(),
+          //
+          // ⛔⛔★★ **وكانت حبّةً مرسومةً محلياً** (`_DisabledBadge`) —
+          //   ★ **أفلتت من بوابة §8 لأنها بـ`Radii.field` لا `Radii.pill`**
+          //   (`DEBT-51`): ⟵ **والمشروعةُ واحدة.**
+          if (!user.isActive)
+            const StatusPill(label: 'معطَّل', triad: SemanticTriads.danger),
+        ],
+        actions: <Widget>[
           PermissionGate(
             permission: Permission.userAmend,
             child: IconButton(
@@ -227,8 +207,7 @@ class _UserTile extends ConsumerWidget {
             PermissionGate(
               permission: Permission.permissionGrant,
               child: IconButton(
-                onPressed: () =>
-                    context.go(permissionsRouteFor(user.userId)),
+                onPressed: () => context.go(permissionsRouteFor(user.userId)),
                 icon: const Icon(Icons.key_outlined),
                 tooltip: 'تخصيص الصلاحيات',
               ),
@@ -241,9 +220,7 @@ class _UserTile extends ConsumerWidget {
               child: _DisableButton(user: user),
             ),
         ],
-      ),
-    );
-  }
+      );
 }
 
 /// زر التعطيل — ★ **بسببٍ نصّي إلزامي** (`FR-M1-12`).
@@ -290,25 +267,4 @@ class _DisableButtonState extends ConsumerState<_DisableButton> {
         break;
     }
   }
-}
-
-class _DisabledBadge extends StatelessWidget {
-  const _DisabledBadge();
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.space8,
-          vertical: Spacing.space4,
-        ),
-        decoration: BoxDecoration(
-          color: Primitives.dangerSoft,
-          border: Border.all(color: Primitives.dangerBorder),
-          borderRadius: BorderRadius.circular(Radii.field),
-        ),
-        child: Text(
-          'معطَّل',
-          style: TypeScale.bodyMd.copyWith(color: Primitives.dangerInk),
-        ),
-      );
 }

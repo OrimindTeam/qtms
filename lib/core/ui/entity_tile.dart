@@ -30,6 +30,7 @@ class EntityTile extends StatelessWidget {
     this.trailing,
     this.badges = const <Widget>[],
     this.actions = const <Widget>[],
+    this.rejection,
     this.onTap,
     this.semanticLabel,
     super.key,
@@ -52,6 +53,16 @@ class EntityTile extends StatelessWidget {
 
   /// ★ صفّ الإجراءات — **يُفصَل بخطٍّ شعري إن وُجد** (§6.د).
   final List<Widget> actions;
+
+  /// ★★★ **سببُ رفضٍ من السحابة** — ⛔ **يُعرَض داخل البطاقة لا خارجها.**
+  ///
+  /// ⛔⛔★★ **والسابقةُ `QtmsLiveSummary.rejection` حرفياً:** ★ **الرفضُ
+  /// يُعرَض ولا يُخفي ما رُفض** — ⟵ **ورسالةٌ تحت البطاقة بلا حدٍّ يجمعها بها
+  /// تُقرأ خطأً في الشاشة لا رفضاً لهذا الصفّ بعينه**، ★ **والقائمةُ فيها
+  /// صفوفٌ كثيرة** ⛔ **فلا يُعرَف أيُّها رُفض.**
+  ///
+  /// ⚠️ **و`null` غيابٌ لا فراغ.**
+  final String? rejection;
 
   /// عند النقر.
   final VoidCallback? onTap;
@@ -114,6 +125,41 @@ class EntityTile extends StatelessWidget {
               spacing: Spacing.space8,
               runSpacing: Spacing.space8,
               children: badges,
+            ),
+          ],
+          // ★★★ **سببُ الرفض** — **بعد الحالات وقبل الإجراءات**: ⟵ **فيُقرأ
+          //    جواباً على الإجراء الذي رُفض** ⛔ **لا عنواناً للبطاقة.**
+          if (rejection case final String message) ...<Widget>[
+            const SizedBox(height: Spacing.space12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsetsDirectional.all(Spacing.space12),
+              decoration: BoxDecoration(
+                color: SemanticTriads.danger.soft,
+                border: Border.all(
+                  color: SemanticTriads.danger.border,
+                  width: Sizes.borderWidth,
+                ),
+                borderRadius: BorderRadius.circular(Radii.card),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Icon(
+                    Icons.error_outline,
+                    size: Sizes.iconSm,
+                    color: SemanticTriads.danger.ink,
+                  ),
+                  const SizedBox(width: Spacing.space8),
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: TypeScale.bodyMd
+                          .copyWith(color: SemanticTriads.danger.ink),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
           if (actions.isNotEmpty) ...<Widget>[

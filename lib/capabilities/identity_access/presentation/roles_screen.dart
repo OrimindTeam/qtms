@@ -20,6 +20,7 @@ import '../../../core/design/theme_extensions.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/entity_tile.dart';
 import '../../../core/ui/skeleton.dart';
+import '../../../core/ui/status_pill.dart';
 import '../../../core/messages/error_messages.dart';
 import '../application/admin_providers.dart';
 import 'permission_gate.dart';
@@ -172,72 +173,52 @@ class _RoleTileState extends ConsumerState<_RoleTile> {
   bool _busy = false;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(Spacing.space16),
-      decoration: BoxDecoration(
-        color: SemanticColors.surface,
-        border: Border.all(color: SemanticColors.border),
-        borderRadius: BorderRadius.circular(Radii.card),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(widget.role.name, style: TypeScale.titleSm),
-                    if (widget.role.description case final String description)
-                      Padding(
-                        padding: const EdgeInsets.only(top: Spacing.space4),
-                        child: Text(
-                          description,
-                          style: TypeScale.bodyMd.copyWith(
-                            color: SemanticColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (widget.assignment == RoleAssignmentView.assigned)
-                const _AssignedBadge(),
-              PermissionGate(
-                permission: Permission.roleWrite,
-                child: IconButton(
-                  onPressed: _busy
-                      ? null
-                      : () => showRoleForm(context, existing: widget.role),
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: 'تعديل الدور',
-                ),
-              ),
-              // ★★ **الحذف خلف `roleDelete`** — ⛔ **ولا يظهر للمُسنَد**
-              //   (بند صاحب القرار: «لا تُظهر الواجهة خيار الحذف كأنه متاح
-              //   إذا كان الدور مُسنَداً»). ⚠️⚠️ **وهذا إخفاء لا حماية**:
-              //   السحابة تُعيد الاستعلام وترفض (`ERR_SETUP_012`).
-              if (widget.assignment != RoleAssignmentView.assigned)
-                PermissionGate(
-                  permission: Permission.roleDelete,
-                  child: IconButton(
-                    onPressed: _busy ? null : _confirmDelete,
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: 'حذف الدور',
-                  ),
-                ),
-            ],
-          ),
-          if (_rejection case final CatalogMessage message) ...<Widget>[
-            const SizedBox(height: Spacing.space12),
-            _Rejection(message: message),
-          ],
+  Widget build(BuildContext context) => EntityTile(
+        title: widget.role.name,
+        // ★ **والوصف اختياريٌّ** — ⛔ **وغيابُه لا يترك سطراً خاوياً.**
+        subtitle: widget.role.description ?? 'بلا وصف',
+        badges: <Widget>[
+          // ★ حبّة «مُسنَد» — ⟵ **فيفهم المدير لماذا لا يجد زر الحذف**.
+          //
+          // ⛔ **ولا يُخفى الدور نفسه** — الإخفاء يجعله كالمحذوف في عينه.
+          //
+          // ⛔⛔★★ **وكانت حبّةً مرسومةً محلياً** (`_AssignedBadge`) —
+          //   ★ **أفلتت من بوابة §8 لأنها بـ`Radii.field`** (`DEBT-51`).
+          if (widget.assignment == RoleAssignmentView.assigned)
+            const StatusPill(label: 'مُسنَد', triad: SemanticTriads.info),
         ],
-      ),
-    );
-  }
+        // ★★★ **الرفض داخل البطاقة** — ⟵ **فيُعرَف أيُّ دورٍ رُفض حذفُه**،
+        //    ⛔ **ورسالةٌ خارجها في قائمةٍ بصفوفٍ كثيرة لا تدلّ على صاحبها.**
+        rejection: switch (_rejection) {
+          final CatalogMessage message => catalogText(message),
+          null => null,
+        },
+        actions: <Widget>[
+          PermissionGate(
+            permission: Permission.roleWrite,
+            child: IconButton(
+              onPressed: _busy
+                  ? null
+                  : () => showRoleForm(context, existing: widget.role),
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'تعديل الدور',
+            ),
+          ),
+          // ★★ **الحذف خلف `roleDelete`** — ⛔ **ولا يظهر للمُسنَد**
+          //   (بند صاحب القرار: «لا تُظهر الواجهة خيار الحذف كأنه متاح
+          //   إذا كان الدور مُسنَداً»). ⚠️⚠️ **وهذا إخفاء لا حماية**:
+          //   السحابة تُعيد الاستعلام وترفض (`ERR_SETUP_012`).
+          if (widget.assignment != RoleAssignmentView.assigned)
+            PermissionGate(
+              permission: Permission.roleDelete,
+              child: IconButton(
+                onPressed: _busy ? null : _confirmDelete,
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'حذف الدور',
+              ),
+            ),
+        ],
+      );
 
   /// ★★ **تأكيدٌ قبل الحذف — والسبب اختياريٌّ فيه** (`ADR-0020`).
   ///
@@ -276,51 +257,4 @@ class _RoleTileState extends ConsumerState<_RoleTile> {
         setState(() => _busy = false);
     }
   }
-}
-
-/// ★ حبّة «مُسنَد» — ⟵ **فيفهم المدير لماذا لا يجد زر الحذف**.
-///
-/// ⛔ **ولا يُخفى الدور نفسه** — الإخفاء يجعله كالمحذوف في عين المدير.
-class _AssignedBadge extends StatelessWidget {
-  const _AssignedBadge();
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.space8,
-          vertical: Spacing.space4,
-        ),
-        decoration: BoxDecoration(
-          color: SemanticColors.surfaceSunken,
-          border: Border.all(color: SemanticColors.border),
-          borderRadius: BorderRadius.circular(Radii.field),
-        ),
-        child: Text(
-          'مُسنَد',
-          style:
-              TypeScale.bodyMd.copyWith(color: SemanticColors.textSecondary),
-        ),
-      );
-}
-
-/// شريط الرفض — ★ **نصّه من الكتالوج حرفياً** ⛔ **ولا صياغة هنا.**
-class _Rejection extends StatelessWidget {
-  const _Rejection({required this.message});
-
-  final CatalogMessage message;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(Spacing.space12),
-        decoration: BoxDecoration(
-          color: Primitives.dangerSoft,
-          border: Border.all(color: Primitives.dangerBorder),
-          borderRadius: BorderRadius.circular(Radii.card),
-        ),
-        child: Text(
-          catalogText(message),
-          style: TypeScale.bodyMd.copyWith(color: Primitives.dangerInk),
-        ),
-      );
 }
