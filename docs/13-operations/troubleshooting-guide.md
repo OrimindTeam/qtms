@@ -137,6 +137,29 @@ curl -s -X POST https://qtms-callables-7stgg3ngga-ww.a.run.app/createRole -H 'co
 ⚠️★★ **وإصلاحُ الربط تغييرُ وضعِ أمانٍ لخدمةٍ حيّة** — ⛔ **لا يُنفَّذ ذاتياً**:
 ★ **يُسلَّم الأمرُ للمالك** (بروتوكول التشغيل §ج).
 
+### ⛅★★ شاهدُ التحقق الحيّ — 2026-08-28
+
+★ **الإصدارُ الجاهزُ فعلاً `qtms-callables-00018-78c`** (`describe` §3) ·
+★ **والربطُ مقيسٌ لا مُدَّعى:**
+
+```bash
+gcloud run services get-iam-policy qtms-callables --project qtms-orimind-master --region me-central1
+```
+
+**والناتجُ الحرفيُّ يومَه:**
+
+```text
+bindings:
+- members:
+  - allUsers
+  role: roles/run.invoker
+etag: BwZaEhNms6k=
+version: 1
+```
+
+✅ **فالعطلُ أعلاه منفيٌّ على هذا الإصدار بعينه** — ⛔ **لا على «الخدمة» عموماً**:
+★ **الربطُ صفةُ إصدارٍ منشور تُقاس بعد كل نشر** (الدرس §5).
+
 ---
 
 ## 3. ✅ «يجب إدخال سبب التعديل قبل الحفظ» على حقلٍ معنون «اختياري»
