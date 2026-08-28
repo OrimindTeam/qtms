@@ -18,6 +18,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/audit_labels.dart';
+import '../../../core/ui/filter_bar.dart';
 import '../application/audit_log_providers.dart';
 import 'audit_trail_view.dart';
 
@@ -124,67 +125,43 @@ class _FilterBar extends ConsumerWidget {
         ref.watch(auditSourceOptionsProvider);
 
     if (sources.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(Spacing.screenPadding),
-        child: Text(
-          // ⚠️ **نطاقٌ فارغ حالةٌ حقيقية** — `E-35`: مستخدمٌ بلا مصدر.
-          'لا يوجد مصدر ضمن نطاقك. راجع المدير.',
-          style: TypeScale.bodyMd.copyWith(color: SemanticColors.textSecondary),
-        ),
+      // ⚠️ **نطاقٌ فارغ حالةٌ حقيقية** — `E-35`: مستخدمٌ بلا مصدر.
+      return const QtmsFilterBar.notice(
+        message: 'لا يوجد مصدر ضمن نطاقك. راجع المدير.',
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.screenPadding,
-        vertical: Spacing.space8,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Wrap(
-            spacing: Spacing.space8,
-            runSpacing: Spacing.space8,
-            children: <Widget>[
-              // ★★ **والمصادر المعروضة مصادرُ نطاقه وحدها** — ⟵ **فالفلتر
-              //    لا يعرض مصدراً لا تسمح القاعدة بقراءة قيوده**
-              //    (`FR-M18-14` · `GR-23`).
-              for (final AuditSourceOption source in sources)
-                ChoiceChip(
-                  label: Text(source.label),
-                  selected: filter?.sourceId == source.sourceId,
-                  onSelected: (bool on) {
-                    if (on) controller.selectSource(source.sourceId);
-                  },
-                ),
-            ],
-          ),
-          const SizedBox(height: Spacing.space8),
-          Wrap(
-            spacing: Spacing.space8,
-            runSpacing: Spacing.space8,
-            children: <Widget>[
-              ChoiceChip(
-                label: const Text('كل الأفعال'),
-                selected: filter?.dimension == AuditFilterDimension.none,
-                onSelected: (bool on) {
-                  if (on) controller.clearDimension();
-                },
-              ),
-              // ★ **بُعد الإجراء** — الفهرس `sourceId ↑ · action ↑ · occurredAt ↓`.
-              for (final AuditAction action in _filterableActions)
-                ChoiceChip(
-                  label: Text(auditActionLabel(action)),
-                  selected: filter?.dimension == AuditFilterDimension.action &&
-                      filter?.action == action,
-                  onSelected: (bool on) {
-                    if (on) controller.byAction(action);
-                  },
-                ),
-            ],
-          ),
+    // ★★ **وصياغتُه [QtmsFilterBar]** (§5b · `ADR-0021`) — ⛔ **ولا شريطَ
+    //    شرائحَ محليٌّ بعد اليوم** (§8 المحظور الحادي عشر).
+    return QtmsFilterBar(
+      groups: <List<QtmsFilterOption>>[
+        // ★★ **والمصادر المعروضة مصادرُ نطاقه وحدها** — ⟵ **فالفلتر
+        //    لا يعرض مصدراً لا تسمح القاعدة بقراءة قيوده**
+        //    (`FR-M18-14` · `GR-23`).
+        <QtmsFilterOption>[
+          for (final AuditSourceOption source in sources)
+            QtmsFilterOption(
+              label: source.label,
+              selected: filter?.sourceId == source.sourceId,
+              onSelected: () => controller.selectSource(source.sourceId),
+            ),
         ],
-      ),
+        <QtmsFilterOption>[
+          QtmsFilterOption(
+            label: 'كل الأفعال',
+            selected: filter?.dimension == AuditFilterDimension.none,
+            onSelected: controller.clearDimension,
+          ),
+          // ★ **بُعد الإجراء** — الفهرس `sourceId ↑ · action ↑ · occurredAt ↓`.
+          for (final AuditAction action in _filterableActions)
+            QtmsFilterOption(
+              label: auditActionLabel(action),
+              selected: filter?.dimension == AuditFilterDimension.action &&
+                  filter?.action == action,
+              onSelected: () => controller.byAction(action),
+            ),
+        ],
+      ],
     );
   }
 }

@@ -25,6 +25,7 @@ import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/context_header.dart';
+import '../../../core/ui/filter_bar.dart';
 import '../../../core/ui/sticky_action_bar.dart';
 import '../../master_data/application/master_data_providers.dart';
 import '../../identity_access/presentation/permission_gate.dart';
@@ -86,6 +87,9 @@ class DailyPricingScreen extends ConsumerWidget {
 }
 
 /// ★ شريط فلتر «حالة التسعير» — `FR-M9-05`.
+///
+/// ★★ **وصياغتُه [QtmsFilterBar]** (§5b · `ADR-0021`) — ⛔ **ولا شريطَ شرائحَ
+/// محليٌّ بعد اليوم** (§8 المحظور الحادي عشر).
 class _PricingFilterBar extends ConsumerWidget {
   const _PricingFilterBar();
 
@@ -94,20 +98,18 @@ class _PricingFilterBar extends ConsumerWidget {
     final PricingStatusFilter selected = ref.watch(pricingFilterProvider);
     // ★ **بلا حشوٍ خاصٍّ به** — ⟵ **فهو يسكن داخل رأس السياق الآن**،
     //   ⛔ **وحشوٌ مزدوج كان يُبعده عن حافّة الرأس.**
-    return Wrap(
-      spacing: Spacing.space8,
-      runSpacing: Spacing.space8,
-      children: <Widget>[
-        for (final PricingStatusFilter filter in PricingStatusFilter.values)
-          ChoiceChip(
-            label: Text(_filterLabel(filter)),
-            selected: filter == selected,
-            onSelected: (bool on) {
-              if (on) {
-                ref.read(pricingFilterProvider.notifier).select(filter);
-              }
-            },
-          ),
+    return QtmsFilterBar(
+      padded: false,
+      groups: <List<QtmsFilterOption>>[
+        <QtmsFilterOption>[
+          for (final PricingStatusFilter filter in PricingStatusFilter.values)
+            QtmsFilterOption(
+              label: _filterLabel(filter),
+              selected: filter == selected,
+              onSelected: () =>
+                  ref.read(pricingFilterProvider.notifier).select(filter),
+            ),
+        ],
       ],
     );
   }
@@ -365,35 +367,12 @@ class _BulkBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int done = rows.where((PricingRow row) => row.complete).length;
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: SemanticColors.surfaceSunken,
-        border: Border(
-          bottom: BorderSide(
-            color: SemanticColors.border,
-            width: Sizes.borderWidth,
-          ),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.screenPadding,
-          vertical: Spacing.space8,
-        ),
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                // ★★ **أرقامٌ لاتينية** (`AM-003`) — ⛔ **ولا مصطلحَ تقني** (§6).
-                'سُعِّر $done من ${rows.length}',
-                style: TypeScale.bodyMd
-                    .copyWith(color: SemanticColors.textSecondary),
-              ),
-            ),
-            _CopyYesterdayButton(query: query, onCopy: onCopy),
-          ],
-        ),
-      ),
+    // ★★ **وصياغتُه [QtmsBulkActionBar]** (§5b `P4` البند ③ · `ADR-0021`) —
+    //    ⛔ **ولا شريطَ إجراءٍ جماعيٍّ محليٌّ بعد اليوم.**
+    return QtmsBulkActionBar(
+      // ★★ **أرقامٌ لاتينية** (`AM-003`) — ⛔ **ولا مصطلحَ تقني** (§6).
+      headline: 'سُعِّر $done من ${rows.length}',
+      action: _CopyYesterdayButton(query: query, onCopy: onCopy),
     );
   }
 }
