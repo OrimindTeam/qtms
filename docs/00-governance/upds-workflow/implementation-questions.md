@@ -2791,7 +2791,18 @@ Stream<List<SourceCard>> watchSources() => _watch(sourcesCollection, …);
 
 ---
 
-## [مفتوح] IQ-027 — ⛔⛔ حقول تسوية الضمار في المستند الأب تكشف مبلغاً لمن لا يملك رؤيته
+## [تم الحل ✅] IQ-027 — ⛔⛔ حقول تسوية الضمار في المستند الأب تكشف مبلغاً لمن لا يملك رؤيته
+
+**رُحِّل إلى:** ★ **الكود:** [`functions/lib/src/distribution_handler.dart`](../../../functions/lib/src/distribution_handler.dart)
+(`readStoredSettlement` — **دالةٌ عليا مُختبَرة**) · [`functions/test/stored_settlement_test.dart`](../../../functions/test/stored_settlement_test.dart)
+(**7 اختبارات ارتداد**) · [`functions/test/distribution_test.dart`](../../../functions/test/distribution_test.dart)
+(**تنظيفُ التجهيزة — لا مبلغَ في الأب**) · ★ **والتوثيق:**
+[`schema/distributions.md`](../../06-database/schema/distributions.md)
+(**قسمٌ جديد لـ`pricing/current`**) · [`data-dictionary.md`](../../06-database/data-dictionary.md) §`distributions` ·
+[`erd.md`](../../06-database/erd.md) · [`distribution-design.md`](../../04-design/module-design/distribution-design.md) §2 ·
+[`risks-and-technical-debt-register.md`](../../03-architecture/risks-and-technical-debt-register.md) (`DEBT-43` **مُغلَق**).
+⛔⛔ **ولم يُنشَأ `ADR` ولم يُمَسّ `ADR-0011`** — ★ **الخيار (أ) تطبيقٌ له كما هو** (نصُّ البند أدناه).
+⛔ **ولم تُمَسّ `firestore.rules` ولا `firestore.indexes.json`** — ★ **لأن `settlementStatus` لم يتحرك.**
 
 **وحدة العمل المتعطّلة:** `WU-007` — زيادة: المقبوضات وحساب المقوت من طرف
 إلى طرف · ⚠️ **ومعها `WU-013`** (الخصومات) — ★ **فكلتاهما تكتب الحقول نفسها.**

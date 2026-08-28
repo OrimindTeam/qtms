@@ -32,8 +32,15 @@
 |---|---|
 | **الرأس** | رقم التوزيع · **`stockDate` (تلقائي مقفل)** · `entryDate` · `sourceId` · `dealerId` · `dealerName` · ملاحظات |
 | **السطر** | `itemKey` · `itemName` · **`sackId?`** · **`unit`** · `quantity` · ملاحظة — ⛔ **بلا سعر** |
-| 🔒 **التسعير** *(`pricing/current` — `ADR-0011`)* | **`unitPrices[]` (مُجمَّدة)** · `lineTotals[]` · **`debtValue`** — محكومة بـ`distributionPriceView` |
-| **التسوية (تكتبها السحابة)** | `unpricedLineCount` *(في الأب — عدد لا مبلغ)* · **`settledAmount`** · **`discountedAmount`** · **`remaining`** · **`settlementStatus`** |
+| 🔒 **التسعير والتسوية معاً** *(`pricing/current` — `ADR-0011` · `IQ-027`)* | **`unitPrices[]` (مُجمَّدة)** · `lineTotals[]` · **`debtValue`** · ★★ **`settledAmount`** · **`discountedAmount`** · **`remaining`** — **كلُّها محكومةٌ بـ`distributionPriceView`** |
+| **في الأب — ما ليس مبلغاً** | `unpricedLineCount` *(عددٌ لا مبلغ)* · **`settlementStatus`** *(حالةٌ لا رقم)* |
+
+> ⛔⛔★★★ **ولماذا انتقلت المبالغُ الثلاثة** (`IQ-027` · **الخيار أ** ·
+> 2026-08-28): **`المتبقي + المسدَّد + المخصوم = debtValue`** — ⟵ **فتركُها
+> في الأب كان يكشف قيمة الضمار لمن لا يملك `distributionPriceView`**، ★ **وهو
+> عينُ ما نُقل `debtValue` من أجله.** ★ **و`settlementStatus` بقي في الأب**
+> ⟵ **فالفهرس `dealerId ↑ · settlementStatus ↑ · stockDate ↑` صالحٌ بلا
+> تغيير**، ⛔ **ولا مفتاحَ صلاحيةٍ جديداً أُضيف** (الكتالوج **74** كما هو).
 
 > ★★ **قيمة السطر — والموضع الثالث للتقريب** ([`ADR-0019`](../../03-architecture/adr/ADR-0019-weighted-line-total-rounding.md)
 > · `IQ-026` الخيار أ · 2026-08-27):

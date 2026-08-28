@@ -16,13 +16,34 @@
 |---|---|
 | ★ `stockDate` ⚙️ 🔒 | **يوم الضمار** — تاريخ اليوم عادةً · **أو تاريخ اليوم الأصلي في التصريف المتأخر** |
 | `entryDate` | **يختلف عن `stockDate` في التصريف المتأخر** |
-| `lines[]` | `itemKey` · `itemName` · ★ `sackId?` · ★ `unit` · `quantity` · **`unitPrice?` (مُجمَّد)** · `lineTotal` |
-| ★ `debtValue` 🧮 | **مجموع السطور المسعَّرة فقط** |
-| `unpricedLineCount` 🧮 | عدّاد ⏳ |
+| `lines[]` | `itemKey` · `itemName` · ★ `sackId?` · ★ `unit` · `quantity` · `note` — ⛔ **بلا أي سعر** (`ADR-0011`) |
+| `unpricedLineCount` 🧮 | عدّاد ⏳ — ★ **عددٌ لا مبلغ** |
 | `totalPieces` · `totalWeight` 🧮 | **منفصلان دائماً — لا يُجمعان** |
-| ★ `settledAmount` · `discountedAmount` · `remaining` | ⛅ **تكتبها السحابة — لا التطبيق** |
-| ★ `settlementStatus` | مفتوح / مفتوح جزئياً / مغلق |
+| ★ `settlementStatus` | مفتوح / مفتوح جزئياً / مغلق — ★ **حالةٌ لا مبلغ** |
 | `status` | معتمد / **مسعَّر جزئياً** / مسعَّر / ملغى |
+
+> ⛔⛔★★★ **ومبالغُ التسوية الثلاثة ليست هنا** (`IQ-027` · **الخيار أ** ·
+> 2026-08-28): **`settledAmount` · `discountedAmount` · `remaining`** تعيش في
+> **`distributions/{key}/pricing/current`** المحكوم بـ`distributionPriceView`
+> — ★ **تطبيقاً لـ[`ADR-0011`](../../03-architecture/adr/ADR-0011-field-level-read-isolation.md)
+> كما هو** ⛔ **لا انحرافاً عنه:** ★ **والثلاثةُ يُستنتَج منها `debtValue`
+> بالجمع** (`المتبقي + المسدَّد + المخصوم`) — ⟵ **فبقاؤها في الأب كان يكشف
+> قيمة الضمار لمن لا يملك مفتاح السعر**، ★ **وهو بالضبط ما نُقل `debtValue`
+> من أجله.** ★ **و`settlementStatus` وحده بقي في الأب** لأنه **حالةٌ لا
+> رقم** — ⟵ **والفهرس `dealerId ↑ · settlementStatus ↑ · stockDate ↑` يبقى
+> صالحاً بلا تغيير.**
+
+## 🔒 المستند الفرعي: `distributions/{key}/pricing/current`
+
+★ **كلُّ ما هو مبلغٌ يعيش هنا وحده** — ⛅ **محكوماً بـ`distributionPriceView`
+والنطاق** (`ADR-0011` · `ت-12`):
+
+| الحقل | ملاحظة |
+|---|---|
+| ★ `sourceId` | **نسخة من الأب** — لفحص النطاق بلا قراءة إضافية |
+| `unitPrices[]` · `lineTotals[]` | **موازيةٌ لترتيب `lines[]` في الأب** · السعر **مُجمَّد** لحظة التوزيع |
+| ★ `debtValue` 🧮 | **مجموع السطور المسعَّرة فقط** |
+| ★★ `settledAmount` · `discountedAmount` · `remaining` | ⛅ **تكتبها السحابة — لا التطبيق** (`IQ-027` الخيار أ) |
 
 ## القواعد الحرجة
 1. ★ **الخصم المخزني فوري في كل الأحوال** — **والمديونية بقيمة السطور المسعَّرة فقط**.

@@ -175,6 +175,9 @@ erDiagram
         array unitPrices "موازية لـ lines"
         array lineTotals
         money debtValue "🧮 المسعَّر فقط"
+        money settledAmount "🧮 سحابة"
+        money discountedAmount "🧮 سحابة"
+        money remaining "🧮 سحابة"
     }
     DISTRIBUTION {
         string key PK "★ dealerId_sourceId_stockDate"
@@ -186,9 +189,6 @@ erDiagram
         int unpricedLineCount "عدد لا مبلغ"
         number totalPieces
         decimal totalWeight
-        money settledAmount "🧮 سحابة"
-        money discountedAmount "🧮 سحابة"
-        money remaining "🧮 سحابة"
         enum settlementStatus
         enum status
         int amendCount

@@ -214,6 +214,22 @@ final class DistributionHandler {
       for (final _LineRequest line in lines)
         line.itemId: _transaction.documentPath(itemsCollection, line.itemId),
     };
+    // ★★★ **سجلّا الفائض** — `FR-M12-11`: **العامُّ وفائضُ هذا المصدر**.
+    //    ⛔ **ولا سجلَّ مصدرٍ آخر يُقرأ** (`E-13`) — ★ **والمفتاح يمنعه أصلاً.**
+    final Map<String, SurplusScope> surplusPaths = <String, SurplusScope>{
+      _transaction.documentPath(
+        dealerSurplusCollection,
+        dealerSurplusId(dealerId: dealerId, scope: SurplusScope.general),
+      ): SurplusScope.general,
+      _transaction.documentPath(
+        dealerSurplusCollection,
+        dealerSurplusId(
+          dealerId: dealerId,
+          scope: SurplusScope.source,
+          sourceId: sourceId,
+        ),
+      ): SurplusScope.source,
+    };
 
     _DayMismatch? drift;
     await _transaction.run<void>(
@@ -223,6 +239,7 @@ final class DistributionHandler {
         documentPath,
         counterPath,
         ...itemPaths.values,
+        ...surplusPaths.keys,
       ],
       queries: <DocumentQuery>[
         for (final _LineRequest line in lines)
@@ -293,6 +310,7 @@ final class DistributionHandler {
               items,
             ),
             dealerLedger: _dealerLedgerOf(reads),
+            surplusPools: _surplusPoolsOf(reads, surplusPaths),
           ),
           DistributionOperation.createDistribution,
         );
@@ -449,7 +467,7 @@ final class DistributionHandler {
             storedDocument: stored,
             storedUnitPrices: _storedPricesOf(stored, pricing),
             hasStoredPricing: pricing != null,
-            storedSettlement: _settlementOf(stored, pricing),
+            storedSettlement: readStoredSettlement(stored, pricing),
             items: items,
             ledger: _ledgerOf(reads, itemIds, items),
             dealerLedger: _dealerLedgerOf(reads),
@@ -545,6 +563,43 @@ final class DistributionHandler {
         ItemUnit.kilogram => WeightQuantity(WeightKg(raw.toDouble())),
       };
 
+  /// ★★★ **سجلات الفائض المقروءة** — `FR-M12-11` · `settlement-design.md` §4.
+  ///
+  /// ⛔★★ **والسجلُّ الغائب ليس صفراً مكتوباً** — ★ **بل لا سجلَّ أصلاً**:
+  /// ⟵ **فيُتخطّى** (`ADR-0008` القاعدة 5)، ⛔ **ولا يُبنى عليه تطبيق.**
+  ///
+  /// ⚠️ **و`availableAmount` هو الحقل الموثَّق** (`data-dictionary.md` §4:
+  /// «**الفائض المتاح · تاريخ آخر إدخال**») — ⛔ **ولا يُجمَع من مدفوعٍ
+  /// ومُطبَّقٍ هنا**: ★ **السجل مشتقٌّ كـ`dealer_balances` تماماً.**
+  static List<SurplusPoolRead> _surplusPoolsOf(
+    TransactionReads reads,
+    Map<String, SurplusScope> paths,
+  ) {
+    final List<SurplusPoolRead> pools = <SurplusPoolRead>[];
+    for (final MapEntry<String, SurplusScope> entry in paths.entries) {
+      final Map<String, Object?>? stored = reads.document(entry.key);
+      if (stored == null) continue;
+      final int available = readInt(stored['availableAmount']) ?? 0;
+      if (available <= 0) continue;
+      final Object? paidOn = stored['lastPaidOn'];
+      pools.add(
+        SurplusPoolRead(
+          // ★ **ومعرّفُ السجل آخرُ مقطعٍ في مساره** — ⟵ **وهو ما يُكتب به.**
+          surplusId: entry.key.split('/').last,
+          scope: entry.value,
+          paidOn: paidOn is DateTime
+              ? CalendarDay.fromUtc(paidOn.toUtc())
+              // ⛔★★ **وتاريخٌ غائب لا يُسقِط السجل** — ★ **يدخل البيان
+              //    الآلي بيومٍ محايد**: ⟵ **وحجبُ فائضٍ مستحقٍّ لأن حقلَ
+              //    عرضٍ غاب أسوأ من بيانٍ ناقص.**
+              : CalendarDay(1970, 1, 1),
+          available: Money(available),
+        ),
+      );
+    }
+    return pools;
+  }
+
   static DocumentQuery _dealerLedgerQuery({
     required String dealerId,
     required String sourceId,
@@ -630,22 +685,6 @@ final class DistributionHandler {
     return byItem;
   }
 
-  /// ★★ تسوية الضمار المخزَّنة — ⛔ **والغياب «لم يُمَسّ» لا صفراً محسوباً**.
-  static DebtSettlement? _settlementOf(
-    Map<String, Object?>? stored,
-    Map<String, Object?>? pricing,
-  ) {
-    if (stored == null) return null;
-    final int? settled = readInt(stored['settledAmount']);
-    final int? discounted = readInt(stored['discountedAmount']);
-    if (settled == null && discounted == null) return null;
-    return computeDebtSettlement(
-      debtValue: Money(readInt(pricing?['debtValue']) ?? 0),
-      settledAmount: Money(settled ?? 0),
-      discountedAmount: Money(discounted ?? 0),
-    );
-  }
-
   static Set<String> _storedItemKeys(Map<String, Object?> document) {
     final Object? lines = document['lines'];
     if (lines is! List<Object?>) return <String>{};
@@ -710,6 +749,35 @@ final class DistributionHandler {
 }
 
 /// سطرٌ كما وصل في الحمولة — ⛔ **بلا اسمٍ ولا وحدة**: كلاهما من القاعدة.
+/// ═══════════════════════════════════════════════════════════════════════
+/// ★★ **تسوية الضمار المخزَّنة** — ⛔ **والغياب «لم يُمَسّ» لا صفراً محسوباً**.
+///
+/// ⛔⛔★★★ **والمبالغُ الثلاثة تُقرأ من `pricing/current` لا من الأب**
+/// (`IQ-027` · **الخيار أ** · 2026-08-28): **المتبقي + المسدَّد + المخصوم
+/// = `debtValue`** — ⟵ **فبقاؤها في الأب كان يكشف قيمة الضمار لمن لا يملك
+/// `distributionPriceView`**، ★ **وهو عينُ ما نُقل `debtValue` من أجله**
+/// ([`ADR-0011`]). ★ **و`settlementStatus` وحده يبقى في الأب** — **حالةٌ لا
+/// رقم**، ⟵ **والفهرس القائم عليه صالحٌ بلا تغيير.**
+///
+/// ⛔⛔★★ **ودالةٌ عليا لا خاصّةٌ داخل الصنف — عمداً:** ★ **هذه طبقةُ
+/// المعالِج**، ⟵ **ودرسُ [`DEBT-37`] و[`DEBT-55`] أنها لم تكن مُختبَرةً قطّ**
+/// بينما اختباراتُ التخطيط تُمرِّر [DebtSettlement] جاهزةً فلا ترى المصدر.
+/// ═══════════════════════════════════════════════════════════════════════
+DebtSettlement? readStoredSettlement(
+  Map<String, Object?>? stored,
+  Map<String, Object?>? pricing,
+) {
+  if (stored == null || pricing == null) return null;
+  final int? settled = readInt(pricing['settledAmount']);
+  final int? discounted = readInt(pricing['discountedAmount']);
+  if (settled == null && discounted == null) return null;
+  return computeDebtSettlement(
+    debtValue: Money(readInt(pricing['debtValue']) ?? 0),
+    settledAmount: Money(settled ?? 0),
+    discountedAmount: Money(discounted ?? 0),
+  );
+}
+
 final class _LineRequest {
   const _LineRequest({
     required this.itemId,
