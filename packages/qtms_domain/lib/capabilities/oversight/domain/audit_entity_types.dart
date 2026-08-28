@@ -54,6 +54,14 @@ const String dailyPriceEntityType = 'dailyPrice';
 /// `entityId`** ⛔ **لا `documentNumber`.**
 const String distributionEntityType = 'distribution';
 
+/// ★ سند القبض — `M12` (`WU-007`).
+///
+/// ⚠️ **ومعرّفه رقم المستند `RCP-YYYYMMDD-####`** — ★ **بخلاف
+/// [distributionEntityType] الذي معرّفه مركّب**: ⟵ **لأن `receipts` مفتاحُها
+/// `documentNumber` نفسُه** (`schema/receipts.md`)، ★ **والسجل السياقي 🕘
+/// يستعلم بما يُفتَح به المستند فعلاً** (`FR-M18-10`).
+const String receiptEntityType = 'receipt';
+
 /// المستخدم — `M1`.
 const String userEntityType = 'user';
 

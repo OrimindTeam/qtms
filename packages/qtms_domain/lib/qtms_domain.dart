@@ -32,6 +32,8 @@ export 'capabilities/oversight/domain/audit_entry.dart';
 export 'capabilities/oversight/domain/audit_log_repository.dart';
 export 'capabilities/sales_receivables/domain/distribution.dart';
 export 'capabilities/sales_receivables/domain/distribution_repository.dart';
+export 'capabilities/sales_receivables/domain/receipt.dart';
+export 'capabilities/sales_receivables/domain/receipt_repository.dart';
 export 'core/calendar_day.dart';
 export 'core/counter_key.dart';
 export 'core/document_number.dart';
