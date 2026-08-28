@@ -127,6 +127,17 @@ class _RolesList extends ConsumerWidget {
     return EntityList(
       itemCount: roles.length,
       itemBuilder: (BuildContext context, int index) => _RoleTile(
+        // ⛔⛔★★★ **مفتاحٌ ثابتٌ بمعرّف الدور — `DEBT-58`.**
+        //
+        // ⚠️⚠️ **وليس تجميلاً:** ★ **`_RoleTile` مُحافِظٌ على
+        //   حالة** (`_rejection` و`_busy`) — ⟵ **وبلا مفتاح يُطابق Flutter
+        //   عناصرَ السرد بالموضع والنوع وحدهما**: ⛔ **فحين يقصُر السرد
+        //   يرث الجارُ البريء `State` مَن رُفِض حذفُه**، ★ **فتظهر رسالةُ
+        //   رفضٍ على بطاقةٍ لم تُمَسّ — فيُعيد المدير محاولةَ عملٍ لم يُخفِق.**
+        //
+        // ⛔ **ولا يُعالَج بتصفير الرسالة عند إعادة البناء** — ★ **ذلك يُخفي
+        //   العَرَض ولا يمنع إعادةَ الاستعمال نفسَها.**
+        key: ValueKey<String>(roles[index].roleId),
         role: roles[index],
         assignment: switch (assigned) {
           null => RoleAssignmentView.unknown,
@@ -157,7 +168,11 @@ enum RoleAssignmentView {
 }
 
 class _RoleTile extends ConsumerStatefulWidget {
-  const _RoleTile({required this.role, required this.assignment});
+  const _RoleTile({
+    required this.role,
+    required this.assignment,
+    super.key,
+  });
 
   final RoleCard role;
   final RoleAssignmentView assignment;

@@ -48,6 +48,23 @@ flutter run
 وبدونه يفشل البناء برسالة صريحة `File google-services.json is missing` —
 **وهو فشل صحيح لا عطل.**
 
+**①-ب ★★ عنوان خدمة العمليات — ✅ مُضمَّنٌ في المستودع منذ 2026-08-28:**
+
+★ **القيمة في ملفٍّ عامٍّ مُلتزَمٍ به** ⛔ **لا في `.secrets/`** (`ADR-0022`):
+[`config/qtms-public-defines.env`](../../config/qtms-public-defines.env)
+
+```bash
+flutter run --flavor staging -d emulator-5554 --dart-define-from-file=config/qtms-public-defines.env --dart-define-from-file=.secrets/qtms-staging-qa-account.env
+```
+
+> ★ **والأخصُّ آخِراً** — ⟵ **فما في الملف السرّي يغلب عند التصادم**:
+> **الملفُّ العام احتياطيٌّ لا حاكم** (`ADR-0022` القاعدة 4).
+>
+> ⛔⛔★★ **وبناءٌ بلا هذه القيمة لا يُخفق في البناء بل عند أول كتابة** —
+> ★ **`_baseUrl` يصير فارغاً فيرتدّ `CallableClient.call` قبل `http.post`**:
+> **لا طلبَ يُرسَل ولا سطرَ في سجل Cloud Run** (`DEBT-49` · `DEBT-52` ·
+> [`troubleshooting-guide.md`](../13-operations/troubleshooting-guide.md) §1).
+
 **② ★ توجيه `TEMP` قبل البناء — على الأجهزة المصابة بـ`DEBT-11` فقط:**
 
 ```bash

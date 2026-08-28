@@ -288,6 +288,50 @@ void main() {
     directory.dispose();
   });
 
+  testWidgets(
+    '⛔⛔★★★ DEBT-58: رفضُ بطاقةٍ لا يُهاجر إلى جارتها حين تختفي صاحبتُه',
+    (WidgetTester tester) async {
+      // ⚠️⚠️★★ **وهذا نصُّ سيناريو الاكتشاف الحيّ حرفياً:** ① **حذفُ
+      //    `R-PROBE` أخفق بانقطاعٍ صامت ⟵ فظهرت الرسالة في بطاقته هو**
+      //    (صحيح) · ② **ثم عادت الشبكة وحُذف فعلاً ⟵ ⛔ والرسالةُ انتقلت
+      //    إلى البطاقة الباقية** — ★ **وهي لم تُمَسّ قطّ.**
+      //
+      // ⛔ **والحارس مفتاحُ الصفّ لا تصفيرُ الرسالة** — ★ **فالاختبار يقيس
+      //    البطاقةَ الباقية بعد قِصَر السرد** لا لحظةَ الرفض وحدها.
+      final FakeRoleAdmin roles = FakeRoleAdmin()
+        ..emit(<RoleCard>[
+          testRole(roleId: 'R-PROBE', name: 'دور تجريبي'),
+          testRole(roleId: 'R-KEEP', name: 'دور باقٍ'),
+        ])
+        ..result = const Failure<void>(ConnectivityError());
+      final FakeUserDirectory directory = FakeUserDirectory()
+        ..emit(<UserCard>[testCard()]);
+
+      await pumpRoles(tester, roles: roles, directory: directory);
+
+      // ① **إخفاقُ الحذف تحت انقطاع الشبكة** — والبطاقة الأولى وحدها تحمله.
+      await tester.tap(find.byTooltip('حذف الدور').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'حذف الدور'));
+      await tester.pumpAndSettle();
+
+      final String offline = catalogText(CatalogMessage.noConnection);
+      expect(find.text(offline), findsOneWidget);
+
+      // ② **عادت الشبكة وحُذف فعلاً** ⟵ **فقصُر السرد إلى بطاقةٍ واحدة.**
+      roles.result = const Success<void>(null);
+      roles.emit(<RoleCard>[testRole(roleId: 'R-KEEP', name: 'دور باقٍ')]);
+      await tester.pumpAndSettle();
+
+      expect(find.text('دور باقٍ'), findsOneWidget);
+      expect(find.text('دور تجريبي'), findsNothing);
+      // ⛔⛔★★★ **ولا أثرَ لرفضٍ على البطاقة البريئة** — ★ **وهو العطل بعينه.**
+      expect(find.text(offline), findsNothing);
+      roles.dispose();
+      directory.dispose();
+    },
+  );
+
   group('⛔⛔★★★ ADR-0020 — وسببُ التعديل اختياريٌّ في نموذج الدور', () {
     // ⚠️⚠️★★ **ومقصدُ هذه المجموعة مزدوج:** ★ **تُثبت القاعدة**، ⟵ **وتحرس
     //    مسارَ التعديل الذي لم يكن مقيساً قبلها** — ⛔ **فبقي بلا شاهد.**

@@ -75,24 +75,21 @@ if (_baseUrl.trim().isEmpty) {
 
 ### ✅ العلاج — والأمر الصحيح كاملاً
 
-```bash
-flutter run --flavor staging -d emulator-5554 \
-  --dart-define-from-file=.secrets/qtms-staging-qa-account.env
-```
-
-★★ **و`QTMS_FUNCTIONS_BASE_URL` مُضافٌ إلى ذلك الملف منذ 2026-08-28** —
-⟵ **فلا حاجة لتمريره منفصلاً بعد اليوم.**
-
-⛔⛔★★ **لكنِ انتبه — `.secrets/` مُستبعَدٌ من المستودع** (`.gitignore:55`):
-⟵ **فعلى أي نسخةٍ جديدة من المشروع يعود الملف بلا هذا المفتاح**، ★ **والعَلَم
-يُمرَّر يدوياً حتى يُضاف:**
+✅★★★ **و`QTMS_FUNCTIONS_BASE_URL` صار مُضمَّناً في المستودع منذ 2026-08-28**
+(`ADR-0022`) — ⟵ **فالأمرُ الكامل يمرِّر ملفّين لا واحداً:**
 
 ```bash
-  --dart-define=QTMS_FUNCTIONS_BASE_URL=https://qtms-callables-7stgg3ngga-ww.a.run.app
+flutter run --flavor staging -d emulator-5554 --dart-define-from-file=config/qtms-public-defines.env --dart-define-from-file=.secrets/qtms-staging-qa-account.env
 ```
 
-⚠️ **والعنوان معرّفٌ لا سرّ** (`environments.md` §1.3) — ★ **ومصادرُه الموثوقة
-الثلاثة في المشروع:** [`tool/grant_staging_qa_access.py:21`](../../tool/grant_staging_qa_access.py) ·
+★ **والأول** [`config/qtms-public-defines.env`](../../config/qtms-public-defines.env)
+**مُلتزَمٌ به ويصحب `git clone`** ⟵ ✅ **فلا نسخةَ مشروعٍ تبدأ بلا القيمة بعد
+اليوم** — ⛔ **وهو ما تكرّر أربع مرات قبله.** ★ **والثاني `.secrets/` كما هو
+مستبعَدٌ**، ⟵ **ويغلب الأولَ عند التصادم لأنه آخِرٌ** (`ADR-0022` القاعدة 4).
+
+⚠️ **والعنوان معرّفٌ لا سرّ** (`environments.md` §1.3) — ★ **ومصدرُه الحاكم
+اليوم ملفُّ الثوابت أعلاه**، **وتؤكّده ثلاثةُ مواضع قائمة:**
+[`tool/grant_staging_qa_access.py:21`](../../tool/grant_staging_qa_access.py) ·
 [`tool/seed_staging_master_data.py:13`](../../tool/seed_staging_master_data.py) ·
 تقرير `run3` §7. ⛔ **ولا يُخمَّن.**
 
