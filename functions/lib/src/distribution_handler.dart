@@ -40,7 +40,8 @@ import 'inventory_handler.dart'
         platformDayOf,
         readInt,
         readItemRecords,
-        readLedgerMovements;
+        readLedgerMovements,
+        withLedgerItems;
 import 'permission_sync_handler.dart' show requestIdField;
 
 /// اسم حقل سبب التعديل أو الإلغاء في الحمولة.
@@ -253,7 +254,15 @@ final class DistributionHandler {
         );
         onAllocated(number, compositeId);
 
-        final Map<String, ItemRead> items = readItemRecords(reads, itemPaths);
+        // ★★★ **والمفتاح المركّب نوعٌ لا سجل له** — راجع [withLedgerItems]:
+        //    ⛔ **بلا هذا لا يُوزَّع سطرُ جونيةٍ إطلاقاً** — ★ **وهي مقايسةُ
+        //    `DEBT-55` نفسُها في هذا المسار** (`FR-M10-13`).
+        final Map<String, ItemRead> items = withLedgerItems(
+          readItemRecords(reads, itemPaths),
+          reads: reads,
+          itemKeys: itemPaths.keys,
+          sourceId: sourceId,
+        );
         final Outcome<ValidatedDistribution> validated = _validate(
           sourceId: sourceId,
           dealerId: dealerId,
@@ -399,7 +408,15 @@ final class DistributionHandler {
         _dealerLedgerQuery(dealerId: dealerId, sourceId: sourceId),
       ],
       plan: (TransactionReads reads) {
-        final Map<String, ItemRead> items = readItemRecords(reads, itemPaths);
+        // ★★★ **والمفتاح المركّب نوعٌ لا سجل له** — راجع [withLedgerItems]:
+        //    ⛔ **بلا هذا لا يُوزَّع سطرُ جونيةٍ إطلاقاً** — ★ **وهي مقايسةُ
+        //    `DEBT-55` نفسُها في هذا المسار** (`FR-M10-13`).
+        final Map<String, ItemRead> items = withLedgerItems(
+          readItemRecords(reads, itemPaths),
+          reads: reads,
+          itemKeys: itemPaths.keys,
+          sourceId: sourceId,
+        );
         final Map<String, Object?>? stored = reads.document(documentPath);
         final Map<String, Object?>? pricing = reads.document(pricingPath);
 

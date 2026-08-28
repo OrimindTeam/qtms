@@ -117,6 +117,58 @@ Map<String, ItemRead> readItemRecords(
   return items;
 }
 
+/// ★★★ **سجلات الأنواع مُتمَّمةً من الدفتر لكل مفتاحٍ مركّب** (`DEBT-55`).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **ولماذا لا يكفي [readItemRecords] وحده:** `itemKey` في الدفتر
+/// **«النوع أو الاسم المركّب»** (`inventory-ledger.md` · `ADR-0007`) —
+/// ★ **وسطرُ الجونية يدخل المخزن بمفتاحٍ مركّب** (`سلة - جونية رقم 1`)
+/// ⛔ **لا بمعرّف سجل نوع**، ⟵ **فقراءةُ `items/{itemKey}` تردّ غياباً.**
+///
+/// ⚠️⚠️★★★ **وهذا بالضبط ما أخفق حيّاً:** `POST /writeDailyPrices` ⟵ **`400`**
+/// (2026-08-28) — ★ **ومخزونُ ذلك اليوم كلُّه من جونية**، ⟵ **فسقط كلُّ
+/// سطرٍ على «النوع غير موجود»** ⛔ **بينما `FR-M9-02` ينصّ صراحةً على
+/// تسعير ما ورد «عدداً أو جواني أو كان سكرباً».**
+///
+/// ★★ **ومن أين تُؤخذ الوحدة والاسم إذن:** **من حركة الدفتر نفسها** —
+/// ⛔ **لا من الحمولة**: ★ **الحركةُ كتبتها السحابة في معاملةٍ سابقة**،
+/// ⟵ **فهي بيانٌ مخزَّن كسجل النوع تماماً** (`ADR-0008`: «الرصيد مشتقّ من
+/// الدفتر دائماً») — **وشرطُ `FR-M9-06` «الوحدة المخزَّنة لا المُرسَلة»
+/// مصونٌ حرفياً.**
+///
+/// ★ **و[ItemRead.sourceIds] هو المصدر المطلوب وحده** — ⟵ **لأن الاستعلام
+/// قيّد `sourceId` أصلاً**، **فوجودُ حركةٍ مطابقة إثباتُ انتماءٍ لا افتراض.**
+/// ★ **و[ItemRead.isActive] صحيحٌ دائماً** — ⛔ **إذ لا سجلَ يُعطَّل لمفتاحٍ
+/// مركّب**، ⟵ **والحارسُ الفعلي رصيدُ اليوم المقيس من الدفتر بعده.**
+///
+/// ⛔★★ **ولا يُشتقّ شيءٌ من حركةٍ ملغاة** — ★ **الملغاة ليست مصدرَ هوية
+/// كما أنها ليست مصدرَ رصيد** (`A-14`).
+/// ═══════════════════════════════════════════════════════════════════════
+Map<String, ItemRead> withLedgerItems(
+  Map<String, ItemRead> items, {
+  required TransactionReads reads,
+  required Iterable<String> itemKeys,
+  required String sourceId,
+}) {
+  final Map<String, ItemRead> completed = <String, ItemRead>{...items};
+  for (final String itemKey in itemKeys) {
+    if (completed.containsKey(itemKey)) continue;
+    for (final Map<String, Object?> document in reads.matchedDocuments(itemKey)) {
+      if (document['isCancelled'] == true) continue;
+      final Object? name = document['itemName'];
+      completed[itemKey] = ItemRead(
+        itemId: itemKey,
+        name: name is String && name.isNotEmpty ? name : itemKey,
+        unit: readItemUnit(document['unit']),
+        isActive: true,
+        sourceIds: <String>[sourceId],
+      );
+      break;
+    }
+  }
+  return completed;
+}
+
 /// ★★ حركات الدفتر لكل نوع — ⛔ **والمجموعة المبتورة رفضٌ لا جمعٌ ناقص**.
 ///
 /// [units] وحدةُ كل نوع **كما هي مخزَّنة في سجله** — ★ **وبها تُبنى الكمية**

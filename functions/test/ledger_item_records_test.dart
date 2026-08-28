@@ -1,0 +1,135 @@
+/// ★★★ **المفتاح المركّب نوعٌ لا سجل له** — اختبارُ ارتداد `DEBT-55`.
+///
+/// ⛔⛔★★★ **ولماذا ملفٌّ مستقل لطبقة المعالِج:** `daily_pricing_test.dart`
+/// يختبر **التخطيط الخالص** بخريطة أنواعٍ **مبنيّةٍ في الاختبار نفسه** —
+/// ⟵ **فلم يرَ قطُّ أن المعالِج يبنيها من `items/{itemKey}` وحدها**،
+/// ⛔ **وسقط كلُّ سطرِ جونيةٍ حيّاً بينما 1271 اختباراً أخضر.**
+/// ★★ **وهو درسُ `DEBT-37` حرفياً: اختبارُ الطبقة لا يُغني عن اختبار ما
+/// يعبر بينها.**
+library;
+
+import 'package:qtms_domain/qtms_domain.dart';
+import 'package:qtms_functions/src/audited_transaction.dart';
+import 'package:qtms_functions/src/inventory.dart' show ItemRead;
+import 'package:qtms_functions/src/inventory_handler.dart' show withLedgerItems;
+import 'package:test/test.dart';
+
+const String sourceA = 'SRC-001';
+const String compositeKey = 'سلة - جونية رقم 1';
+const String scrapKey = 'السكرب - جونية رقم 1';
+
+/// حركةُ دفترٍ كما تُقرأ فعلاً — ★ **بحقول الإنتاج نفسها** (`inventory-ledger.md`).
+Map<String, Object?> ledgerDocument({
+  String itemKey = compositeKey,
+  String itemName = 'سلة',
+  String unit = 'piece',
+  bool cancelled = false,
+}) =>
+    <String, Object?>{
+      'sourceId': sourceA,
+      'itemKey': itemKey,
+      'itemName': itemName,
+      'unit': unit,
+      'direction': 'incoming',
+      'quantity': 250,
+      'isCancelled': cancelled,
+      'sourceDocType': 'sack',
+    };
+
+TransactionReads readsOf(Map<String, List<Map<String, Object?>>> matched) =>
+    TransactionReads(
+      documents: const <String, Map<String, Object?>?>{},
+      queries: <String, List<String>>{
+        for (final MapEntry<String, List<Map<String, Object?>>> entry
+            in matched.entries)
+          entry.key: <String>[
+            for (int i = 0; i < entry.value.length; i++) 'mv-${entry.key}-$i',
+          ],
+      },
+      queryDocuments: matched,
+    );
+
+void main() {
+  group('★★★ `DEBT-55` — الاسم المركّب يُسعَّر ويُوزَّع', () {
+    test('✅★★ مفتاحٌ مركّبٌ بلا سجل نوع يُستكمَل من الدفتر', () {
+      final Map<String, ItemRead> completed = withLedgerItems(
+        const <String, ItemRead>{},
+        reads: readsOf(<String, List<Map<String, Object?>>>{
+          compositeKey: <Map<String, Object?>>[ledgerDocument()],
+        }),
+        itemKeys: const <String>[compositeKey],
+        sourceId: sourceA,
+      );
+
+      final ItemRead? item = completed[compositeKey];
+      expect(item, isNotNull, reason: '⛔ غيابُه هو عينُ الرفض `400` حيّاً');
+      expect(item!.itemId, compositeKey);
+      // ★ الاسم من الدفتر ⛔ لا من الحمولة.
+      expect(item.name, 'سلة');
+      // ★ **الوحدة المخزَّنة لا المُرسَلة** — `FR-M9-06`.
+      expect(item.unit, ItemUnit.piece);
+      expect(item.isActive, isTrue);
+      // ★ الاستعلام قيّد المصدر ⟵ فالانتماء مُثبَت لا مفترَض.
+      expect(item.sourceIds, <String>[sourceA]);
+    });
+
+    test('✅★ والسكرب بالكيلوجرام — ⛔ لا يُقرأ حبّاتٍ', () {
+      final Map<String, ItemRead> completed = withLedgerItems(
+        const <String, ItemRead>{},
+        reads: readsOf(<String, List<Map<String, Object?>>>{
+          scrapKey: <Map<String, Object?>>[
+            ledgerDocument(
+              itemKey: scrapKey,
+              itemName: scrapKey,
+              unit: 'kilogram',
+            ),
+          ],
+        }),
+        itemKeys: const <String>[scrapKey],
+        sourceId: sourceA,
+      );
+
+      expect(completed[scrapKey]!.unit, ItemUnit.kilogram);
+    });
+
+    test('⛔★★ ولا هويةَ من حركةٍ ملغاة — `A-14`', () {
+      final Map<String, ItemRead> completed = withLedgerItems(
+        const <String, ItemRead>{},
+        reads: readsOf(<String, List<Map<String, Object?>>>{
+          compositeKey: <Map<String, Object?>>[
+            ledgerDocument(cancelled: true),
+          ],
+        }),
+        itemKeys: const <String>[compositeKey],
+        sourceId: sourceA,
+      );
+
+      expect(completed, isEmpty);
+    });
+
+    test('⛔★★★ وسجلُّ النوع القائم لا يُستبدَل بالدفتر', () {
+      const ItemRead stored = ItemRead(
+        itemId: 'ITM-0002',
+        name: 'سلة',
+        unit: ItemUnit.piece,
+        isActive: false,
+        sourceIds: <String>[sourceA, 'SRC-002'],
+      );
+
+      final Map<String, ItemRead> completed = withLedgerItems(
+        const <String, ItemRead>{'ITM-0002': stored},
+        reads: readsOf(<String, List<Map<String, Object?>>>{
+          'ITM-0002': <Map<String, Object?>>[
+            ledgerDocument(itemKey: 'ITM-0002'),
+          ],
+        }),
+        itemKeys: const <String>['ITM-0002'],
+        sourceId: sourceA,
+      );
+
+      // ⛔ **ولو استُبدل لعاد نوعٌ معطَّلٌ نشطاً** — ★ وهو تصعيدُ حالة.
+      expect(completed['ITM-0002']!.isActive, isFalse);
+      expect(completed['ITM-0002']!.sourceIds, stored.sourceIds);
+    });
+  });
+}

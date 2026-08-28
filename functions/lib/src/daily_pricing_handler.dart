@@ -38,7 +38,8 @@ import 'inventory_handler.dart'
         platformDayOf,
         readInt,
         readItemRecords,
-        readLedgerMovements;
+        readLedgerMovements,
+        withLedgerItems;
 import 'permission_sync_handler.dart' show requestIdField;
 
 /// اسم حقل سبب التعديل في الحمولة.
@@ -197,7 +198,15 @@ final class DailyPricingHandler {
           throw const AbortTransaction(CallableError.concurrency);
         }
 
-        final Map<String, ItemRead> items = readItemRecords(reads, itemPaths);
+        // ★★★ **والمفتاح المركّب نوعٌ لا سجل له** — راجع [withLedgerItems]:
+        //    ⛔ **بلا هذا السطر يسقط كلُّ سطرِ جونيةٍ على «النوع غير موجود»**
+        //    (`DEBT-55`)، ⟵ **و`FR-M9-02` يُسعِّر ما ورد جواني وسكرباً نصّاً.**
+        final Map<String, ItemRead> items = withLedgerItems(
+          readItemRecords(reads, itemPaths),
+          reads: reads,
+          itemKeys: itemPaths.keys,
+          sourceId: sourceId,
+        );
         final Outcome<ValidatedDailyPriceBatch> validated = _validate(
           sourceId: sourceId,
           lines: lines,
