@@ -24,6 +24,7 @@ import '../capabilities/inventory/presentation/daily_pricing_screen.dart';
 import '../capabilities/inventory/presentation/today_stock_screen.dart';
 import '../capabilities/oversight/presentation/audit_log_screen.dart';
 import '../capabilities/sales_receivables/presentation/distribution_screen.dart';
+import '../capabilities/sales_receivables/presentation/receipt_screen.dart';
 import '../capabilities/master_data/application/master_data_providers.dart';
 import '../capabilities/master_data/presentation/dealers_screen.dart';
 import '../capabilities/master_data/presentation/first_run_setup_screen.dart';
@@ -97,6 +98,13 @@ const String dailyPricingRoute = '/home/pricing';
 /// يحدده النظام**، ⟵ **ومسارٌ يقبله كان يُوحي بأنه يُختار**؛ ★ **والمقوت
 /// اختيارٌ داخل الشاشة** ⛔ **لا مستوىً ثالث** (`ui-guidelines.md` §4).
 const String distributionRoute = '/home/distribution';
+
+/// ★ مسار المقبوضات (`M12` · `WU-007`) — **مستويان**.
+///
+/// ⛔★★ **ولا معامل مقوتٍ ولا تاريخٍ في المسار** — ★ **كلاهما اختيارٌ داخل
+/// الشاشة** (`ui-guidelines.md` §4): ⟵ **ومسارٌ يحمل تاريخاً كان يُوحي بأن
+/// «المقبوض في تاريخ» يُختار من الرابط**، ⛔ **وهو حقلُ سندٍ لا وجهةُ ملاحة.**
+const String receiptRoute = '/home/receipts';
 
 /// ★ مسار سجل التدقيق المركزي (`FR-M18-09`) — **مستويان**.
 ///
@@ -204,6 +212,12 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             path: 'distribution',
             builder: (BuildContext context, GoRouterState state) =>
                 const DistributionScreen(),
+          ),
+          // ── المقبوضات (`WU-007`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'receipts',
+            builder: (BuildContext context, GoRouterState state) =>
+                const ReceiptScreen(),
           ),
           // ── سجل التدقيق (`WU-008`) — شاشةٌ بمستويين ──
           GoRoute(

@@ -158,6 +158,23 @@ enum CatalogMessageId {
   /// ⛔★★ `ERR_AMEND_005` — **إلغاء توزيعةٍ سُدِّد ضمارها** (`E-15`).
   settledDebtBlocksCancel,
 
+  // ── المقبوضات (`WU-007`) — الكتالوج §`DIST` ──
+  //
+  // ⛔★★ **ولا نصّ مُخترَع واحد:** الأربعة **رموزٌ ونصوصٌ قائمة في الكتالوج**
+  //    قبل هذه الزيادة — ★ **والزيادة تستهلكه ولا تُوسّعه** (§3 القاعدة 5).
+
+  /// ⛔★★ `ERR_DIST_004` — **المبلغ الواصل يتجاوز المتبقي** (`FR-M12-06`).
+  receiptExceedsDebt,
+
+  /// ⛔⛔★★ `ERR_DIST_006` — **تاريخ مستقبلي** (`FR-M12-02` · `AT-56`).
+  futureDateRejected,
+
+  /// `ERR_DIST_007` — **تسجيل بتاريخ سابق بلا صلاحية** (`E-14`).
+  backdateDenied,
+
+  /// ★★ `ERR_DIST_008` — **ملاحظة الإيداع مفقودة** (`FR-M12-15` · `AT-36`).
+  depositNoteMissing,
+
   /// ★ `ERR_CALL_500` — **فشل عملية غير متوقَّع**، ⛔ **ومصير كل رمز مجهول**.
   operationFailed,
 }
@@ -291,6 +308,18 @@ sealed class CatalogMessage {
   );
   static const CatalogMessage settledDebtBlocksCancel = CatalogEntry(
     CatalogMessageId.settledDebtBlocksCancel,
+  );
+  static const CatalogMessage receiptExceedsDebt = CatalogEntry(
+    CatalogMessageId.receiptExceedsDebt,
+  );
+  static const CatalogMessage futureDateRejected = CatalogEntry(
+    CatalogMessageId.futureDateRejected,
+  );
+  static const CatalogMessage backdateDenied = CatalogEntry(
+    CatalogMessageId.backdateDenied,
+  );
+  static const CatalogMessage depositNoteMissing = CatalogEntry(
+    CatalogMessageId.depositNoteMissing,
   );
   static const CatalogMessage operationFailed = CatalogEntry(
     CatalogMessageId.operationFailed,
@@ -445,6 +474,17 @@ String _entryText(CatalogMessageId message) => switch (message) {
       CatalogMessageId.settledDebtBlocksCancel =>
         '❌ لا يمكن إلغاء توزيعة سُدِّد ضمارها كلياً أو جزئياً. '
             'عالج السداد أولاً.',
+      // ★ **منقولةٌ حرفاً بحرف من `error-codes-catalog.md` §`DIST`**
+      //   — ⚠️ **وقوالب `{المبلغ}` و`{المتبقي}` لا تُملأ هنا** (راجع أعلاه):
+      //   ★ **هذا المعبر لا يملك السياق**، ⟵ **فيُعرَض النصّ بلا القالب.**
+      CatalogMessageId.receiptExceedsDebt =>
+        '❌ المبلغ الواصل يتجاوز المتبقي على هذا الضمار.',
+      CatalogMessageId.futureDateRejected =>
+        '❌ لا يمكن تسجيل عملية بتاريخ مستقبلي.',
+      CatalogMessageId.backdateDenied =>
+        '❌ ليس لديك صلاحية التسجيل بتاريخ سابق.',
+      CatalogMessageId.depositNoteMissing =>
+        '❌ تأكيد الإيداع البنكي يتطلب إدخال ملاحظة.',
       CatalogMessageId.operationFailed => '❌ تعذّر إتمام العملية. أعد المحاولة.',
     };
 
@@ -491,6 +531,11 @@ CatalogMessage callableErrorMessage(String code) => switch (code) {
       'ERR_DIST_002' => CatalogMessage.dealerInactive,
       'ERR_PRICE_001' => CatalogMessage.distributionPricingDenied,
       'ERR_AMEND_005' => CatalogMessage.settledDebtBlocksCancel,
+      // ── المقبوضات (`WU-007`) ──
+      'ERR_DIST_004' => CatalogMessage.receiptExceedsDebt,
+      'ERR_DIST_006' => CatalogMessage.futureDateRejected,
+      'ERR_DIST_007' => CatalogMessage.backdateDenied,
+      'ERR_DIST_008' => CatalogMessage.depositNoteMissing,
       // ── التسعير اليومي (`WU-005`) ──
       'ERR_MONEY_001' => CatalogMessage.fractionalMoney,
       // ⛔⛔★★★ **والمجهول يصل بنصّه لا برسالةٍ عامة** — `DEBT-52`:

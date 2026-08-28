@@ -85,6 +85,20 @@ class HomeShell extends ConsumerWidget {
                   ),
                 ),
               ),
+              // ⚠️⚠️ **وإخفاءٌ لا حماية** — ★ **والفحصُ في `receiptGate`**،
+              //    ⛔ **ولا مفتاح «عرض المقبوضات» في الكتالوج §2.5**:
+              //    ★ **الستةُ فيه مفاتيحُ فعلٍ لا عرض**، ⟵ **فمدخلُ الشاشة
+              //    `receiptCreate`** ⛔ **ولا يُخترَع مفتاحٌ سابع** (`BR-M1-07`).
+              PermissionGate(
+                permission: Permission.receiptCreate,
+                child: QtmsHubButton(
+                  entry: QtmsHubEntry(
+                    label: 'المقبوضات',
+                    icon: Icons.payments_outlined,
+                    onPressed: () => context.go(receiptRoute),
+                  ),
+                ),
+              ),
               PermissionGate(
                 permission: Permission.incomingCountWrite,
                 child: QtmsHubButton(

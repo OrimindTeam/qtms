@@ -243,8 +243,7 @@
 | `lines[]` | `itemKey` · `itemName` · ★ `sackId?` · ★ `unit` · `quantity` · `note` — ⛔ **بلا أي سعر** |
 | `unpricedLineCount` | 🧮 **عدد لا مبلغ** — مصدر وسم «مسعَّر جزئياً» |
 | `totalPieces` · `totalWeight` | 🧮 **منفصلان دائماً** |
-| ★ `settledAmount` · `discountedAmount` · `remaining` | 🧮 ⛅ **لا يكتبها التطبيق** |
-| ★ `settlementStatus` | مفتوح / مفتوح جزئياً / مغلق |
+| ★ `settlementStatus` | مفتوح / مفتوح جزئياً / مغلق — ★ **حالةٌ لا مبلغ** |
 | `status` | معتمد / **مسعَّر جزئياً** / مسعَّر / ملغى |
 | `cancelReason` · `amendCount` | — |
 
@@ -260,6 +259,7 @@
 | ★ `sourceId` | **نسخة من الأب** — لفحص النطاق بلا قراءة إضافية |
 | `unitPrices[]` · `lineTotals[]` | **موازية لترتيب `lines[]` في الأب** · السعر **مُجمَّد** لحظة التوزيع |
 | ★ `debtValue` | 🧮 **مجموع السطور المسعَّرة فقط** |
+| ★★ `settledAmount` · `discountedAmount` · `remaining` | 🧮 ⛅ **لا يكتبها التطبيق** — ★ **هنا لا في الأب** (`IQ-027` الخيار أ · 2026-08-28): **الثلاثةُ يُستنتَج منها `debtValue` بالجمع** ⟵ **فمكانُها مكانُه** |
 
 > **القراءة:** `distributionPriceView` + النطاق · **الكتابة:** `distributionCreate`
 > **+** `distributionPriceNow`/`distributionPriceAmend`، أو `distributionPriceClear` ·
@@ -388,7 +388,7 @@
 |---|---|---|
 | **`item_daily_balances`** | `{sourceId}_{itemKey}_{stockDate}` | الوارد · الصادر · الرصيد · ★ `unit` · `itemName` · ★★ **و`sourceId` و`itemKey` و`stockDate` حقولاً صريحة** *(`WU-003` — ⚠️ **المفتاح المركّب لا يُفهرَس** وشرطُ القراءة `storedInScope()` **يقرأ `sourceId` من المستند**؛ نفس منطق `daily_summaries`)* — **وغياب السجل يعني صفراً** |
 | **`dealer_balances`** | `{dealerId}_{sourceId}` | المدين · الدائن · الرصيد · عدد الضمارات المفتوحة · تاريخ أقدمها |
-| **`dealer_surplus`** | `{dealerId}_{sourceId \| 'general'}` | الفائض المتاح · تاريخ آخر إدخال |
+| **`dealer_surplus`** | `{dealerId}_{sourceId \| 'general'}` | ★ **`availableAmount`** (الفائض المتاح) · `scope` · `sourceId?` · ★ `lastPaidOn` · `lastReceiptNumber` · `updatedAt` — ⛅ **تكتبه السحابة** (`WU-007`): ★ **المقبوضات تزيده والتوزيعُ يخصم منه** (`FR-M12-11`)، ⛔ **ولا يهبط تحت الصفر** |
 | **`supplier_balances`** | `{supplierId}_{sourceId}` | إجمالي سعر الجواني · إجمالي الضريبة · **الصافي** |
 | **`daily_summaries`** | `{sourceId}_{date}` · `all_{date}` | **البنود التسعة** + ★ **`retroUpdatedAt`** + ★ **`sourceId` و`date` حقلين صريحين** *(⚠️ المفتاح المركّب لا يُفهرَس — `IQ-002` ④)* · **وقيمة `sourceId` في البطاقة التجميعية هي `'all'`** |
 | **`pending_entries`** | تلقائي | نوع المستند · معرّفه · **عنوانه المقروء** · المصدر · التاريخ · **القيمة الناقصة** · وجهة زر [إدخال] |

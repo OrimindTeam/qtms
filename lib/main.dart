@@ -40,6 +40,9 @@ import 'capabilities/oversight/infrastructure/firestore_audit_log_directory.dart
 import 'capabilities/sales_receivables/application/distribution_providers.dart';
 import 'capabilities/sales_receivables/infrastructure/firestore_distribution_directory.dart';
 import 'capabilities/sales_receivables/infrastructure/functions_distribution_repository.dart';
+import 'capabilities/sales_receivables/application/receipt_providers.dart';
+import 'capabilities/sales_receivables/infrastructure/firestore_receipt_directory.dart';
+import 'capabilities/sales_receivables/infrastructure/functions_receipt_repository.dart';
 import 'core/callable/callable_client.dart';
 import 'core/design/app_theme.dart';
 import 'core/design/brand.dart';
@@ -145,6 +148,19 @@ Future<void> main() async {
               ),
               distributionAdminProvider.overrideWithValue(
                 FunctionsDistributionRepository(
+                  client: _callableClient(),
+                  newRequestId: _newRequestId,
+                ),
+              ),
+              // ★★ `WU-007` — المقبوضات: **القراءة مباشرة والكتابة عبر
+              //   العمليات المستدعاة الأربع** (`ADR-0013` القاعدتان 2 و4).
+              //   ⛔★★ **ولا كتابة مباشرة على `receipts` ولا على حالة
+              //   إيداعها ولا على دفتر المقاوته ولا أرصدته ولا فائضه.**
+              receiptDirectoryProvider.overrideWithValue(
+                FirestoreReceiptDirectory(FirebaseFirestore.instance),
+              ),
+              receiptAdminProvider.overrideWithValue(
+                FunctionsReceiptRepository(
                   client: _callableClient(),
                   newRequestId: _newRequestId,
                 ),

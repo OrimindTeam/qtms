@@ -11,8 +11,13 @@ library;
 import 'package:qtms_domain/qtms_domain.dart';
 
 /// ★ تاريخ مقروء — `YYYY/MM/DD` بالأرقام اللاتينية.
-String dayLabel(CalendarDay day) =>
-    '${day.year}/${_two(day.month)}/${_two(day.day)}';
+///
+/// ⛔⛔★★ **وتُفوِّض إلى [CalendarDay.formatReadable] ⛔ ولا تنسخها** — ★ **لأن
+/// للصيغة قارئاً ثانياً خارج التطبيق:** **العملية السحابية تكتب بها البيان
+/// الآلي لتطبيق الفائض** (`FR-M12-11`) **نصّاً مخزَّناً يقرؤه المستخدم** —
+/// ⟵ **ونسختان تُنتجان تاريخين مختلفين للحدث نفسه** (`coding-standards.md`
+/// §2.2 · `ADR-0012`).
+String dayLabel(CalendarDay day) => day.formatReadable();
 
 /// ★★ لحظةٌ مقروءة — `YYYY/MM/DD HH:MM` **بتوقيت النظام نفسه (UTC)**.
 ///
