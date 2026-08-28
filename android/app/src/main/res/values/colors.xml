@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ★ AM-002 — لون خلفية شاشة الإقلاع: أبيض نقي، وهو لون الطبقة الخلفية
+    للأيقونة المعتمدة حرفياً (docs/19-assets/icons/README.md §2).
+  ⛔ ولا يُشتقّ من توكنز التصميم: هذه شاشة نظام تُرسَم قبل إقلاع Flutter،
+    فلا وصول لها إلى design_tokens.dart إطلاقاً.
+-->
+<resources>
+    <color name="launch_background">#FFFFFFFF</color>
+</resources>

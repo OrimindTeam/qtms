@@ -1,0 +1,71 @@
+{
+  "WU-000": {
+    "docs": {
+      "data-dictionary.md": null,
+      "docs/01-product/product-roadmap.md": "b006b37e0f1fdafad8a52b81ade2062e72ffcff5718b182b00fa1c9c568f1fd3",
+      "docs/06-database/erd.md": "f680581ce40803471acfa7bb4d125585b9000013f7f07563fb2b758c08703eab",
+      "docs/07-development/build-and-run-instructions.md": "9eb9bb0a04fe8339877d7a304640a191e3abcabdbfa88e38886704e87dbf4dba",
+      "docs/09-security/authentication-policy.md": "5551b1ae01837a6170f96878a93096ae3062d566a414e54241a0fd7f98f1866e",
+      "docs/09-security/permissions-catalog.md": "cdd669be8a1e40f48dc555befe953fdcb7ece5529c7e61d3c797c2ee09165dae",
+      "docs/09-security/secrets-management-policy.md": "61ab7666fe7d4c220e10e3c988164165ff3fc084ae72be887a91d4445364bba1",
+      "docs/09-security/security-requirements.md": "026a77e19c647fd8c8ffe93254d847c8b28240acf5828e6d28574e3326d4ee13",
+      "indexing-strategy.md": null
+    },
+    "title": "بوابة التأسيس التقني («الخطوة صفر»)"
+  },
+  "WU-001": {
+    "docs": {
+      "design-tokens.md": null,
+      "docs/04-design/coding-standards.md": "09f7206d28c465712a64a5b77b0e42ea5b70615c1ebccaf049972037288610ff",
+      "docs/04-design/design-overview.md": "dc9e8c3d52050181758df1eac8c8636137abf6676e7b426606097266c6ed3a42",
+      "docs/04-design/module-design/identity-access-design.md": "59e20fcf9b25934f321ac44859c3c50bdc83970d797bcf2347c89639669b24fd",
+      "docs/05-api/error-codes-catalog.md": "ac272df06fe1bbbaab931a20a7a97a1e5ca499094e17aece4f6b2bec90feb72d",
+      "docs/09-security/authentication-policy.md": "5551b1ae01837a6170f96878a93096ae3062d566a414e54241a0fd7f98f1866e",
+      "docs/17-localization-and-i18n/rtl-ltr-guidelines.md": "225a53a5a76a7f1331651191b5c5cdd2788ef208da483d40f726f189eb993c8e",
+      "docs/18-ux-ui/design-system.md": "c887edd715693a5c8a222754901e26178607afb9d69fd990ea13e752f8f7353e",
+      "docs/19-assets/fonts/README.md": "e573506f18334389e402b99ce66436942c44edaff0ef5066244f8340b09f3d43",
+      "error-handling-strategy.md": null,
+      "naming-conventions.md": null,
+      "security-requirements.md": null,
+      "ui-guidelines.md": null
+    },
+    "title": "زيادة: الدخول والصلاحيات ونطاق المصادر من طرف إلى طرف"
+  },
+  "WU-002": {
+    "docs": {
+      "data-dictionary.md": null,
+      "docs/04-design/coding-standards.md": "09f7206d28c465712a64a5b77b0e42ea5b70615c1ebccaf049972037288610ff",
+      "docs/04-design/module-design/master-data-design.md": "2e3e93594e7f58bab9e67e6594b567a41a19c79b7ad9c6e793279d5c0c8caea4",
+      "docs/06-database/erd.md": "f680581ce40803471acfa7bb4d125585b9000013f7f07563fb2b758c08703eab",
+      "naming-conventions.md": null
+    },
+    "title": "زيادة: البيانات الأساسية والإعداد التأسيسي من طرف إلى طرف"
+  },
+  "WU-003": {
+    "docs": {
+      "docs/04-design/design-overview.md": "dc9e8c3d52050181758df1eac8c8636137abf6676e7b426606097266c6ed3a42",
+      "docs/04-design/module-design/inventory-design.md": "c6ea5fa3c28ab5c5bf075683d49764a7f6e13e62d884430d21757cea425d16f7",
+      "docs/06-database/erd.md": "f680581ce40803471acfa7bb4d125585b9000013f7f07563fb2b758c08703eab",
+      "indexing-strategy.md": null
+    },
+    "title": "زيادة: الوارد عدداً والمخزون اليومي من طرف إلى طرف"
+  },
+  "WU-005": {
+    "docs": {
+      "docs/02-requirements/functional-requirements/FR-M9.md": "8994e991d8e69f807688aa70071cb9f314157553d33b877862620b5408495e57",
+      "docs/04-design/design-overview.md": "dc9e8c3d52050181758df1eac8c8636137abf6676e7b426606097266c6ed3a42",
+      "docs/04-design/module-design/inventory-design.md": "c6ea5fa3c28ab5c5bf075683d49764a7f6e13e62d884430d21757cea425d16f7",
+      "docs/06-database/schema/daily-prices.md": "86cb25c30313093856960760335d141e3bf57f38cdae638dc234246fb7a3bc8c"
+    },
+    "title": "زيادة: التسعير اليومي من طرف إلى طرف"
+  },
+  "WU-026": {
+    "docs": {
+      "docs/05-api/authentication-and-authorization.md": "55b657a17cc4c7ab5b480f7ac71f583aa0e2c46d9d269d82a931e7d934aba36a",
+      "docs/08-testing-and-qa/test-strategy.md": "57100c4a1e4617b9be3d1425fcbb02afd89caf4ea4c868c650bc8c65dcf8d132",
+      "docs/09-security/security-requirements.md": "026a77e19c647fd8c8ffe93254d847c8b28240acf5828e6d28574e3326d4ee13",
+      "permissions-catalog.md": null
+    },
+    "title": "★ زيادة: إعادة تشكيل طبقة التفويض والكتابة"
+  }
+}

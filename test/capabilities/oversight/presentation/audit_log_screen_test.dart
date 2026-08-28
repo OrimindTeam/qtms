@@ -1,0 +1,383 @@
+/// شاشة سجل التدقيق والسجل السياقي — `WU-008` (`M18`).
+///
+/// ⚠️⚠️ **وما تُثبته هذه الاختبارات وما لا تُثبته:** تُثبت أن **الشاشة تعرض
+/// الصيغة الموحّدة** (فعل · مستخدم · وقت · حقل · قبل/بعد · سبب)، وأن
+/// **الفلتر يصل الدليل كما اختاره المستخدم**، وأن **الرفض يظهر خطأً لا
+/// فراغاً**، وأن **أيقونة 🕘 تختفي بلا صلاحية وتفتح سجل الكيان الصحيح**.
+///
+/// ⛔⛔ **ولا تُثبت أن السجل محميّ من التعديل والحذف** — ★ **ذاك في
+/// `firestore.rules` ومُختبَرٌ على المحاكي** (`test/security-rules/`)،
+/// **والعقد نفسه بلا كاتب** (`audit_log_repository_test.dart`).
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
+import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
+import 'package:qtms/capabilities/master_data/presentation/sources_screen.dart';
+import 'package:qtms/capabilities/oversight/application/audit_log_providers.dart';
+import 'package:qtms/capabilities/oversight/presentation/audit_log_screen.dart';
+import 'package:qtms_domain/qtms_domain.dart';
+
+import '../../../support/fake_identity.dart';
+import '../../../support/fake_master_data.dart';
+import '../../../support/fake_oversight.dart';
+
+late FakeAuditLogDirectory auditLog;
+late FakeMasterDataDirectory masterData;
+
+/// ★ الصلاحيات الافتراضية — **صاحب الشاشة المركزية**.
+const Set<Permission> centralViewer = <Permission>{
+  Permission.auditLogViewCentral,
+};
+
+Future<void> pumpScreen(
+  WidgetTester tester,
+  Widget screen, {
+  Set<Permission> actorPermissions = centralViewer,
+}) async {
+  final FakeAuthRepository auth = FakeAuthRepository();
+  final FakeUserCardRepository cards = FakeUserCardRepository();
+  auth.emitIdentity(
+    const AuthenticatedIdentity(userId: 'U-001', sourceScope: AllSources()),
+  );
+  cards.emitCard('U-001', testCard(permissions: actorPermissions));
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        authRepositoryProvider.overrideWithValue(auth),
+        userCardRepositoryProvider.overrideWithValue(cards),
+        masterDataDirectoryProvider.overrideWithValue(masterData),
+        masterDataAdminProvider.overrideWithValue(FakeMasterDataAdmin()),
+        contactPickerProvider.overrideWithValue(null),
+        auditLogDirectoryProvider.overrideWithValue(auditLog),
+      ],
+      child: MaterialApp(locale: const Locale('ar'), home: screen),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 20));
+}
+
+void main() {
+  setUp(() {
+    auditLog = FakeAuditLogDirectory();
+    masterData = FakeMasterDataDirectory();
+    masterData.emitSources(<SourceCard>[
+      SourceCard(
+        sourceId: 'SRC-001',
+        name: 'رداع',
+        requiresSupplierOnIntake: false,
+        isActive: true,
+      ),
+      SourceCard(
+        sourceId: 'SRC-002',
+        name: 'ماوية',
+        requiresSupplierOnIntake: false,
+        isActive: true,
+      ),
+    ]);
+  });
+
+  group('★★ الشاشة المركزية — FR-M18-09', () {
+    testWidgets('★ تعرض الصيغة الموحّدة: فعل · مستخدم · وقت · حقل · سبب',
+        (WidgetTester tester) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(
+          before: <String, Object?>{'quantity': 100},
+          after: <String, Object?>{'quantity': 95},
+          reason: 'خطأ في العدّ',
+        ),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+
+      // ① الفعل بنصّه — ⛔ لا بلونٍ وحده.
+      expect(find.text('تعديل'), findsWidgets);
+      // ② المستخدم مُثبَّتاً وقت الحدث.
+      expect(find.text('عبدالفتاح'), findsOneWidget);
+      // ③ الوقت — **بتوقيت النظام (UTC)** كما كُتب.
+      expect(find.text('2026/08/27 09:15'), findsOneWidget);
+      // ④ الحقل بقيمتيه — ★ **باسمه العربي** لا بمفتاحه.
+      expect(find.text('الكمية:'), findsOneWidget);
+      expect(find.text('100'), findsOneWidget);
+      expect(find.text('95'), findsOneWidget);
+      // ⑤ السبب — `FR-M18-07`.
+      expect(find.text('السبب: خطأ في العدّ'), findsOneWidget);
+    });
+
+    testWidgets('★★ وتُعلن أن السجل للإضافة فقط — FR-M18-01',
+        (WidgetTester tester) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[testAuditEntry()]);
+      await pumpScreen(tester, const AuditLogScreen());
+      expect(
+        find.textContaining('للإضافة فقط'),
+        findsOneWidget,
+        reason: '★ من يعلم أن أثره باقٍ لا يُمحى يتصرّف بحسبه',
+      );
+    });
+
+    testWidgets('⛔⛔★★★ والمصدر مُقيَّدٌ في كل استعلام — ولو بلا اختيارٍ من المستخدم',
+        (WidgetTester tester) async {
+      // ★★ **مقيسٌ على المحاكي:** استعلامٌ بلا `sourceId` **يُرفَض كاملاً**
+      //    ⟵ **فالشاشة تبدأ بأول مصدرٍ في النطاق** ⛔ **لا بلا فلتر.**
+      auditLog.emitCentral(<AuditLogEntryCard>[testAuditEntry()]);
+      await pumpScreen(tester, const AuditLogScreen());
+      expect(auditLog.lastFilter?.sourceId, 'SRC-001');
+    });
+
+    testWidgets('★ والفلتر يصل الدليل بما اختاره المستخدم لا بثابت',
+        (WidgetTester tester) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[testAuditEntry()]);
+      await pumpScreen(tester, const AuditLogScreen());
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'إلغاء'));
+      await tester.pump();
+
+      expect(auditLog.lastFilter?.dimension, AuditFilterDimension.action);
+      expect(auditLog.lastFilter?.action, AuditAction.cancel);
+      expect(
+        auditLog.lastFilter?.sourceId,
+        'SRC-001',
+        reason: '★ والمصدر يبقى مُقيَّداً مع البُعد الثانوي',
+      );
+    });
+
+    testWidgets('★★ وتبديل المصدر يُبقي البُعد الثانوي ويُغيّر المصدر وحده',
+        (WidgetTester tester) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[testAuditEntry()]);
+      await pumpScreen(tester, const AuditLogScreen());
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'إلغاء'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(ChoiceChip, 'ماوية'));
+      await tester.pump();
+
+      expect(auditLog.lastFilter?.sourceId, 'SRC-002');
+      expect(auditLog.lastFilter?.dimension, AuditFilterDimension.action);
+    });
+
+    testWidgets('★ و«كل الأفعال» تُلغي البُعد الثانوي وحده',
+        (WidgetTester tester) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[testAuditEntry()]);
+      await pumpScreen(tester, const AuditLogScreen());
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'إلغاء'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(ChoiceChip, 'كل الأفعال'));
+      await tester.pump();
+
+      expect(auditLog.lastFilter?.dimension, AuditFilterDimension.none);
+      expect(auditLog.lastFilter?.action, isNull);
+      expect(auditLog.lastFilter?.sourceId, 'SRC-001');
+    });
+
+    testWidgets('★★ وخيار «ما لا يخصّ مصدراً» لصاحب النطاق الشامل وحده',
+        (WidgetTester tester) async {
+      // ⟵ **قيودُ تغيير الصلاحيات والمستخدمين تُكتب بـ`sourceId = all`**،
+      //   ★ **و`inScope('all')` لا تصدُق إلا لمن نطاقه `all`.**
+      auditLog.emitCentral(<AuditLogEntryCard>[testAuditEntry()]);
+      await pumpScreen(tester, const AuditLogScreen());
+      expect(find.widgetWithText(ChoiceChip, 'ما لا يخصّ مصدراً'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'ما لا يخصّ مصدراً'));
+      await tester.pump();
+      expect(auditLog.lastFilter?.sourceId, auditAllSourcesId);
+    });
+
+    testWidgets('⛔ والرفض يظهر خطأً لا فراغاً — FR-M18-12',
+        (WidgetTester tester) async {
+      auditLog.emitCentralError(StateError('permission-denied'));
+      await pumpScreen(tester, const AuditLogScreen());
+      expect(find.text('تعذّر عرض البيانات'), findsOneWidget);
+    });
+
+    testWidgets('★ والسجل لا يُقرأ كاملاً — §8 يفرض حدّاً',
+        (WidgetTester tester) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[testAuditEntry()]);
+      await pumpScreen(tester, const AuditLogScreen());
+      expect(auditLog.lastLimit, auditLogPageSize);
+    });
+
+    testWidgets('★★ والمصادر المعروضة في الفلتر مصادرُ نطاقه وحدها — GR-23',
+        (WidgetTester tester) async {
+      masterData.emitSources(<SourceCard>[
+        SourceCard(
+          sourceId: 'SRC-001',
+          name: 'رداع',
+          requiresSupplierOnIntake: false,
+          isActive: true,
+        ),
+      ]);
+      auditLog.emitCentral(<AuditLogEntryCard>[testAuditEntry()]);
+      await pumpScreen(tester, const AuditLogScreen());
+
+      expect(find.widgetWithText(ChoiceChip, 'رداع'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'ماوية'), findsNothing);
+    });
+  });
+
+  group('★★ عرضُ القيد — حالاتٌ لا تُسقِط الشاشة', () {
+    testWidgets('★★ فعلٌ غير معروف يُعرَض ولا يختفي', (WidgetTester tester) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(action: null, reason: null),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      expect(find.text('إجراء غير معروف'), findsOneWidget);
+      expect(find.text('عبدالفتاح'), findsOneWidget);
+    });
+
+    testWidgets('★ وغيابُ القيمة نصٌّ صريح لا خانةٌ فارغة',
+        (WidgetTester tester) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(
+          action: AuditAction.create,
+          after: <String, Object?>{'quantity': 40},
+          reason: null,
+        ),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      expect(find.text('لا قيمة'), findsOneWidget);
+      expect(find.text('40'), findsOneWidget);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ وسهمُ التغيير يتّجه من «قبل» إلى «بعد» — عطلٌ رُصد على المحاكي',
+        (WidgetTester tester) async {
+      // ★★★ **اختبارُ ارتدادٍ لعطلٍ حقيقي (2026-08-27):** ★ **كلا
+      //    `arrow_back` و`arrow_forward` في Material يحملان
+      //    `matchTextDirection: true`** — ⟵ **فينقلبان مع RTL**، ⛔ **وكان
+      //    `arrow_back` يُرسَم متجهاً يميناً** أي **من «بعد» إلى «قبل»**،
+      //    ★ **فيقرأ المدقّق التغيير مقلوباً على مستندٍ مالي.**
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(
+          before: <String, Object?>{'quantity': 100},
+          after: <String, Object?>{'quantity': 95},
+        ),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+
+      final Icon arrow = tester.widget<Icon>(
+        find.byIcon(Icons.arrow_forward),
+      );
+      expect(
+        arrow.icon,
+        Icons.arrow_forward,
+        reason: '★ «الأمام» في اتجاه القراءة — من «قبل» إلى «بعد»',
+      );
+      expect(
+        find.byIcon(Icons.arrow_back),
+        findsNothing,
+        reason: '⛔ فالرجوع يُرسَم يميناً في RTL — أي عكس اتجاه التغيير',
+      );
+    });
+
+    testWidgets('⛔ وشطبُ «قبل» على قيمةٍ كانت وحدها — ولا يُشطَب نفيُ القيمة',
+        (WidgetTester tester) async {
+      // ⟵ **شطبُ «لا قيمة» يشطب النفيَ لا القيمة** ⛔ **فيُقرأ عكسَ معناه.**
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(
+          action: AuditAction.create,
+          after: <String, Object?>{'quantity': 40},
+          reason: null,
+        ),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+
+      final Text absent = tester.widget<Text>(find.text('لا قيمة'));
+      expect(absent.style?.decoration, TextDecoration.none);
+    });
+
+    testWidgets('★★ وتاريخ المخزون يُعرَض متى وُجد — AT-52 · RISK-07',
+        (WidgetTester tester) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(stockDate: CalendarDay(2026, 8, 26)),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      expect(find.textContaining('مخزون 2026/08/26'), findsOneWidget);
+    });
+
+    testWidgets('⛔ والحالة الفارغة بسببٍ وإجراء — §هـ',
+        (WidgetTester tester) async {
+      auditLog.emitCentral(const <AuditLogEntryCard>[]);
+      await pumpScreen(tester, const AuditLogScreen());
+      expect(find.text('لا نشاط مُسجَّل'), findsOneWidget);
+      expect(find.textContaining('وسّع المدى'), findsOneWidget);
+    });
+  });
+
+  group('★★★ السجل السياقي — FR-M18-10 · FR-M18-11 · FR-M18-12', () {
+    testWidgets('★ أيقونة 🕘 تظهر في صفوف المصادر لمن يملك الصلاحية',
+        (WidgetTester tester) async {
+      await pumpScreen(tester, const SourcesScreen());
+      expect(find.byTooltip('سجل التغييرات'), findsNWidgets(2));
+    });
+
+    testWidgets('⛔ وتختفي تماماً بلا صلاحية — «الممنوع لا يظهر أصلاً»',
+        (WidgetTester tester) async {
+      await pumpScreen(
+        tester,
+        const SourcesScreen(),
+        actorPermissions: const <Permission>{Permission.sourceWrite},
+      );
+      expect(find.byTooltip('سجل التغييرات'), findsNothing);
+    });
+
+    testWidgets('★★ وتظهر لصاحب السياقي وحده — الشرط «أو» لا «و»',
+        (WidgetTester tester) async {
+      await pumpScreen(
+        tester,
+        const SourcesScreen(),
+        actorPermissions: const <Permission>{
+          Permission.auditLogViewContextual,
+        },
+      );
+      expect(find.byTooltip('سجل التغييرات'), findsNWidgets(2));
+    });
+
+    testWidgets('★★★ والنقر يفتح سجل الكيان الصحيح — ⛔ لا كياناً آخر',
+        (WidgetTester tester) async {
+      final AuditEntityRef entity = AuditEntityRef(
+        entityType: sourceEntityType,
+        entityId: 'SRC-002',
+        // ★★ **والمصدر جزءٌ من المفتاح** — ⟵ **فاستعلامٌ بلا قيدٍ عليه
+        //    يُرفَض كاملاً** (مقيسٌ على المحاكي).
+        sourceId: 'SRC-002',
+      );
+      auditLog.emitEntity(entity, <AuditLogEntryCard>[
+        testAuditEntry(
+          entityType: sourceEntityType,
+          entityId: 'SRC-002',
+          action: AuditAction.create,
+          after: <String, Object?>{'name': 'ماوية'},
+          reason: null,
+        ),
+      ]);
+
+      await pumpScreen(tester, const SourcesScreen());
+      await tester.tap(find.byTooltip('سجل التغييرات').last);
+      await tester.pumpAndSettle();
+
+      expect(auditLog.lastEntity, entity);
+      expect(find.textContaining('سجل التغييرات — ماوية'), findsOneWidget);
+      expect(find.text('إنشاء'), findsOneWidget);
+    });
+
+    testWidgets('★ وسجلٌ فارغ يقول سببه — ⛔ لا «لا توجد بيانات»',
+        (WidgetTester tester) async {
+      auditLog.emitEntity(
+        AuditEntityRef(
+          entityType: sourceEntityType,
+          entityId: 'SRC-001',
+          sourceId: 'SRC-001',
+        ),
+        const <AuditLogEntryCard>[],
+      );
+      await pumpScreen(tester, const SourcesScreen());
+      await tester.tap(find.byTooltip('سجل التغييرات').first);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('لم يُسجَّل على هذا السجل'), findsOneWidget);
+    });
+  });
+}

@@ -1,0 +1,103 @@
+name: qtms
+description: "QTMS — نظام محاسبي لإدارة المخزون والذمم والنقد في تجارة القات."
+# ⛔ حزمة خاصة — لا تُنشَر على pub.dev.
+publish_to: 'none'
+
+# ترقيم الإصدار وفق docs/12-deployment-and-release/versioning-scheme.md
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ★ ADR-0012: طبقة النطاق في حزمة Dart نقية مستقلة يشاركها التطبيق
+  #   والعمليات السحابية — بمسار محلي، فهي حزمة داخلية لا تُنشَر.
+  qtms_domain:
+    path: packages/qtms_domain
+  # ترجمات ويدجات Material للعربية واتجاهها — حزمة من SDK لا طرف ثالث.
+  # localization-strategy.md §1: لغة واحدة (العربية) واتجاه فعّال واحد (RTL).
+  flutter_localizations:
+    sdk: flutter
+
+  # ★ الاعتماديات مقتصرة على ما يحتاجه المخرَج 9 من «الخطوة صفر» فعلاً.
+  #   technology-stack.md §6 البند 1: «هل تحلّ مشكلة فعلية قائمة الآن؟ (لا
+  #   استباقاً)» — ولذلك لا Riverpod ولا go_router ولا freezed بعد؛ تُضاف كل
+  #   واحدة في الزيادة التي تحتاجها أولاً.
+  firebase_core: ^4.4.0
+  cloud_firestore: ^6.2.0
+  # ★ WU-001: المصادقة — technology-stack.md §1 «Firebase Authentication».
+  firebase_auth: ^6.3.0
+  # ★ WU-001: إدارة الحالة — ADR-0010 (Riverpod) · وحقن الاعتمادية الصريح
+  #   هو ما يجعل مزوّد الصلاحيات يُقرأ بلا تمرير يدوي عبر الشجرة.
+  flutter_riverpod: ^3.0.3
+  # ★ WU-001: الملاحة — ADR-0009 · technology-stack.md §1 «go_router».
+  go_router: ^16.2.4
+  # ★ WU-001 (IQ-015): استدعاء العمليات السحابية ببروتوكولها المكتوب يدوياً.
+  #   ⛔ ولا `cloud_functions`: الخدمات على **Cloud Run** في `me-central1`
+  #   (ADR-0009 ② · ADR-0014) لا على Firebase Functions، فحزمتها لا تُخاطبها.
+  http: ^1.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # ★ AM-002: مولّد أيقونة التطبيق المتكيّفة من شعار العميل.
+  #   ⛔ اعتمادية تطوير لا تدخل الحزمة المنشورة — أداة بناء تُشغَّل يدوياً
+  #   عند تغيّر ملفات `assets/icons/` وحدها (`build-and-run-instructions.md`
+  #   §4.1)، ⛔ لا في كل بناء. مبرر قبولها في
+  #   `docs/07-development/dependency-management-policy.md` §7 البند 1.
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    # ★ نصّ رخصة الخط — يُسجَّل في سجل الرخص عند الإقلاع (third-party-assets-licenses.md).
+    - assets/fonts/OFL.txt
+    # ★ AM-002: شعار العميل — الطبقة الأمامية وحدها هي ما تعرضه الواجهة،
+    #   ⛔ ولا يُشار إليها من شاشة مباشرةً: `BrandLogo` وحده يقرأ المسار
+    #   (`lib/core/design/brand.dart`) — نفس قاعدة «الشاشة لا تلمس الطبقة
+    #   الأولية» المطبَّقة على التوكنز.
+    - assets/icons/app-icon-foreground.png
+
+  fonts:
+    # ★ الخط المعتمَد — design-tokens.md §5 · 19-assets/fonts/README.md.
+    - family: IBM Plex Sans Arabic
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+          weight: 600
+        # ⚠️ ★ استبدال موثَّق: الوزن 700 غير مضمَّن في الحزمة المعتمدة،
+        #    و19-assets/fonts/README.md §1 يُجيز «الاستعاضة عنه بـ600 بقرار
+        #    موثَّق» ⛔ ويمنع تركه للمحاكاة الآلية (Faux Bold) لأنها تُشوّه
+        #    الحروف العربية. ⟵ فالوزن 700 يُربَط صراحةً بملف 600.
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+          weight: 700
+
+# ★★ AM-002 — إعداد مولّد الأيقونة المتكيّفة من شعار العميل.
+#
+# ⛔ **ولا أيقونة Flutter الافتراضية بعد اليوم**: المصدر ملفّا `RF-001`
+#    المعتمدان (`docs/19-assets/icons/` — والنسخة التنفيذية `assets/icons/`).
+#
+# ★ يُعاد التوليد بأمر واحد عند تغيّر الأصل:  dart run flutter_launcher_icons
+# ⛔ ولا يُحرَّر أي ملف داخل `android/app/src/main/res/mipmap-*` يدوياً.
+flutter_launcher_icons:
+  android: true
+  # ⛔ لا iOS: خارج نطاق هذا الإصدار صراحةً (`technology-stack.md` §5).
+  ios: false
+
+  # ★ طبقتا الأيقونة المتكيّفة (API 26+) — وهما ما يراه المستخدم فعلاً،
+  #   فالحد الأدنى للمشروع 26 (`build.gradle.kts`).
+  adaptive_icon_foreground: assets/icons/app-icon-foreground.png
+  adaptive_icon_background: assets/icons/app-icon-background.png
+
+  # ★ ومورد `ic_launcher` المربَّع (ما قبل API 26) يُولَّد من أيقونة المتجر
+  #   لأنها **بلا شفافية** فتصلح خلفيةً مصمتة. ⚠️ وتركه بلا قيمة يُبقي
+  #   أيقونة Flutter الافتراضية محفورة في الحزمة — ⛔ وهي بالضبط ما يُلغيه
+  #   هذا البند، وإن كان لا يظهر على أي جهاز مدعوم.
+  image_path: assets/icons/app-icon-store-512.png
+  min_sdk_android: 26

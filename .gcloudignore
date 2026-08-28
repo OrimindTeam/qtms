@@ -1,0 +1,33 @@
+# ما لا يُرفَع إلى Cloud Build.
+#
+# ⚠️ **الأنماط هنا بصيغة gitignore — فهي تطابق في أي مستوى ما لم تُثبَّت
+#    بشرطة بادئة.** فـ`lib/` بلا شرطة كانت ستستبعد `functions/lib/` أيضاً
+#    **فيفشل البناء بلا سبب ظاهر**. ولذلك كل ما يخصّ الجذر مُثبَّت بـ`/`.
+
+/.git/
+/.dart_tool/
+/build/
+/android/
+/ios/
+/docs/
+/lib/
+/test/
+/.gcloud-tmp/
+# ⛔ مؤقّت Gradle — ★ **يكتبه `flutter run` وهو حيّ**، ⟵ فأرشفتُه
+#    تُفشِل الرفع بـ`WinError 32` (ملفٌّ قيد الاستعمال) — و**112 ميجابايت بلا فائدة**.
+/.gradle-tmp/
+/cloudbuild.debt09.yaml
+
+**/.dart_tool/
+**/build/
+**/node_modules/
+**/*.log
+
+# ⛔ مخرجات بناء — ولا داعي لرفعها (وأكبرها التنفيذي المُصرَّف محلياً).
+**/*.exe
+functions/bin/server
+
+# ⛔ ولا أي إعداد منصة أو سرّ — secrets-management-policy.md.
+**/google-services.json
+**/*.keystore
+**/*.jks

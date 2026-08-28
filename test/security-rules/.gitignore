@@ -1,0 +1,11 @@
+# اعتماديات وأثر تشغيل — لا يدخل السجل
+node_modules/
+
+# ★ مجلد مقابس AF_UNIX للمحاكي (يُنشئه run-rules-tests.mjs) — أثر تشغيل بحت
+.tmp/
+
+# سجلات تشغيل المحاكي
+emulator.log
+run.log
+firebase-debug.log
+firestore-debug.log

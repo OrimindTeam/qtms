@@ -1,0 +1,733 @@
+rules_version = '2';
+
+// ============================================================================
+// QTMS — قواعد الحماية
+//
+// ★ هذه هي طبقة التفويض الوحيدة في النظام (ADR-0002). لا خادم وسيط.
+//   أي قاعدة عمل بلا مقابل هنا تُعتبر غير مُنفَّذة أمنياً (BR-M1-07 · RISK-02).
+//
+// المستندات الحاكمة:
+//   docs/09-security/security-requirements.md      — جدول التتبع §1 · القواعد §2
+//   docs/09-security/permissions-catalog.md        — مفاتيح الصلاحيات (IQ-001)
+//   docs/05-api/authentication-and-authorization.md — المحاور الثلاثة §2
+//   docs/06-database/data-dictionary.md            — الحقول والمجموعات
+//
+// ⛔ ممنوعات مطلقة مُنفَّذة هنا (security-requirements.md §2):
+//   1. الحذف مرفوض في كل السجلات — لكل الأدوار بمن فيهم المالك.
+//   2. سجل التدقيق للإضافة فقط — ولا كتابة من التطبيق إطلاقاً.
+//   3. التاريخ والتوقيت من الخادم — لا من الجهاز.
+//   4. منع الرصيد السالب على مستوى القاعدة.
+//   5. السبب النصي غير الفارغ شرط لكل تعديل وإلغاء.
+//   6. الرفض الافتراضي — ما لم يُسمَح صراحةً فهو مرفوض.
+//   7. رفض أي عميل غير التطبيق الرسمي (App Check).
+//   8. منح الصلاحيات من العمليات السحابية فقط.
+//   9. ترقيم المستندات من العملية السحابية — لا من الجهاز.
+//  10. كتابة سجل التدقيق من العملية السحابية.
+//
+// ملاحظة: العمليات السحابية تستخدم Admin SDK وتتجاوز هذه القواعد بالكامل —
+//         فكل ما هو موسوم "⛅ السحابة حصراً" أدناه يُرفض هنا رفضاً تاماً.
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================================================================
+    // 1. دوال المصادقة والعميل
+    // ========================================================================
+
+    // ⛔ القاعدة 7: رفض أي عميل غير التطبيق الرسمي.
+    function verifiedClient() {
+      return request.auth != null;
+    }
+
+    function isSignedIn() {
+      return verifiedClient() && request.auth.uid != null;
+    }
+
+    function claims() {
+      return request.auth.token;
+    }
+
+    // ========================================================================
+    // 2. دوال الصلاحيات — المحور ١ و٢
+    //    المفاتيح من docs/09-security/permissions-catalog.md §2 حصراً.
+    //
+    // ★ ADR-0016: خريطة الصلاحيات **خرجت من رمز الدخول** إلى بطاقة المستخدم.
+    //   السبب قياسي لا ذوقي: 72 مفتاحاً = 1707 بايت، وحدّ المطالبات 1000 —
+    //   فمستخدمٌ بكل الصلاحيات **يستحيل إصدار رمزه**. ⛔ ولا يُحلّ برفع الحدّ
+    //   لأنه قيد خارجي من خدمة المصادقة.
+    //
+    // ⚠️ و`sourceScope` **بقي في الرمز** عمداً (§3 أدناه) — حجمه محدود بعدد
+    //   المصادر لا بعدد المفاتيح، وهو مقروء في كل قاعدة تقريباً.
+    // ========================================================================
+
+    // ★ مسار حرفي ثابت لا يتغيّر بين استدعاء وآخر — فـ`get()` المكرّرة على
+    //   نفس المسار داخل التقييم الواحد **تُحتسب مرة واحدة**. وهذا هو حسم
+    //   ملاحظة كلفة القراءة في ADR-0016 §«كلفة القراءة».
+    function userCard() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // ⛔ غياب البطاقة أصلاً = لا صلاحية إطلاقاً — الرفض الافتراضي (القاعدة 6).
+    //   ★ وهذه تبعية معلَنة في ADR-0016: حذف البطاقة يُسقِط كل الصلاحيات فوراً.
+    function userPerms() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && 'permissions' in userCard().data
+        && userCard().data.permissions is map;
+    }
+
+    // ★★ IQ-017 · DEBT-22: **الحساب المعطَّل لا يملك صلاحية واحدة.**
+    //
+    // ⛔ الغياب تعطيلٌ لا سماح (`get('isActive', false)`) — الرفض الافتراضي
+    //   نفسه الذي تطبّقه القاعدة 6، **وهو مطابق حرفياً لقراءة التطبيق**
+    //   في `user_card_mapper.dart` (`ADR-0013` القاعدة 3: النسختان تتطابقان).
+    //
+    // ⚠️⚠️ **ولهذا السطر ترتيبُ نشرٍ مُلزِم لا يجوز عكسه:** كل بطاقة قائمة
+    //   يجب أن تحمل `isActive` **قبل** نشر هذا الشرط، وإلا قُفل أصحابها
+    //   خارج النظام — **وأولهم المالك**، فبطاقته أُقلعت قبل وجود الحقل.
+    //   ⟵ الإجراء: `docs/13-operations/runbooks/RB-backfill-user-isactive.md`.
+    //
+    // ★ **ولماذا في `perm()` لا في كل قاعدة على حدة:** `perm()` هي المعبر
+    //   الوحيد لكل صلاحية في هذا الملف (66 موضعاً)، ⟵ **فشرطٌ واحد هنا
+    //   يحرس كل مسار**، ⛔ ولا يُنسى في قاعدة جديدة تُكتب غداً.
+    function activeCard() {
+      return userCard().data.get('isActive', false) == true;
+    }
+
+    // القيمة الغائبة تعني false — الرفض الافتراضي (القاعدة 6).
+    function perm(key) {
+      return isSignedIn()
+        && userPerms()
+        && activeCard()
+        && userCard().data.permissions.get(key, false) == true;
+    }
+
+    // حيث تُشترط صلاحيتان معاً فالمطلوب اجتماعهما (auth-and-authorization §5).
+    function perm2(a, b) {
+      return perm(a) && perm(b);
+    }
+
+    // ========================================================================
+    // 3. نطاق المصادر — المحور ٣ (GR-23)
+    //    قيد يعلو على كل صلاحية. 'all' يشمل أي مصدر يُضاف مستقبلاً.
+    // ========================================================================
+
+    function scope() {
+      return claims().get('sourceScope', []);
+    }
+
+    function inScope(sourceId) {
+      return isSignedIn()
+        && sourceId != null
+        && (scope() == 'all' || (scope() is list && sourceId in scope()));
+    }
+
+    // المصدر المذكور في المستند الوارد ضمن نطاق المستخدم.
+    function incomingInScope() {
+      return 'sourceId' in request.resource.data
+        && inScope(request.resource.data.sourceId);
+    }
+
+    // المصدر المذكور في المستند المخزَّن ضمن نطاق المستخدم.
+    function storedInScope() {
+      return 'sourceId' in resource.data && inScope(resource.data.sourceId);
+    }
+
+    // المصدر لا يتغيّر بعد الإنشاء — وإلا أمكن نقل مستند خارج النطاق.
+    function sourceUnchanged() {
+      return request.resource.data.sourceId == resource.data.sourceId;
+    }
+
+    // ========================================================================
+    // 4. الوقت والتاريخ — القاعدة 3 (GR-54 · E-41)
+    //    لا يُقبل وقت الجهاز في أي حقل يُخزَّن.
+    // ========================================================================
+
+    function serverTime(field) {
+      return field in request.resource.data
+        && request.resource.data[field] == request.time;
+    }
+
+    // stockDate تاريخ اليوم من الخادم — والتصريف المتأخر وحده يقبل الأقدم.
+    function todayStockDate() {
+      return request.resource.data.stockDate == request.time.date();
+    }
+
+    function pastOrTodayStockDate() {
+      return request.resource.data.stockDate <= request.time.date();
+    }
+
+    // ⛔ لا تاريخ مستقبلي مطلقاً — لأي مستخدم ولأي صلاحية.
+    function notFutureDate(field) {
+      return request.resource.data[field] <= request.time.date();
+    }
+
+    // ========================================================================
+    // 5. السبب النصي — القاعدة 5
+    // ========================================================================
+
+    function nonEmpty(field) {
+      return field in request.resource.data
+        && request.resource.data[field] is string
+        && request.resource.data[field].trim().size() > 0;
+    }
+
+    // ========================================================================
+    // 5-ب. المبالغ — ★ ADR-0015
+    //    كل مبلغ عدد صحيح بالريال. الغائب مقبول (حقل اختياري)، والفارغ مقبول
+    //    (قيمة معلّقة كـtaxPerKilo)، والموجود يجب أن يكون int.
+    //    ⛔ لا فاصلة عائمة ولا نص ولا تخزين بأصغر وحدة (فِلس).
+    //
+    //    ⚠️ حدّ لغة القواعد لا نقص في التغطية: لا يمكن المرور على عناصر
+    //       lines[] هنا، فمبالغ السطور تُفحَص في العملية السحابية الكاتبة
+    //       (ADR-0013) — وهذا مسجَّل صراحةً في DEBT-18.
+    // ========================================================================
+
+    function money(field) {
+      return !(field in request.resource.data)
+        || request.resource.data[field] == null
+        || request.resource.data[field] is int;
+    }
+
+    function money2(a, b) {
+      return money(a) && money(b);
+    }
+
+    function money3(a, b, c) {
+      return money(a) && money(b) && money(c);
+    }
+
+    // ========================================================================
+    // 6. المسارات المقيَّدة — security-requirements.md §3
+    //    الصلاحية لا تُمنَح على المستند بل على حقول بعينها.
+    // ========================================================================
+
+    // الحقول المتغيّرة فعلياً في هذا الطلب.
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // لا يُمَس أي حقل خارج المجموعة المسموحة.
+    function onlyFields(allowed) {
+      return changed().hasOnly(allowed);
+    }
+
+    // ========================================================================
+    // 7. حماية الحقول التي تكتبها السحابة حصراً — ⛅
+    //    التطبيق لا يكتبها ولا يعدّلها، ولو ملك كل الصلاحيات.
+    // ========================================================================
+
+    function cloudOnlyAbsent(fields) {
+      return !request.resource.data.keys().hasAny(fields);
+    }
+
+    function cloudOnlyUnchanged(fields) {
+      return !changed().hasAny(fields);
+    }
+
+    // ========================================================================
+    // 8. التعديل والإلغاء — نمط موحّد
+    //    القاعدة 5 + جدول التتبع §1: الصلاحية + سبب نصي غير فارغ.
+    // ========================================================================
+
+    function isCancelling() {
+      return request.resource.data.get('status', '') == 'cancelled'
+        && resource.data.get('status', '') != 'cancelled';
+    }
+
+    function canCancel(cancelKey) {
+      return perm(cancelKey) && nonEmpty('cancelReason');
+    }
+
+    function canAmend(amendKey) {
+      return perm(amendKey) && nonEmpty('amendReason');
+    }
+
+    // ========================================================================
+    // 9. البيانات الأساسية
+    //    القراءة: مصادَق + النطاق. ⛅ الكتابة: العمليات المستدعاة حصراً.
+    //
+    // ★★★ WU-002 — الكتابة المباشرة أُغلقت هنا (ADR-0013 القاعدة 2 مطبَّقة
+    //   على البيانات المرجعية). ⚠️ والسبب ليس «تمسّ المال» بل ثلاثة نصوص
+    //   مجتمعةً لا تتحقق إلا بمعاملة سحابية واحدة:
+    //     ① FR-M2-03 · FR-M3-13 · FR-M4-13 — تعديل الاسم أو الرقم أو
+    //        إلزامية الرعوي «يُسجَّل بالقيمة قبل وبعد».
+    //     ② FR-M18-04 — كتابة سجل التدقيق «عبر السحابة حصراً»،
+    //        و`audit_log` هنا `allow create: if false`.
+    //     ③ audit-log-design §2 الشرط 3 + ADR-0013 القاعدة 1 — المستند
+    //        وقيده معاً أو لا شيء.
+    //   ⟵ فالكتابة المباشرة كانت ستُنتج تعديلاً بلا قيد.
+    //
+    // ⛔⛔ ولمن يبني الدالة الكاتبة: كل قيدٍ حذفناه من هنا صار بند قبولٍ
+    //   في `functions/lib/src/master_data.dart` (DEBT-21 ①) — وقت الخادم ·
+    //   السبب النصي · التفرّد · رفض حقول السعر · حصانة النوع الافتراضي ·
+    //   قفل الوحدة · الكتابة الواحدة للإعداد التأسيسي · ★★ وشرطُ تعطيل
+    //   المقوت الثلاثي (IQ-020). إسقاطُ أيٍّ منها ثغرة صامتة لأن القاعدة
+    //   لم تعد تحرسه.
+    // ========================================================================
+
+    match /sources/{sourceId} {
+      // ⛔⛔ IQ-024: **`get` و`list` مفصولان عمداً** — ولا يُدمجان في `read`.
+      //   ★ **السبب مقيسٌ حيّاً (2026-08-26):** قواعدُ Firestore **لا تُقيّم
+      //   شرطَ `list` لكل مستند**، ⟵ **فشرطٌ يعتمد على معرّف المستند
+      //   (`inScope(sourceId)`) لا يمكن إثباتُه للاستعلام فيُرفض كله** —
+      //   ⛔ **وكان منتقي المصدر فارغاً دائماً في كل شاشة.**
+      allow get: if isSignedIn() && inScope(sourceId);
+      // ★ **والسردُ لصاحب النطاق الشامل وحده** — ⛔ **ولا توسيعَ امتياز:**
+      //   هو **يقرأ كل مصدرٍ مستنداً مستنداً أصلاً** بالسطر أعلاه، ⟵ **فالسرد
+      //   لا يكشف له جديداً.** ⚠️ **وصاحبُ النطاق المحدود يبقى بلا سرد** —
+      //   ★ **كحاله قبل هذا التغيير** ⛔ **لا انحدار**، ويُحسم ببندٍ مستقل.
+      allow list: if isSignedIn() && scope() == 'all';
+      // ★ **والسردُ لصاحب النطاق الشامل وحده** — ⛔ **ولا توسيعَ امتياز:**
+      //   هو **يقرأ كل مصدرٍ مستنداً مستنداً أصلاً** بالسطر أعلاه، ⟵ **فالسرد
+      //   لا يكشف له جديداً.** ⚠️ **وصاحبُ النطاق المحدود يبقى بلا سرد** —
+      //   ★ **كحاله قبل هذا التغيير** ⛔ **لا انحدار**، ويُحسم ببندٍ مستقل.
+      // ⛅ createSource · updateSource — والتفويض يُفحَص في الدالة.
+      allow create, update: if false;
+      allow delete: if false; // ⛔ القاعدة 1
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if isSignedIn();
+      allow create, update: if false; // ⛅ createSupplier · updateSupplier
+      allow delete: if false; // ⛔ التعطيل بديل الحذف
+    }
+
+    match /dealers/{dealerId} {
+      allow read: if isSignedIn();
+      allow create, update: if false; // ⛅ createDealer · updateDealer
+      allow delete: if false;
+      // ⛔⛔ IQ-020: تعطيلُ مقوتٍ رصيدُه ≠ 0 يشترط ثلاثةً معاً —
+      //   dealerDisableWithBalance + إقرار نصي + رصيد مقيس من dealer_balances
+      //   داخل المعاملة. ★ ولا يمكن أن يكون هنا: القاعدة لا تستعلم مجموعةً
+      //   أخرى. ⟵ الإنفاذ في functions/lib/src/master_data.dart حصراً.
+    }
+
+    match /items/{itemId} {
+      allow read: if isSignedIn();
+      // ⛅ createItem · updateItem — ⛔ والسكرب لا يُنشئه ولا يُعدِّله أحد
+      //    من أي واجهة (FR-M5-05)، والدالة ترفضه بـERR_SETUP_008.
+      allow create, update: if false;
+      allow delete: if false; // ⛔ السكرب لا يُحذف من أي واجهة
+    }
+
+    // الإعداد التأسيسي: المالك حصراً · مرة واحدة · ⛔ تعديل وحذف مرفوضان للجميع.
+    match /app_settings/{docId} {
+      allow read: if isSignedIn(); // FR-M21-10: القراءة متاحة للجميع
+      // ⛅ writeAppSettings — وهي التي تفرض «مرة واحدة» و«المفتاحان فقط».
+      allow create, update: if false;
+      allow delete: if false;
+    }
+
+    // ========================================================================
+    // 10. سجلات حراسة التفرد
+    //     معرّفها هو القيمة المُطبَّعة · تُكتب داخل نفس المعاملة الذرّية
+    //     التي تنشئ الكيان — ⛅ وهي معاملة سحابية بعد WU-002.
+    //
+    // ⚠️ القراءة تبقى مفتوحة للمُصادَق عمداً: الواجهة تسبق الرحلة برسالة
+    //   «الاسم مسجَّل مسبقاً» بدل انتظار رفض السحابة — ⛔ وهي راحةُ عرضٍ
+    //   لا حماية، والحسم في الدالة داخل المعاملة (master-data-design §3).
+    // ========================================================================
+
+    match /unique_source_names/{normalized} {
+      allow read: if isSignedIn();
+      allow write: if false; // ⛅ ولا يُنقض التفرد
+    }
+    match /unique_supplier_phones/{normalized} {
+      allow read: if isSignedIn();
+      allow write: if false; // ⛅
+    }
+    match /unique_dealer_phones/{normalized} {
+      allow read: if isSignedIn();
+      allow write: if false; // ⛅
+    }
+    match /unique_item_names/{normalized} {
+      allow read: if isSignedIn();
+      allow write: if false; // ⛅
+    }
+
+    // ========================================================================
+    // 11. ⛅ العدّادات — السحابة فقط · والقراءة مرفوضة للجميع
+    // ========================================================================
+
+    match /document_counters/{docId} {
+      allow read, write: if false;
+    }
+    match /daily_sack_counters/{docId} {
+      allow read, write: if false;
+    }
+
+    // ========================================================================
+    // 12. ⛅ المستخدمون والأدوار
+    //     الكتابة من التطبيق ممنوعة — المنح والسحب من العملية السحابية حصراً
+    //     (BR-M1-08 · القاعدة 8).
+    // ========================================================================
+
+    // ★★ IQ-015 (الخيار أ): **قراءة بطاقة غيرك تحتاج `userView`.**
+    //
+    // ⚠️ **ولماذا شرطان لا شرط واحد:** `request.auth.uid == userId` يبقى
+    //   **بلا صلاحية** عمداً — فالمستخدم يقرأ بطاقته هو في كل حال، ومنها
+    //   يقرأ التطبيقُ صلاحياتِه و`isActive`. ⛔ **ولو اشتُرطت `userView`
+    //   عليها لَما استطاع أحدٌ قراءة صلاحياته إلا بصلاحية قراءتها** —
+    //   حلقة إقلاع ثالثة. ★ **والشرط الثاني وحده هو ما يفتح القائمة.**
+    //
+    // ⚠️⚠️ **وأثره معلَن ومقبول بقرار صريح في `IQ-015`:** بطاقة المستخدم
+    //   **تحمل خريطة صلاحياته**، ⟵ **فمن يملك `userView` يرى صلاحيات
+    //   الجميع**. ★ **قُبل هذا صراحةً** ولم يُنشأ `user_directory` مشتقّ.
+    //
+    // ★ **وبهذا صار `userView` صلاحيةً حقيقية** لا مفتاحاً في كتالوج بلا
+    //   مقابل — وهو ما كان `FR-M1-10` يسمّيه «غير مُنفَّذ أمنياً».
+    match /users/{userId} {
+      allow read: if isSignedIn()
+                  && (request.auth.uid == userId || perm('userView'));
+      allow write: if false; // ⛔ بما فيها permissions و sourceScope
+    }
+
+    match /roles/{roleId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ========================================================================
+    // ⛅⛅ من هنا فصاعداً: الكتابة مغلقة — ADR-0013 القاعدة 2
+    //
+    // ★ كل مجموعة **تمسّ المال أو المخزون** صارت `allow create, update: if false`،
+    //   والكتابة تمرّ حصراً عبر دالة سحابية مستدعاة تكتب المستند **وقيد
+    //   التدقيق معاً في معاملة واحدة**. والقراءة تبقى هنا كما هي (القاعدة 4).
+    //
+    // ⚠️⚠️ تحذير لمن يبني الدوال الكاتبة — اقرأه قبل أي دالة:
+    //   الدوال المساعدة داخل الكتل أدناه (`noSackFinanceFields` ·
+    //   `compositeIdMatches` · `canEnterTax` · `noPriceFields` …) **لم تعد
+    //   مُستدعاة**، ⛔ **ولم تُحذف عمداً**: هي **المواصفة الحرفية للقيود التي
+    //   كانت القاعدة تفرضها، ويجب أن تفرضها الدالة الكاتبة الآن** — الحقول
+    //   الممنوعة، والمعرّف المركّب، وتاريخ المخزون، ووقت الخادم، وأعداد
+    //   المبالغ الصحيحة، والمسارات المقيَّدة.
+    //
+    // ⛔ **إسقاط أيٍّ منها في الدالة = ثغرة صامتة**، لأن القاعدة لم تعد تحرسها.
+    //   مُسجَّل في `DEBT-21` وهو **بند قبول لكل دالة كاتبة**.
+    // ========================================================================
+
+    // ========================================================================
+    // 13. الوارد عدداً
+    // ========================================================================
+
+    match /incoming_count/{docId} {
+      allow read: if isSignedIn() && storedInScope();
+
+      allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2 — الكتابة عبر دالة سحابية
+
+
+      allow delete: if false;
+    }
+
+    // ========================================================================
+    // 14. الجواني — أكثف مستند مسارات مقيَّدة (security-requirements.md §3)
+    // ========================================================================
+
+    match /sacks/{docId} {
+      // شرط قراءة الحقول المالية منفصل عن قراءة المستند (§4).
+      allow read: if perm('sackView') && storedInScope();
+
+      // ⛔ ADR-0011: الحقول المالية لا تعيش هنا إطلاقاً — بل في finance/current
+      //    محكومةً بـ sackFinanceView. وجودها هنا يعني تسريبها لكل من يقرأ
+      //    المستند، لأن القاعدة تمنح المستند كاملاً ولا تُخفي حقلاً داخله.
+      // ⛅ مواصفة مُعطَّلة — ADR-0013 القاعدة 2: هذا القيد كانت تفرضه
+      //    القاعدة، وصار **على الدالة الكاتبة أن تفرضه** (DEBT-21).
+      //    ⛔ أُبقي نصّاً لا كوداً، فلا يُحتسَب إنفاذاً زائفاً في فحص التغطية.
+      // function noSackFinanceFields() {
+      // return cloudOnlyAbsent(['taxPerKilo', 'sackTax',
+      // 'sackRevenue', 'supplierNet']);
+      // }
+
+      allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2 — الكتابة عبر دالة سحابية
+
+
+      allow delete: if false;
+
+      // ====================================================================
+      // 🔒 ADR-0011 — مالية الجونية معزولة بشرط قراءة مستقل
+      //    القاعدة تمنح المستند كاملاً، فالحقول المالية تعيش في مستند خاص بها.
+      //    ★ ويحمل نسخة sourceId ليُفحَص النطاق بلا قراءة إضافية للأب.
+      // ====================================================================
+      match /finance/{financeDocId} {
+        allow read: if perm('sackFinanceView') && storedInScope();
+        allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2
+
+        // ⛅ مواصفة مُعطَّلة — ADR-0013 القاعدة 2: هذا القيد كانت تفرضه
+        //    القاعدة، وصار **على الدالة الكاتبة أن تفرضه** (DEBT-21).
+        //    ⛔ أُبقي نصّاً لا كوداً، فلا يُحتسَب إنفاذاً زائفاً في فحص التغطية.
+        // function canEnterTax() {
+        // return perm('sackTaxEnterNow')
+        // || perm2('sackView', 'sackTaxEnterLater');
+        // }
+
+        allow delete: if false;
+      }
+    }
+
+    // ========================================================================
+    // 15. التسعير اليومي
+    // ========================================================================
+
+    match /daily_prices/{docId} {
+      allow read: if isSignedIn() && storedInScope();
+      allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2 — الكتابة عبر دالة سحابية
+      allow delete: if false;
+    }
+
+    // ========================================================================
+    // 16. التوزيعات (الضمارات)
+    //     المعرّف المركّب {dealerId}_{sourceId}_{stockDate} يفرض GR-18 بنيوياً.
+    // ========================================================================
+
+    match /distributions/{docId} {
+      // المستند الأب يحمل الكميات والحالة فقط — والأسعار في pricing/current
+      // محكومةً بـ distributionPriceView (ADR-0011 · ت-12).
+      allow read: if isSignedIn() && storedInScope();
+
+      // ⛔ ADR-0011 القاعدة 3: الإجماليات المشتقّة من الأسعار تعيش مع الأسعار.
+      //    debtValue هنا يُسرِّب قيمة الضمار لمن لا يملك رؤية السعر.
+      //    أما unpricedLineCount و status فيكشفان عدداً وحالةً لا مبلغاً،
+      //    وهما مصدر وسم «⏳ سعر غير نهائي» الذي يراه الجميع.
+      // ⛅ مواصفة مُعطَّلة — ADR-0013 القاعدة 2: هذا القيد كانت تفرضه
+      //    القاعدة، وصار **على الدالة الكاتبة أن تفرضه** (DEBT-21).
+      //    ⛔ أُبقي نصّاً لا كوداً، فلا يُحتسَب إنفاذاً زائفاً في فحص التغطية.
+      // function noPriceFields() {
+      // return cloudOnlyAbsent(['debtValue', 'unitPrice', 'lineTotal']);
+      // }
+
+      // ⛔ المعرّف المركّب يمنع توزيعة ثانية لنفس (مقوت × مصدر × يوم) — GR-18
+      //    الترتيب ملزم: {dealerId}_{sourceId}_{stockDate} (naming-conventions §4).
+      //    والمنع نفسه بنيوي: `create` على معرّف قائم يفشل من المنصة.
+      // ⛅ مواصفة مُعطَّلة — ADR-0013 القاعدة 2: هذا القيد كانت تفرضه
+      //    القاعدة، وصار **على الدالة الكاتبة أن تفرضه** (DEBT-21).
+      //    ⛔ أُبقي نصّاً لا كوداً، فلا يُحتسَب إنفاذاً زائفاً في فحص التغطية.
+      // function compositeIdMatches() {
+      // return docId.split('_').size() == 3
+      // && docId.split('_')[0] == request.resource.data.dealerId
+      // && docId.split('_')[1] == request.resource.data.sourceId;
+      // }
+
+      allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2 — الكتابة عبر دالة سحابية
+
+
+      allow delete: if false;
+
+      // ====================================================================
+      // 🔒 ADR-0011 — أسعار التوزيعة وإجمالياتها معزولة (ت-12)
+      //    «الحقول لا تظهر أصلاً لمن لا يملكها» — وهذا هو تنفيذ ذلك فعلياً
+      //    في القاعدة لا في الواجهة (security-requirements.md §4).
+      // ====================================================================
+      match /pricing/{pricingDocId} {
+        allow read: if perm('distributionPriceView') && storedInScope();
+        allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2
+
+
+        allow delete: if false;
+      }
+    }
+
+    // ========================================================================
+    // 17. البيع النقدي
+    // ========================================================================
+
+    match /cash_sales/{docId} {
+      allow read: if isSignedIn() && storedInScope();
+
+      allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2 — الكتابة عبر دالة سحابية
+
+
+      allow delete: if false;
+    }
+
+    // ========================================================================
+    // 18. سندات القبض
+    // ========================================================================
+
+    match /receipts/{docId} {
+      allow read: if isSignedIn();
+
+      allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2 — الكتابة عبر دالة سحابية
+
+      allow delete: if false;
+
+      // ====================================================================
+      // 🔒 ADR-0017 — حالة الإيداع البنكي معزولة بشرط قراءة مستقل
+      //    بنمط ADR-0011 نفسه (pricing/current · finance/current).
+      //
+      // ⚠️ ولماذا مستند فرعي لا حقل في الأب: القاعدة تمنح المستند **كاملاً**
+      //    ولا تُخفي حقلاً داخله — فبقاء الحقول في الأب يعني أن كل مصادَق
+      //    يقرأ حالة الإيداع، والإخفاء حينها **واجهة لا حماية** (RISK-02).
+      //
+      // ★ وهذه الفجوة كشفها WU-026 ولم يُنشئها: كان المفتاح يظهر في **مسار
+      //   الكتابة** وحده، فتمرّ بوابة التغطية وتظنّه مُنفَّذاً (IQ-010).
+      // ====================================================================
+      match /deposit/{depositDocId} {
+        allow read: if perm('receiptDepositView');
+
+        // ⛅ ADR-0013 القاعدة 2 — كأبيه: الكتابة عبر الدالة الكاتبة،
+        //    وهي التي تفرض `receiptDepositConfirm` والملاحظة الإلزامية.
+        allow create, update: if false;
+        allow delete: if false;
+      }
+    }
+
+    // ========================================================================
+    // 19. سندات الخصم — ⛔ ورفض أي حقل فائض
+    // ========================================================================
+
+    match /discounts/{docId} {
+      allow read: if isSignedIn();
+
+      allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2 — الكتابة عبر دالة سحابية
+
+
+      allow delete: if false;
+    }
+
+    // ========================================================================
+    // 20. السحبيات والخرجيات — سجلّان بصلاحيات منفصلة تماماً (GR-42 · GR-43)
+    // ========================================================================
+
+    match /outflows/{docId} {
+      function isWithdrawal() {
+        return resource.data.ledgerType == 'withdrawal';
+      }
+
+      allow read: if isSignedIn() && storedInScope()
+                  && (isWithdrawal() ? perm('withdrawalView')
+                                     : perm('expenseView'));
+
+      allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2 — الكتابة عبر دالة سحابية
+
+
+      allow delete: if false;
+    }
+
+    // ========================================================================
+    // 21. الجرد — ★ سبب إلزامي لكل فرق ≠ 0
+    // ========================================================================
+
+    match /stocktakes/{docId} {
+      allow read: if isSignedIn() && storedInScope();
+      allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2 — الكتابة عبر دالة سحابية
+      allow delete: if false;
+    }
+
+    // ========================================================================
+    // 22. الإتلاف — ★ سبب نصي + ⛔ منع أي أثر مالي
+    // ========================================================================
+
+    match /disposals/{docId} {
+      allow read: if isSignedIn() && storedInScope();
+
+      allow create, update: if false;  // ⛅ ADR-0013 القاعدة 2 — الكتابة عبر دالة سحابية
+
+
+      allow delete: if false;
+    }
+
+    // ========================================================================
+    // 23. ⛅ الدفاتر الأربعة
+    //     تُكتب من المعاملة الذرّية أو السحابة. القراءة محكومة بالنطاق
+    //     وبصلاحية العرض المالي حيث تنطبق.
+    // ========================================================================
+
+    match /inventory_ledger/{entryId} {
+      allow read: if isSignedIn() && storedInScope();
+      allow write: if false; // ⛅ المعاملة الذرّية / السحابة
+    }
+
+    match /dealer_ledger/{entryId} {
+      allow read: if isSignedIn() && storedInScope() && perm('dealerBalanceView');
+      allow write: if false;
+    }
+
+    match /supplier_ledger/{entryId} {
+      allow read: if isSignedIn() && storedInScope() && perm('supplierFinanceView');
+      allow write: if false;
+    }
+
+    match /outflow_ledger/{entryId} {
+      allow read: if isSignedIn() && storedInScope()
+                  && (resource.data.ledgerType == 'withdrawal'
+                        ? perm('withdrawalView')
+                        : perm('expenseView'));
+      allow write: if false;
+    }
+
+    // ========================================================================
+    // 24. ⛅ الأرصدة والملخصات — ADR-0008
+    //     لا تُقرأ كمصدر حقيقة، ولا يكتبها التطبيق إطلاقاً.
+    // ========================================================================
+
+    match /item_daily_balances/{balanceId} {
+      allow read: if isSignedIn() && storedInScope();
+      allow write: if false;
+    }
+
+    match /dealer_balances/{balanceId} {
+      allow read: if isSignedIn() && perm('dealerBalanceView');
+      allow write: if false;
+    }
+
+    match /dealer_surplus/{surplusId} {
+      allow read: if isSignedIn() && perm('dealerBalanceView');
+      allow write: if false;
+    }
+
+    match /supplier_balances/{balanceId} {
+      allow read: if isSignedIn() && storedInScope() && perm('supplierFinanceView');
+      allow write: if false;
+    }
+
+    // بطاقة ضمار المالك — النطاق + بطاقة "كل المصادر" بصلاحيتها المستقلة.
+    match /daily_summaries/{summaryId} {
+      allow read: if perm('ownerLedgerView')
+                  && (resource.data.get('sourceId', '') == 'all'
+                        ? perm('allSourcesCardView')
+                        : storedInScope());
+      allow write: if false;
+    }
+
+    match /pending_entries/{entryId} {
+      allow read: if isSignedIn() && storedInScope();
+      allow write: if false;
+    }
+
+    match /aged_remainders/{remainderId} {
+      allow read: if isSignedIn() && storedInScope();
+      allow write: if false;
+    }
+
+    // ========================================================================
+    // 25. ⛅ الرقابة — سجل التدقيق وسجل التعديلات
+    //     ⛔ الكتابة من التطبيق ممنوعة نهائياً · ولا تعديل ولا حذف لأحد
+    //        بمن فيهم المالك (القاعدتان 2 و10 · ADR-0004).
+    // ========================================================================
+
+    match /document_amendments/{amendId} {
+      allow read: if isSignedIn() && storedInScope() && perm('auditLogViewCentral');
+      allow write: if false; // ⛅ السحابة حصراً
+    }
+
+    match /audit_log/{logId} {
+      // السجل المركزي أو السجل السياقي — أيهما توفّر، مع النطاق دائماً.
+      allow read: if isSignedIn()
+                  && storedInScope()
+                  && (perm('auditLogViewCentral') || perm('auditLogViewContextual'));
+
+      // ⛔ لا إنشاء ولا تعديل ولا مسح — لأي مستخدم على الإطلاق.
+      allow create, update, delete: if false;
+    }
+
+    // ========================================================================
+    // 26. ⛔ الرفض الافتراضي — القاعدة 6
+    //     أي مسار لم يُذكر صراحةً أعلاه مرفوض بالكامل.
+    // ========================================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

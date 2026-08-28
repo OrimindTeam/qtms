@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ★★ شاشة الإقلاع الأصلية (قبل رسم Flutter أول إطار) — AM-002.
+
+  ★ شعار العميل فوق أبيض نقي #FFFFFF — وهو لون الطبقة الخلفية المعتمد
+    للأيقونة نفسها (docs/19-assets/icons/README.md §2)، ⟵ فلا وميض تباين
+    بين أيقونة المُشغِّل وشاشة الإقلاع.
+  ⛔ ولا ?android:colorBackground: نصّ الشعار أخضر داكن، ويصير غير مقروء على
+    خلفية داكنة. والتطبيق فاتح وحده اليوم (design_tokens.dart) — ⟵ فتثبيت
+    الأبيض هو ما يطابق ما سيراه المستخدم بعد لحظة فعلاً.
+  ⛔ ولا نصّ هنا ولا أي بصمة لجهة التطوير: شاشة البداية مساحة هوية المنتج
+    حصراً (docs/19-assets/developer-identity.md §1 و§5 البند 3).
+
+  ⚠️ launch_image.png مشتقّ يدوياً من assets/icons/app-icon-foreground.png
+    بخمس كثافات ⛔ وليس من مخرجات flutter_launcher_icons
+    (build-and-run-instructions.md §4.1).
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/launch_background" />
+
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/launch_image" />
+    </item>
+</layer-list>

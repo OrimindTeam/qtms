@@ -1,0 +1,19 @@
+# ما لا يدخل سياق بناء الحاوية إطلاقاً.
+.git/
+.dart_tool/
+build/
+android/
+ios/
+lib/
+test/
+docs/
+**/.dart_tool/
+**/build/
+**/node_modules/
+**/*.log
+# ⛔ ولا أي إعداد منصة أو سرّ — `secrets-management-policy.md`.
+**/google-services.json
+**/*.keystore
+**/*.jks
+**/*.exe
+bin/server

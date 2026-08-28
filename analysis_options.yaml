@@ -1,0 +1,47 @@
+# إعدادات المحلل الساكن — QTMS
+#
+# ★ المرجع الملزم: docs/04-design/coding-standards.md §1
+#   «المحلل الرسمي بإعدادات صارمة · والتحذير يُعامَل خطأً في التكامل المستمر»
+#   و docs/03-architecture/technology-stack.md §2 يسمّي الأوضاع الثلاثة صراحةً.
+#
+# ⛔ ولا يُسمح بتعطيل الفحص في ملف يمسّ منطق الأعمال (coding-standards §1).
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    # الأوضاع الثلاثة المعتمدة حرفياً في technology-stack.md §2.
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+  errors:
+    # ★ «التحذير يُعامَل خطأً» — يُطبَّق هنا لا في خط الأتمتة وحده، حتى يفشل
+    #   البناء محلياً قبل أن يصل إلى المراجعة.
+    missing_required_param: error
+    missing_return: error
+    todo: warning
+    # ⛔ استيراد حزمة منصة داخل طبقة النطاق مرفوض تلقائياً (coding-standards §5
+    #   البند 4) — والفحص الآلي الكامل له مسجَّل DEBT-04.
+    depend_on_referenced_packages: error
+
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "test/security-rules/**"
+
+linter:
+  rules:
+    # المال والأنواع — coding-standards §2.1
+    avoid_double_and_int_checks: true
+    # التعليقات وقواعد العمل — §2.8
+    comment_references: true
+    # معالجة الأخطاء — §2.5 «لا يُبتلَع استثناء صامتاً»
+    avoid_catches_without_on_clauses: true
+    avoid_catching_errors: true
+    only_throw_errors: true
+    # الأمان النوعي
+    always_declare_return_types: true
+    prefer_final_locals: true
+    prefer_final_in_for_each: true
+    unnecessary_lambdas: true

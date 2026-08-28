@@ -1,0 +1,76 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# ═══════════════════════════════════════════════════════════════════
+# QTMS — إعداد المنصة والأسرار
+# ⛔ secrets-management-policy.md: «السرّ الذي دخل تاريخ المستودع مرة
+#    يُعتبر مكشوفاً للأبد» · و coding-standards.md §2.4: لا ملفات إعداد
+#    منصة في المستودع بلا حماية.
+# ═══════════════════════════════════════════════════════════════════
+# ★ ملف اعتماد حساب اختبار (QA) التجريبي — AM-004
+# environments.md §1.5 · RB-staging-qa-account.md
+/.secrets/
+google-services.json
+**/google-services.json
+lib/firebase_options.dart
+*.keystore
+*.jks
+key.properties
+.env
+.env.*
+
+# أثر تشغيل محلي
+/test/security-rules/node_modules/
+/test/security-rules/.tmp/
+/.gradle-tmp/
+
+# مخرجات تصريف العمليات السحابية محلياً — لا تُلتزَم.
+functions/bin/server
+functions/bin/server.exe
+/.gcloud-tmp/
+
+# ⛔ هدف تحويل TEMP لبناء Gradle (DEBT-11) — مؤقتاتٌ لا تدخل التاريخ
+/.buildtmp/

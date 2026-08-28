@@ -1,0 +1,29 @@
+# بناء حاوية العمليات السحابية — QTMS
+#
+# ⚠️ **سياق البناء هو جذر المستودع لا `functions/`** — لأن الحزمة تعتمد
+#    `../packages/qtms_domain` بمسار محلي (`ADR-0012`)، وسياقٌ أضيق لا يراه.
+#
+#     gcloud builds submit --config functions/cloudbuild.yaml \
+#       --project <المشروع> --region me-central1 .
+#
+# ★ **والمنطقة `me-central1` إلزامية** — `me-central2` مغلقة لكل خدمة عدا
+#   قاعدة البيانات نفسها (`ADR-0014` · `environments.md` §1.1).
+
+# ★ اسم صورة مستقل عن أي صورة سابقة — فلا تختلط صور العيّنة بصور الإنتاج.
+# ⚠️ ولا يُوضَع المسار في `substitutions` — فـ`${PROJECT_ID}` لا يُوسَّع داخل
+#    قيمة بديلٍ أخرى، ويصل حرفياً فيفشل البناء باسم صورة غير صالح (مُجرَّب).
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=functions/Dockerfile
+      - --tag=me-central1-docker.pkg.dev/$PROJECT_ID/qtms/provision-accounts:$SHORT_SHA
+      - --tag=me-central1-docker.pkg.dev/$PROJECT_ID/qtms/provision-accounts:latest
+      - .
+
+images:
+  - me-central1-docker.pkg.dev/$PROJECT_ID/qtms/provision-accounts:$SHORT_SHA
+  - me-central1-docker.pkg.dev/$PROJECT_ID/qtms/provision-accounts:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY

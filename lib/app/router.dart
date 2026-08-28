@@ -1,0 +1,313 @@
+/// الملاحة — ★ **توجيه تصريحي بمسارات مُعرَّفة** (`technology-stack.md` §1 ·
+/// `ADR-0009`)، **وعمق لا يتجاوز ثلاثة مستويات** (`ui-guidelines.md` §4).
+///
+/// ★ **والحارس واحد لا متكرر في الشاشات:** حالة الجلسة **تُعيد التوجيه
+/// مركزياً** ⟵ **فلا شاشةَ عملٍ تُفتَح بجلسة مرفوضة**، ⛔ **ولا فحص جلسة
+/// منسوخ في كل شاشة** يفترق عند أول تعديل.
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../capabilities/identity_access/application/session_providers.dart';
+import '../capabilities/identity_access/application/session_state.dart';
+import '../capabilities/identity_access/presentation/home_shell.dart';
+import '../capabilities/identity_access/presentation/login_screen.dart';
+import '../capabilities/identity_access/presentation/permissions_screen.dart';
+import '../capabilities/identity_access/presentation/roles_screen.dart';
+import '../capabilities/identity_access/presentation/session_blocked_screen.dart';
+import '../capabilities/identity_access/presentation/users_screen.dart';
+import '../capabilities/inventory/presentation/counted_intake_screen.dart';
+import '../capabilities/inventory/presentation/sack_intake_screen.dart';
+import '../capabilities/inventory/presentation/daily_pricing_screen.dart';
+import '../capabilities/inventory/presentation/today_stock_screen.dart';
+import '../capabilities/oversight/presentation/audit_log_screen.dart';
+import '../capabilities/sales_receivables/presentation/distribution_screen.dart';
+import '../capabilities/master_data/application/master_data_providers.dart';
+import '../capabilities/master_data/presentation/dealers_screen.dart';
+import '../capabilities/master_data/presentation/first_run_setup_screen.dart';
+import '../capabilities/master_data/presentation/items_screen.dart';
+import '../capabilities/master_data/presentation/sources_screen.dart';
+import '../capabilities/master_data/presentation/suppliers_screen.dart';
+import '../core/design/brand.dart';
+import '../core/design/design_tokens.dart';
+
+/// مسار الانتظار حتى تُعرَف حالة الجلسة.
+const String splashRoute = '/';
+
+/// مسار شاشة الدخول.
+const String loginRoute = '/login';
+
+/// مسار الصدَفة بعد الدخول.
+const String homeRoute = '/home';
+
+/// مسار الجلسة المرفوضة (حساب معطَّل).
+const String blockedRoute = '/blocked';
+
+/// ★ مسار إدارة المستخدمين (`IQ-015`) — **مسار فرعي تحت الصدَفة**،
+/// ⟵ **فالعمق مستويان** ⛔ ولا يتجاوز الثلاثة (`ui-guidelines.md` §4).
+const String usersRoute = '/home/users';
+
+/// ★ مسار الأدوار (`FR-M1-03`) — **مستويان** ⛔ ولا يتجاوز الثلاثة.
+const String rolesRoute = '/home/roles';
+
+/// ★★ مسار تخصيص صلاحيات مستخدم (`FR-M1-05`) — **ثلاثة مستويات وهو الحدّ**
+/// (`ui-guidelines.md` §4)، ⟵ **فلا يُضاف تحته شيء.**
+String permissionsRouteFor(String userId) => '/home/users/$userId/permissions';
+
+/// ★ مسار المصادر (`FR-M2`) — **مستويان**.
+const String sourcesRoute = '/home/sources';
+
+/// ★ مسار الرعية (`FR-M3`).
+const String suppliersRoute = '/home/suppliers';
+
+/// ★ مسار المقاوته (`FR-M4`).
+const String dealersRoute = '/home/dealers';
+
+/// ★ مسار الأنواع (`FR-M5`).
+const String itemsRoute = '/home/items';
+
+/// ★ مسار الوارد عدداً (`FR-M6`) — **مستويان**.
+const String countedIntakeRoute = '/home/intake';
+
+/// ★ مسار الوارد جواني (`FR-M7`) — **مستويان**.
+///
+/// ⛔★★ **ولا معامل تاريخ ولا رقم متسلسل في المسار** — `FR-M7-02` و`FR-M7-04`:
+/// **كلاهما من الخادم**، ⟵ **ومسارٌ يقبل أياً منهما كان يُوحي بأنه يُختار.**
+const String sackIntakeRoute = '/home/sacks';
+
+/// ★ مسار مخزون اليوم (`FR-M8` الشاشة الأولى) — **مستويان**.
+///
+/// ⛔★★ **ولا معامل تاريخ في المسار** — `FR-M8-05`: **اليوم الجاري فقط 🔒**،
+/// ⟵ **ومسارٌ يقبل تاريخاً كان سيصير متصفّح تاريخٍ محذوفاً بقرار المالك**
+/// (`BR-M8-06` · `GR-55`).
+const String todayStockRoute = '/home/stock';
+
+/// ★ مسار التسعير اليومي (`FR-M9`) — **مستويان**.
+///
+/// ⛔★★ **ولا معامل تاريخ في المسار** — `FR-M9-01` (`GR-31`): **التسعير
+/// يخصّ اليوم وحده ويُصفَّر يومياً**، ⟵ **ومسارٌ يقبل تاريخاً كان سيُغري
+/// بتسعير يومٍ مضى** ⛔ **وهو ما لا تقبله السحابة أصلاً** (يومُ المنصّة).
+const String dailyPricingRoute = '/home/pricing';
+
+/// ★ مسار التوزيع (`FR-M10`) — **مستويان**.
+///
+/// ⛔★★ **ولا معامل تاريخ ولا مقوت في المسار** — `FR-M10-03`: **تاريخ المخزون
+/// يحدده النظام**، ⟵ **ومسارٌ يقبله كان يُوحي بأنه يُختار**؛ ★ **والمقوت
+/// اختيارٌ داخل الشاشة** ⛔ **لا مستوىً ثالث** (`ui-guidelines.md` §4).
+const String distributionRoute = '/home/distribution';
+
+/// ★ مسار سجل التدقيق المركزي (`FR-M18-09`) — **مستويان**.
+///
+/// ⛔★★ **ولا معامل كيانٍ في المسار** — ★ **السجل السياقي ورقةٌ تُفتَح فوق
+/// شاشته** (`FR-M18-10`) ⛔ **لا مسارٌ ثالث**: ⟵ **ومسارٌ يقبل كياناً كان
+/// سيصير طريقاً ثانياً لقراءة السجل** بلا الشاشة التي تملك صلاحيته.
+const String auditLogRoute = '/home/audit';
+
+/// ★★ مسار الإعداد التأسيسي (`FR-M21-04`) — **خارج الصدَفة عمداً**.
+///
+/// ⛔ **ولا يُدرَج تحت `/home`:** الشاشة **إلزامية لا تُتخطّى**، ⟵ **ووضعُها
+/// تحت الصدَفة كان سيُتيح الرجوع إليها منها** فتُصبح خياراً لا بوابة.
+const String setupRoute = '/setup';
+
+/// موجّه التطبيق.
+final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
+  final _SessionRefreshNotifier refresh = _SessionRefreshNotifier(ref);
+  ref.onDispose(refresh.dispose);
+
+  return GoRouter(
+    initialLocation: splashRoute,
+    refreshListenable: refresh,
+    redirect: (BuildContext context, GoRouterState state) =>
+        _redirect(ref, state.matchedLocation),
+    routes: <RouteBase>[
+      GoRoute(
+        path: splashRoute,
+        builder: (BuildContext context, GoRouterState state) => const _SplashScreen(),
+      ),
+      GoRoute(
+        path: loginRoute,
+        builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: homeRoute,
+        builder: (BuildContext context, GoRouterState state) => const HomeShell(),
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'users',
+            builder: (BuildContext context, GoRouterState state) =>
+                const UsersScreen(),
+            routes: <RouteBase>[
+              GoRoute(
+                path: ':userId/permissions',
+                builder: (BuildContext context, GoRouterState state) =>
+                    PermissionsScreen(
+                  // ⛔ **معرّفٌ غائب ⟵ نصٌّ فارغ فتُظهر الشاشة تعذّراً
+                  //    صريحاً** — ولا انهيار ولا شاشة بيضاء.
+                  userId: state.pathParameters['userId'] ?? '',
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: 'roles',
+            builder: (BuildContext context, GoRouterState state) =>
+                const RolesScreen(),
+          ),
+          // ── البيانات المرجعية (`WU-002`) — أربع قوائم بمستويين ──
+          GoRoute(
+            path: 'sources',
+            builder: (BuildContext context, GoRouterState state) =>
+                const SourcesScreen(),
+          ),
+          GoRoute(
+            path: 'suppliers',
+            builder: (BuildContext context, GoRouterState state) =>
+                const SuppliersScreen(),
+          ),
+          GoRoute(
+            path: 'dealers',
+            builder: (BuildContext context, GoRouterState state) =>
+                const DealersScreen(),
+          ),
+          GoRoute(
+            path: 'items',
+            builder: (BuildContext context, GoRouterState state) =>
+                const ItemsScreen(),
+          ),
+          // ── المخزون والتوريد (`WU-003`) — شاشتان بمستويين ──
+          GoRoute(
+            path: 'intake',
+            builder: (BuildContext context, GoRouterState state) =>
+                const CountedIntakeScreen(),
+          ),
+          GoRoute(
+            path: 'stock',
+            builder: (BuildContext context, GoRouterState state) =>
+                const TodayStockScreen(),
+          ),
+          // ── الوارد جواني (`WU-004`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'sacks',
+            builder: (BuildContext context, GoRouterState state) =>
+                const SackIntakeScreen(),
+          ),
+          // ── التسعير اليومي (`WU-005`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'pricing',
+            builder: (BuildContext context, GoRouterState state) =>
+                const DailyPricingScreen(),
+          ),
+          // ── التوزيع والضمار (`WU-006`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'distribution',
+            builder: (BuildContext context, GoRouterState state) =>
+                const DistributionScreen(),
+          ),
+          // ── سجل التدقيق (`WU-008`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'audit',
+            builder: (BuildContext context, GoRouterState state) =>
+                const AuditLogScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: setupRoute,
+        builder: (BuildContext context, GoRouterState state) =>
+            const FirstRunSetupScreen(),
+      ),
+      GoRoute(
+        path: blockedRoute,
+        builder: (BuildContext context, GoRouterState state) => const SessionBlockedScreen(),
+      ),
+    ],
+  );
+});
+
+/// يُقرِّر الوجهة من حالة الجلسة وحدها.
+///
+/// ⚠️ **والحالة غير المعروفة تبقى على شاشة الانتظار** ⛔ **ولا تُعامَل
+/// «خروجاً»**: إظهار شاشة الدخول لمستخدمٍ جلستُه قيد التحميل **يجعله يُدخل
+/// بياناته بلا داعٍ**، وهو خطأ ميداني لا تجميلي.
+String? _redirect(Ref ref, String location) {
+  final AsyncValue<SessionState> async = ref.read(sessionProvider);
+  final SessionState? session = async.value;
+
+  final String target = switch (session) {
+    null => splashRoute,
+    SessionSignedOut() => loginRoute,
+    SessionRejected() => blockedRoute,
+    SessionActive() => homeRoute,
+  };
+
+  // ★★★ **بوابة الإعداد التأسيسي تعلو على كل مسار داخل الجلسة النشطة**
+  //   (`FR-M21-04`: «شاشة إلزامية لا يمكن تخطّيها عند أول تشغيل بحساب
+  //   المالك»). ⟵ **فلا شاشة عملٍ تُفتَح قبل كتابة البندين.**
+  //
+  // ⛔★★ **وتنطبق على من يملك `appSettingsWrite` وحده** — راجع
+  //   `requiresFirstRunSetupProvider`: ★ **فمن لا يملكها لا مسار أمامه
+  //   لإتمامها**، ⟵ **وحبسُه فيها يقفل عليه النظام بلا مخرَج.**
+  if (session is SessionActive && ref.read(requiresFirstRunSetupProvider)) {
+    return location == setupRoute ? null : setupRoute;
+  }
+  // ★ **وفور اكتمال الإعداد يُغادرها من تلقائه** — ⛔ ولا يبقى فيها.
+  if (session is SessionActive && location == setupRoute) return homeRoute;
+
+  // ★★ **الجلسة النشطة تبقى حيث هي داخل شجرة الصدَفة** — ⟵ **فلا يُطرَد
+  //   المستخدم من شاشة فرعية إلى الرئيسية عند كل إعادة بناء**، وهو ما
+  //   كان سيحدث لو قُورن الموضع بـ`homeRoute` حرفياً.
+  // ⛔ **والحارس لم يُخفَّف:** ما دون الجلسة النشطة يُعاد توجيهه كما كان،
+  //   ⟵ **فلا شاشة عملٍ تُفتَح بجلسة مرفوضة** (`FR-M1-15`).
+  if (session is SessionActive && location.startsWith(homeRoute)) return null;
+
+  return location == target ? null : target;
+}
+
+/// يُخطر الموجّه عند كل تبدّل في الجلسة.
+class _SessionRefreshNotifier extends ChangeNotifier {
+  _SessionRefreshNotifier(Ref ref) {
+    ref.listen<AsyncValue<SessionState>>(
+      sessionProvider,
+      (AsyncValue<SessionState>? previous, AsyncValue<SessionState> next) =>
+          notifyListeners(),
+    );
+    // ★★ **وبوابة الإعداد التأسيسي تُخطِر أيضاً** — ⟵ **فور كتابة البندين
+    //   يخرج المالك من الشاشة الإلزامية من تلقائه**، ⛔ **بلا ملاحة يدوية
+    //   في النموذج** (`first_run_setup_screen.dart`).
+    ref.listen<bool>(
+      requiresFirstRunSetupProvider,
+      (bool? previous, bool next) => notifyListeners(),
+    );
+  }
+}
+
+/// شاشة انتظار قصيرة — ⛔ **بلا نصّ**: لا رسالة معتمدة لحالة الانتظار،
+/// ★ **والمؤشّر وحده كافٍ** (`design-system.md` §هـ: الحالات إلزامية).
+///
+/// ★★ **وشعار العميل فوقه** (`AM-002` · `ui-guidelines.md` نمط 8-أ) —
+/// ★ **فتُكمِل الشاشةُ ما بدأته شاشة الإقلاع الأصلية** (`launch_background.xml`
+/// بالشعار نفسه) ⟵ **بلا وميض هوية بين الاثنتين.**
+///
+/// ⛔ **ولا نصّ أُضيف مع الشعار:** ★ **الشعار نفسه يحمل اسم العميل مرسوماً**،
+/// ★ **فقاعدة «بلا نصّ» قائمة كما هي.**
+/// ⛔ **ولا بصمة لجهة التطوير هنا إطلاقاً** — شاشة البداية مساحة هوية المنتج
+/// حصراً (`developer-identity.md` §1 · §5 البند 3).
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              BrandLogo(),
+              SizedBox(height: Spacing.space24),
+              CircularProgressIndicator(),
+            ],
+          ),
+        ),
+      );
+}

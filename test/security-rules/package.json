@@ -1,0 +1,16 @@
+{
+  "name": "qtms-security-rules-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "اختبارات قواعد الحماية — QTMS. تعمل على المحاكي المحلي بمعرّف مشروع وهمي، بلا أي مشروع سحابي.",
+  "type": "module",
+  "scripts": {
+    "check:coverage": "node check-permission-coverage.mjs",
+    "test:rules": "node run-rules-tests.mjs",
+    "test": "npm run check:coverage && npm run test:rules"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0"
+  }
+}

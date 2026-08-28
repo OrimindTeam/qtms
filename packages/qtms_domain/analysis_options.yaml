@@ -1,0 +1,40 @@
+# إعدادات المحلل الساكن — حزمة النطاق المشتركة
+#
+# ★ المرجع الملزم: docs/04-design/coding-standards.md §1 —
+#   «المحلل الرسمي بإعدادات صارمة · والتحذير يُعامَل خطأً».
+#   والأوضاع الثلاثة مسمّاة حرفياً في technology-stack.md §2.
+#
+# ⚠️ تختلف عن `analysis_options.yaml` في جذر المشروع في سطر واحد فقط:
+#   الأساس هنا `package:lints/recommended.yaml` لا `flutter_lints` —
+#   لأن ADR-0012 القاعدة 1 تمنع اعتماد `flutter` في هذه الحزمة أصلاً.
+#   وما عدا ذلك، الصرامة نفسها حرفياً.
+
+include: package:lints/recommended.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+  errors:
+    missing_required_param: error
+    missing_return: error
+    todo: warning
+    depend_on_referenced_packages: error
+
+linter:
+  rules:
+    # المال والأنواع — coding-standards §2.1
+    avoid_double_and_int_checks: true
+    # التعليقات وقواعد العمل — §2.8
+    comment_references: true
+    # معالجة الأخطاء — §2.5 «لا يُبتلَع استثناء صامتاً»
+    avoid_catches_without_on_clauses: true
+    avoid_catching_errors: true
+    only_throw_errors: true
+    # الأمان النوعي
+    always_declare_return_types: true
+    prefer_final_locals: true
+    prefer_final_in_for_each: true
+    unnecessary_lambdas: true

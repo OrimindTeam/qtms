@@ -1,0 +1,311 @@
+/// بدائل اختبارية للمستودعين — ★ **فلا اختبار يمسّ سحابة ولا شبكة**
+/// (`ADR-0010`: حقن اعتمادية صريح · `test-strategy.md`).
+library;
+
+import 'dart:async';
+
+import 'package:qtms_domain/qtms_domain.dart';
+
+/// مستودع مصادقة يُتحكَّم به من الاختبار.
+final class FakeAuthRepository implements AuthRepository {
+  FakeAuthRepository({SignInResult result = const SignInAccepted()})
+      : _result = result;
+
+  final StreamController<AuthenticatedIdentity?> _identities =
+      StreamController<AuthenticatedIdentity?>.broadcast();
+
+  /// ★ آخر قيمة — تُعاد للمُصغي الجديد أولاً.
+  ///
+  /// ⚠️ **بلا هذا يضيع أي حدث يسبق الاشتراك** (تدفّق البثّ لا يحفظ)،
+  /// ⟵ **فيبقى الاختبار عالقاً على شاشة الانتظار بلا سبب ظاهر.**
+  AuthenticatedIdentity? _current;
+
+  SignInResult _result;
+
+  /// عدد مرات استدعاء الخروج — يُثبت أن الزر يفعل شيئاً فعلاً.
+  int signOutCalls = 0;
+
+  /// آخر بريد وصل الدالة — يُثبت أن الشاشة تُمرِّر ما كتبه المستخدم.
+  String? lastEmail;
+
+  set result(SignInResult value) => _result = value;
+
+  void emitIdentity(AuthenticatedIdentity? identity) {
+    _current = identity;
+    _identities.add(identity);
+  }
+
+  /// ⚠️ **يُغلِق بلا انتظار عمداً:** انتظار `close()` داخل `tearDown` **لا
+  /// يعود أبداً** في اختبار الودجات — إتمامه يحتاج تفريغ المهام الصغرى،
+  /// وهي لا تُفرَّغ خارج نبضة (`tester.pump`). ★ **مُجرَّب: علّق الاختبار
+  /// 15 ثانية حتى انتهت المهلة.**
+  void dispose() {
+    unawaited(_identities.close());
+  }
+
+  @override
+  Stream<AuthenticatedIdentity?> watchIdentity() async* {
+    yield _current;
+    yield* _identities.stream;
+  }
+
+  @override
+  Future<SignInResult> signIn({
+    required String email,
+    required String password,
+  }) async {
+    lastEmail = email;
+    return _result;
+  }
+
+  @override
+  Future<void> signOut() async {
+    signOutCalls++;
+    _identities.add(null);
+  }
+}
+
+/// مستودع بطاقات يُتحكَّم به من الاختبار.
+final class FakeUserCardRepository implements UserCardRepository {
+  final Map<String, StreamController<UserCard?>> _controllers =
+      <String, StreamController<UserCard?>>{};
+
+  final Map<String, UserCard?> _current = <String, UserCard?>{};
+
+  /// المعرّفات التي طُلبت — ★ **يُثبت أن التطبيق لا يقرأ بطاقة غير صاحبها.**
+  final List<String> requestedUserIds = <String>[];
+
+  void emitCard(String userId, UserCard? card) {
+    _current[userId] = card;
+    _controllerFor(userId).add(card);
+  }
+
+  /// ⚠️ **بلا انتظار** — للسبب نفسه في [FakeAuthRepository.dispose].
+  void dispose() {
+    for (final StreamController<UserCard?> controller in _controllers.values) {
+      unawaited(controller.close());
+    }
+  }
+
+  StreamController<UserCard?> _controllerFor(String userId) =>
+      _controllers.putIfAbsent(
+        userId,
+        StreamController<UserCard?>.broadcast,
+      );
+
+  @override
+  Stream<UserCard?> watchCard(String userId) async* {
+    requestedUserIds.add(userId);
+    yield _current[userId];
+    yield* _controllerFor(userId).stream;
+  }
+}
+
+/// بطاقة جاهزة للاختبارات.
+UserCard testCard({
+  String userId = 'U-001',
+  String name = 'عبدالفتاح',
+  bool isActive = true,
+  Set<Permission> permissions = const <Permission>{Permission.sackView},
+  String? roleId,
+  SourceScope? sourceScope = const AllSources(),
+}) =>
+    UserCard(
+      userId: userId,
+      name: name,
+      roleId: roleId,
+      roleName: 'المالك',
+      permissions: permissions,
+      isActive: isActive,
+      sourceScope: sourceScope,
+    );
+
+/// دور جاهز للاختبارات.
+RoleCard testRole({
+  String roleId = 'ROLE-1',
+  String name = 'محاسب',
+  Set<Permission> template = const <Permission>{},
+}) =>
+    RoleCard(roleId: roleId, name: name, permissionTemplate: template);
+
+/// ★ دليل مستخدمين يُتحكَّم به — و**الخطأ يُبثّ كخطأ لا كقائمة فارغة**،
+/// ⟵ فيُختبَر تمييز الشاشة بين «ممنوع» و«لا يوجد».
+final class FakeUserDirectory implements UserDirectoryRepository {
+  final StreamController<List<UserCard>> _users =
+      StreamController<List<UserCard>>.broadcast();
+
+  List<UserCard>? _current;
+  Object? _error;
+
+  void emit(List<UserCard> users) {
+    _current = users;
+    _error = null;
+    _users.add(users);
+  }
+
+  /// يبثّ رفضاً — ★ **كما تفعل المنصّة حين ترفض القاعدة الاستعلام.**
+  void emitError(Object error) {
+    _error = error;
+    _users.addError(error);
+  }
+
+  /// ⚠️ **بلا انتظار** — للسبب نفسه في [FakeAuthRepository.dispose].
+  void dispose() {
+    unawaited(_users.close());
+  }
+
+  @override
+  Stream<List<UserCard>> watchAll() async* {
+    final Object? error = _error;
+    if (error != null) {
+      // ★ **مطابقةً للواقع:** رفضُ القاعدة يُنهي تدفّق المنصّة بخطأ
+      //   ⛔ **ولا يُتبعه ببيانات** — والمحاكاة الأمينة شرطُ اختبارٍ صادق.
+      yield* Stream<List<UserCard>>.error(error);
+      return;
+    }
+    yield _current ?? const <UserCard>[];
+    yield* _users.stream;
+  }
+}
+
+/// ★ مستودع إدارة يُتحكَّم به — **يسجّل ما وصله فيُثبَت أن الشاشة تُرسله**.
+final class FakeUserAdmin implements UserAdminRepository {
+  /// النتيجة التي تُرجِعها كل عملية — تُضبَط من الاختبار.
+  Outcome<void> result = const Success<void>(null);
+
+  /// آخر ملف وصل عملية الإنشاء.
+  ValidatedUserProfile? createdProfile;
+
+  /// آخر سبب تعديل وصل — ★ **يُثبت أن الشاشة تُمرِّره فعلاً** (`DEBT-21` ①).
+  String? lastAmendReason;
+
+  /// آخر سبب تعطيل وصل.
+  String? lastDisableReason;
+
+  @override
+  Future<Outcome<String>> create(ValidatedUserProfile profile) async {
+    createdProfile = profile;
+    return switch (result) {
+      Failure<void>(:final AppError error) => Failure<String>(error),
+      Success<void>() => const Success<String>('U-NEW'),
+    };
+  }
+
+  @override
+  Future<Outcome<void>> update({
+    required String userId,
+    required ValidatedUserProfile profile,
+    String? amendReason,
+  }) async {
+    lastAmendReason = amendReason;
+    return result;
+  }
+
+  @override
+  Future<Outcome<void>> disable({
+    required String userId,
+    required String reason,
+  }) async {
+    lastDisableReason = reason;
+    return result;
+  }
+
+  /// ★★ آخر منح وصل — **يُثبت أن الشاشة تُرسل ما اختاره المدير حرفياً**.
+  Set<Permission>? lastGrantedPermissions;
+
+  /// آخر نطاق وصل.
+  SourceScope? lastGrantedScope;
+
+  /// آخر مستخدم مستهدَف بالمنح.
+  String? lastGrantTarget;
+
+  @override
+  Future<Outcome<void>> grantAccess({
+    required String userId,
+    required Set<Permission> permissions,
+    required SourceScope scope,
+  }) async {
+    lastGrantTarget = userId;
+    lastGrantedPermissions = permissions;
+    lastGrantedScope = scope;
+    return result;
+  }
+}
+
+/// ★ مستودع أدوار يُتحكَّم به — **يسجّل ما وصله فيُثبَت أن الشاشة تُرسله**.
+final class FakeRoleAdmin implements RoleAdminRepository {
+  /// النتيجة التي تُرجِعها كل عملية — تُضبَط من الاختبار.
+  Outcome<void> result = const Success<void>(null);
+
+  final StreamController<List<RoleCard>> _roles =
+      StreamController<List<RoleCard>>.broadcast();
+
+  List<RoleCard>? _current;
+  Object? _error;
+
+  /// ★★ معرّفات الأدوار التي طُلب حذفها — ⛔ **والقائمة الفارغة تُثبت أن
+  /// الشاشة لم ترسل شيئاً**، وهو ما يُختبَر في حالة الدور المُسنَد.
+  final List<String> deletedRoleIds = <String>[];
+
+  /// آخر سبب حذف وصل — ★ **يُثبت أن الشاشة تُمرِّره** (`ADR-0004`).
+  String? lastDeleteReason;
+
+  /// آخر دور أُنشئ.
+  ValidatedRole? createdRole;
+
+  /// آخر سبب تعديل وصل.
+  String? lastAmendReason;
+
+  void emit(List<RoleCard> roles) {
+    _current = roles;
+    _error = null;
+    _roles.add(roles);
+  }
+
+  void emitError(Object error) {
+    _error = error;
+    _roles.addError(error);
+  }
+
+  /// ⚠️ **بلا انتظار** — للسبب نفسه في [FakeAuthRepository.dispose].
+  void dispose() {
+    unawaited(_roles.close());
+  }
+
+  @override
+  Stream<List<RoleCard>> watchAll() async* {
+    final Object? error = _error;
+    if (error != null) {
+      yield* Stream<List<RoleCard>>.error(error);
+      return;
+    }
+    yield _current ?? const <RoleCard>[];
+    yield* _roles.stream;
+  }
+
+  @override
+  Future<Outcome<void>> create(ValidatedRole role) async {
+    createdRole = role;
+    return result;
+  }
+
+  @override
+  Future<Outcome<void>> update({
+    required String roleId,
+    required ValidatedRole role,
+    String? amendReason,
+  }) async {
+    lastAmendReason = amendReason;
+    return result;
+  }
+
+  @override
+  Future<Outcome<void>> delete({
+    required String roleId,
+    String? amendReason,
+  }) async {
+    deletedRoleIds.add(roleId);
+    lastDeleteReason = amendReason;
+    return result;
+  }
+}

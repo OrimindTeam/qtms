@@ -1,0 +1,27 @@
+# بناء حاوية العمليات المستدعاة — تنفيذ حسم `IQ-019` (الخيار أ).
+#
+# ★ **سياق البناء جذر المستودع** لا `functions/` — لأن الحزمة تعتمد
+#   `packages/qtms_domain` بمسار محلي (`ADR-0012`)، وسياقٌ أضيق لا يراه.
+#
+# ★★ **وهدف الحاوية `callables` وحده** — ⟵ **خدمة واحدة تحمل التسع
+#   وتوجّه بالمسار**، ⛔ **لا خدمة لكل عملية.**
+#
+# التشغيل من جذر المستودع:
+#   gcloud builds submit --config cloudbuild.callables.yaml \
+#     --substitutions=_IMAGE=<المسار الكامل للصورة> --project <المشروع>
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - functions/Dockerfile
+      - -t
+      - ${_IMAGE}
+      - .
+
+images:
+  - ${_IMAGE}
+
+options:
+  logging: CLOUD_LOGGING_ONLY
