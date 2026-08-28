@@ -16,6 +16,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/permission_labels.dart';
+import '../../../core/ui/search_field.dart';
 
 /// ★ حالة مفتاحٍ في المقارنة مع قالب الدور — `FR-M1-05` · `FR-M1-16` ③.
 enum PermissionDelta {
@@ -101,25 +102,17 @@ class _PermissionTreeState extends State<PermissionTree> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         // ★ **بحث فوري بالاسم العربي** — `FR-M1-16` ①.
-        TextField(
+        //
+        // ★★ **وصياغتُه [QtmsSearchField]** (§5 «سرد» · `ADR-0021`) —
+        //    ⛔ **ولا حقلَ بحثٍ محليٌّ بعد اليوم** (§8 المحظور الحادي عشر).
+        QtmsSearchField(
           controller: _search,
-          decoration: const InputDecoration(
-            labelText: 'بحث في الصلاحيات',
-            prefixIcon: Icon(Icons.search),
-          ),
+          label: 'بحث في الصلاحيات',
         ),
         const SizedBox(height: Spacing.space12),
         if (visible.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(Spacing.space16),
-            child: Text(
-              // ★ **حالة «لا نتيجة» صريحة** — ⛔ ولا شجرةٌ فارغة صامتة.
-              'لا صلاحية بهذا الاسم.',
-              textAlign: TextAlign.center,
-              style: TypeScale.bodyMd
-                  .copyWith(color: SemanticColors.textSecondary),
-            ),
-          )
+          // ★ **حالة «لا نتيجة» صريحة** — ⛔ ولا شجرةٌ فارغة صامتة.
+          const QtmsNoMatch(message: 'لا صلاحية بهذا الاسم.')
         else
           for (final PermissionGroup group in visible)
             _Group(
