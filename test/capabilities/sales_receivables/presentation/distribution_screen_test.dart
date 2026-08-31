@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/inventory/application/inventory_providers.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
+import 'package:qtms/capabilities/oversight/application/pending_entries_providers.dart';
 import 'package:qtms/capabilities/sales_receivables/application/distribution_providers.dart';
 import 'package:qtms/capabilities/sales_receivables/presentation/distribution_screen.dart';
 import 'package:qtms/core/ui/context_header.dart';
@@ -77,6 +78,53 @@ Future<void> pumpDistribution(
   );
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 20));
+}
+
+/// ⛔⛔★★★ **حارسُ `DEBT-68`** — ★ **يُشغِّل الشاشة ووجهةٌ من المركز المعلّق
+/// مضبوطةٌ سلفاً**، ⟵ **وهو بالضبط ما أسقط الشاشة حيّاً على `Pixel_6_API_36`**
+/// بـ«Tried to modify a provider while the widget tree was building».
+///
+/// ⚠️ **ويحتاج حاوية صريحة** — ★ **فالوجهةُ تُضبَط قبل أول بناء**،
+/// ⛔ **ولا تُضبَط من داخل الشجرة.**
+Future<ProviderContainer> pumpWithPendingFocus(
+  WidgetTester tester, {
+  required PendingFocus focus,
+}) async {
+  final FakeAuthRepository auth = FakeAuthRepository();
+  final FakeUserCardRepository cards = FakeUserCardRepository();
+  auth.emitIdentity(
+    const AuthenticatedIdentity(userId: 'U-001', sourceScope: AllSources()),
+  );
+  cards.emitCard('U-001', testCard(permissions: fullPermissions));
+
+  final ProviderContainer container = ProviderContainer(overrides: [
+    authRepositoryProvider.overrideWithValue(auth),
+    userCardRepositoryProvider.overrideWithValue(cards),
+    masterDataDirectoryProvider.overrideWithValue(masterData),
+    masterDataAdminProvider.overrideWithValue(FakeMasterDataAdmin()),
+    contactPickerProvider.overrideWithValue(null),
+    inventoryDirectoryProvider.overrideWithValue(inventory),
+    inventoryAdminProvider.overrideWithValue(FakeInventoryAdmin()),
+    dailyPricingDirectoryProvider.overrideWithValue(pricing),
+    distributionDirectoryProvider.overrideWithValue(distributions),
+    distributionAdminProvider.overrideWithValue(admin),
+    todayProvider.overrideWithValue(fixedDay),
+  ]);
+  addTearDown(container.dispose);
+  container.read(pendingFocusProvider.notifier).request(focus);
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(
+        locale: Locale('ar'),
+        home: DistributionScreen(),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 20));
+  return container;
 }
 
 Future<void> selectDealer(WidgetTester tester) async {
@@ -438,6 +486,57 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
       expect(find.text('إلغاء التوزيعة'), findsNothing);
       expect(find.text('حفظ التعديل'), findsOneWidget);
+    });
+  });
+
+  group('⛔⛔★★★ DEBT-68 — وجهةُ المركز المعلّق لا تُسقِط الشاشة', () {
+    PendingFocus focusOn(String documentId) => PendingFocus(
+          kind: PendingDocumentKind.distribution,
+          sourceId: 'SRC-001',
+          documentId: documentId,
+          field: PendingMissingField.distributionLinePricing,
+        );
+
+    testWidgets('★★★ الشاشة تُبنى بلا استثناء — والكتابة بعد أول إطار', (
+      WidgetTester tester,
+    ) async {
+      await pumpWithPendingFocus(
+        tester,
+        focus: focusOn('MQT-0001_SRC-001_20260827'),
+      );
+      // ⛔ **بلا الإصلاح يرمي Riverpod هنا** — ★ **والاختبار يقيس العطل
+      //   لا يصفه** (`troubleshooting-guide.md` §5).
+      expect(tester.takeException(), isNull);
+      expect(find.byType(DistributionScreen), findsOneWidget);
+    });
+
+    testWidgets('★★ وتُستهلَك الوجهة مرةً واحدة — فلا تعلق', (
+      WidgetTester tester,
+    ) async {
+      final ProviderContainer container = await pumpWithPendingFocus(
+        tester,
+        focus: focusOn('MQT-0001_SRC-001_20260827'),
+      );
+      expect(container.read(pendingFocusProvider), isNull);
+    });
+
+    testWidgets('★★ والمقوت المقصود يُنتقى من المعرّف المركّب', (
+      WidgetTester tester,
+    ) async {
+      await pumpWithPendingFocus(
+        tester,
+        focus: focusOn('MQT-0001_SRC-001_20260827'),
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(find.text('مقوت مثال'), findsWidgets);
+    });
+
+    testWidgets('⛔ ومعرّفٌ لا يطابق الشكل يُهمَل ولا يُخمَّن مقوت', (
+      WidgetTester tester,
+    ) async {
+      await pumpWithPendingFocus(tester, focus: focusOn('لا-يطابق-الشكل'));
+      expect(tester.takeException(), isNull);
+      expect(find.text('اختر المقوت لبدء التوزيع'), findsOneWidget);
     });
   });
 }

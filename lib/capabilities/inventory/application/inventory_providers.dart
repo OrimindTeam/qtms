@@ -216,6 +216,15 @@ final class PricingQuery {
 }
 
 /// ⛅ أسعار اليوم للمصدر المطلوب.
+///
+/// ⛔⛔★★★ **و`isAutoDispose` مقصودٌ — `DEBT-62`:** ★ **شاشةُ التسعير وحدَها
+/// تشترك في هذه العائلة مرتين** (**اليوم وأمس**) ⟵ ⛅ **ومقيسٌ على
+/// `Pixel_6_API_36` أن اشتراكَ أمس يُوقف رسمَ جسمِ الشاشة عند الدخول الثاني.**
+/// ★ **والأثرُ محصورٌ في مفتاح أمس عملياً:** ⟵ **مفتاحُ اليوم يبقى حيّاً على
+/// كل حال لأن [pricingRowsProvider] و`suggestedDistributionPricesProvider`
+/// يراقبانه وهما دائمان** ⛔ **فلا يسقط بثٌّ يعتمد عليه أحد.**
+/// ⛔ **ولا بياناتٍ بائتة:** ★ **ما دام له مستمعٌ فالبثُّ حيٌّ والتحديث فوري**،
+/// ⟵ **وعند انقطاع آخر مستمع يُتخلَّص منه فيُعاد الاشتراك نظيفاً عند العودة.**
 final dailyPricesProvider =
     StreamProvider.family<List<DailyPriceCard>, PricingQuery>(
   (Ref ref, PricingQuery query) =>
@@ -223,6 +232,7 @@ final dailyPricesProvider =
             sourceId: query.sourceId,
             date: query.date,
           ),
+  isAutoDispose: true,
 );
 
 /// فلتر «حالة التسعير» المختار — `FR-M9-05`.

@@ -22,6 +22,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
+import '../../../core/ui/inline_banner.dart';
 import '../application/master_data_providers.dart';
 import 'master_data_widgets.dart';
 
@@ -198,17 +199,9 @@ class _OnceOnlyWarning extends StatelessWidget {
   const _OnceOnlyWarning();
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(Spacing.space16),
-        decoration: BoxDecoration(
-          color: Primitives.warningSoft,
-          border: Border.all(color: Primitives.warningBorder),
-          borderRadius: BorderRadius.circular(Radii.card),
-        ),
-        child: Text(
-          'هذه القيم تُحفظ مرة واحدة ولا يمكن تغييرها لاحقاً. '
-          'تصحيح أي خطأ بعد الحفظ يتطلب تدخّلاً على مستوى المشروع السحابي.',
-          style: TypeScale.bodyMd.copyWith(color: Primitives.warningInk),
-        ),
+  Widget build(BuildContext context) => const QtmsInlineBanner(
+        text: 'هذه القيم تُحفظ مرة واحدة ولا يمكن تغييرها لاحقاً. '
+            'تصحيح أي خطأ بعد الحفظ يتطلب تدخّلاً على مستوى المشروع السحابي.',
+        triad: SemanticTriads.warning,
       );
 }

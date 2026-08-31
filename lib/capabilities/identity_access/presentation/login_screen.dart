@@ -13,6 +13,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 import '../../../core/design/brand.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
+import '../../../core/ui/inline_banner.dart';
 import '../../../core/startup/staging_qa_credentials.dart';
 import '../application/login_controller.dart';
 
@@ -180,17 +181,9 @@ class _RejectionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final CatalogMessage message = signInRejectionMessage(reason);
 
-    return Container(
-      padding: const EdgeInsets.all(Spacing.space12),
-      decoration: BoxDecoration(
-        color: Primitives.dangerSoft,
-        border: Border.all(color: Primitives.dangerBorder),
-        borderRadius: BorderRadius.circular(Radii.card),
-      ),
-      child: Text(
-        catalogText(message),
-        style: TypeScale.bodyMd.copyWith(color: Primitives.dangerInk),
-      ),
+    return QtmsInlineBanner(
+      text: catalogText(message),
+      triad: SemanticTriads.danger,
     );
   }
 }

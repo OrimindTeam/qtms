@@ -36,7 +36,16 @@ import 'capabilities/master_data/infrastructure/contact_picker.dart';
 import 'capabilities/master_data/infrastructure/firestore_master_data_directory.dart';
 import 'capabilities/master_data/infrastructure/functions_master_data_repository.dart';
 import 'capabilities/oversight/application/audit_log_providers.dart';
+import 'capabilities/oversight/application/messaging_providers.dart';
+import 'capabilities/oversight/application/pending_entries_providers.dart';
+import 'capabilities/oversight/application/report_providers.dart';
+import 'capabilities/oversight/infrastructure/document_share_service.dart';
 import 'capabilities/oversight/infrastructure/firestore_audit_log_directory.dart';
+import 'capabilities/oversight/infrastructure/firestore_pending_entries_directory.dart';
+import 'capabilities/oversight/infrastructure/firestore_report_directory.dart';
+import 'capabilities/oversight/infrastructure/functions_export_log_repository.dart';
+import 'capabilities/oversight/infrastructure/message_channel_launcher.dart';
+import 'capabilities/oversight/infrastructure/pdf_document_renderer.dart';
 import 'capabilities/sales_receivables/application/distribution_providers.dart';
 import 'capabilities/sales_receivables/infrastructure/firestore_distribution_directory.dart';
 import 'capabilities/sales_receivables/infrastructure/functions_distribution_repository.dart';
@@ -172,6 +181,41 @@ Future<void> main() async {
               //   ★ **والقيد يُكتب داخل معاملة مستنده في السحابة.**
               auditLogDirectoryProvider.overrideWithValue(
                 FirestoreAuditLogDirectory(FirebaseFirestore.instance),
+              ),
+              // ⏳★★ `WU-009` — مركز الإدخالات المعلّقة: **قراءةٌ مباشرة
+              //   وحدها** (`ADR-0013` القاعدة 4). ⛔⛔ **ولا نظيرَ كاتبٍ له
+              //   هنا ولا في أي مكان**: `pending_entries` **`allow write:
+              //   if false`** (`FR-SYS-09`)، ★ **والبنود تُكتب وتُمحى داخل
+              //   معاملة مستندها في السحابة.**
+              pendingEntryDirectoryProvider.overrideWithValue(
+                FirestorePendingEntryDirectory(FirebaseFirestore.instance),
+              ),
+              // ★★ `WU-010` — الإرسال والتصدير (`M20`).
+              //
+              // ⛔⛔★★ **والإرسال بلا مستودعٍ ولا كاتبٍ عمداً** — `FR-M20-15`
+              //   و`FR-M20-16`: **إجراء واجهة فقط، ولا تسجيل لمحاولاته**
+              //   (`AT-64`). ⟵ **فما يُحقَن هنا فاتحُ قناةٍ لا مُرسِل.**
+              //
+              // ★ **والتصدير وحده يكتب** — **قيدَ تدقيقٍ عبر `logExport`**
+              //   (`FR-M19-04` · `IQ-032`)، ⛔ **ولا كتابة مباشرة على
+              //   `audit_log` مطلقاً.**
+              exportLogRepositoryProvider.overrideWithValue(
+                FunctionsExportLogRepository(
+                  client: _callableClient(),
+                  newRequestId: _newRequestId,
+                ),
+              ),
+              pdfRendererProvider.overrideWithValue(PdfDocumentRenderer()),
+              documentShareProvider.overrideWithValue(DocumentShareService()),
+              messageChannelProvider
+                  .overrideWithValue(const MessageChannelLauncher()),
+              // ★★ `WU-011` — التقارير (`M19`): **قراءةٌ مباشرة وحدها**
+              //   (`ADR-0013` القاعدة 4). ⛔⛔ **ولا نظيرَ كاتبٍ له إطلاقاً**:
+              //   ★ **التقريرُ مشتقٌّ يُبنى عند الطلب ولا يُخزَّن** (`ADR-0008`)،
+              //   ⟵ **والأثرُ الوحيد الذي يكتبه تصديرُه** — **قيدُ «تصدير»
+              //   عبر `logExport` أعلاه** (`FR-M19-04`) ⛔ **لا مستندَ تقرير.**
+              reportDirectoryProvider.overrideWithValue(
+                FirestoreReportDirectory(FirebaseFirestore.instance),
               ),
             ]
           : const [],

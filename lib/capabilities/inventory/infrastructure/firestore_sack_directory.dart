@@ -38,7 +38,7 @@ final class FirestoreSackDirectory implements SackDirectory {
             final List<SackCard> cards = <SackCard>[
               for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
                   in snapshot.docs)
-                _sackOf(doc.id, doc.data(), stockDate),
+                sackOf(doc.id, doc.data(), stockDate),
             ];
             // ★ **بالرقم المتسلسل اليومي** — ⟵ **فهو ترتيب الإنشاء داخل
             //   المصدر بلا فهرس**، ⛔ **ولا يتغيّر بتغيّر الاسم الظاهر.**
@@ -76,7 +76,11 @@ final class FirestoreSackDirectory implements SackDirectory {
   // التحويل — ⛔ **والمجهول يُقرأ بالافتراض الآمن لا يُسقِط الشاشة**
   // ═════════════════════════════════════════════════════════════════════
 
-  static SackCard _sackOf(
+  /// ★ يحوّل مستند جونيةٍ خاماً إلى بطاقتها.
+  ///
+  /// ★★ **ومكشوفٌ لأن `FirestoreReportDirectory` يقرأ المجموعةَ نفسَها**
+  /// (`R-04` — `WU-011`) — ⛔ **ونسخةٌ ثانية تفترق عند أول حقل.**
+  static SackCard sackOf(
     String id,
     Map<String, dynamic> data,
     CalendarDay fallbackDay,

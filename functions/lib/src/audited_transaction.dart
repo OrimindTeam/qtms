@@ -227,12 +227,29 @@ final class AuditedWrite<T> {
     required this.entry,
     required this.result,
     this.deletions = const <PendingDeletion>[],
+    this.auditOnly = false,
   });
 
   /// المستندات المكتوبة — ⛔ **ولا تكون فارغة**: قيد بلا تعديل لا معنى له.
   ///
-  /// ⚠️ **إلا إذا كانت [deletions] غير فارغة** — فالحذف تغييرٌ يُوثَّق أيضاً.
+  /// ⚠️ **إلا إذا كانت [deletions] غير فارغة** — فالحذف تغييرٌ يُوثَّق أيضاً،
+  /// ★ **أو كانت [auditOnly] مرفوعة** — راجعها.
   final List<PendingDocument> documents;
+
+  /// ★★★ **قيدٌ بلا مستند — بعَلَمٍ صريحٍ مُسمّى** (`IQ-032` · `logExport`).
+  ///
+  /// ═══════════════════════════════════════════════════════════════════════
+  /// ⛔⛔★★★ **ولماذا عَلَمٌ لا إسقاطٌ للحارس:** ★ **الحارس أدناه يمنع خطأً
+  /// برمجياً حقيقياً** — **خطةٌ نسيت مستنداتها فتكتب قيداً يوثّق تغييراً لم
+  /// يقع.** ⟵ **وإسقاطُه للجميع كان يجعل ذلك الخطأ يمرّ صامتاً في كل عملية
+  /// كاتبة في النظام** ⛔ **من أجل عمليةٍ واحدة لا تكتب مستنداً بطبيعتها.**
+  ///
+  /// ★ **والفعل الوحيد الذي يصدُق عليه هذا اليوم: `export`** — **التصدير
+  /// يُخرِج نسخةً ولا يُغيِّر بياناً** (`FR-M19-04` · `messaging-design.md` §9).
+  /// ⛔ **ولا يُرفَع هذا العَلَم لفعلٍ يُفترَض أن يُغيِّر شيئاً** — ★ **ويحرسه
+  /// الشرط أدناه: `auditOnly` لا يُقبَل إلا مع [AuditAction.export].**
+  /// ═══════════════════════════════════════════════════════════════════════
+  final bool auditOnly;
 
   /// ★★ المستندات المحذوفة — `IQ-018`. راجع [PendingDeletion].
   final List<PendingDeletion> deletions;
@@ -524,11 +541,16 @@ final class AuditedTransaction {
 
   Future<void> _commit(String transactionId, AuditedWrite<Object?> write) async {
     if (write.documents.isEmpty && write.deletions.isEmpty) {
-      throw ArgumentError.value(
-        write.documents,
-        'documents',
-        'قيد بلا مستند مكتوب ولا محذوف — والقيد يوثّق تغييراً لا فراغاً',
-      );
+      // ★★★ **الاستثناء الوحيد — قيدُ تصديرٍ بعَلَمٍ صريح** (`IQ-032`).
+      //    ⛔ **ولا يكفي رفعُ العَلَم:** الفعل نفسُه يجب أن يكون `export`،
+      //    ⟵ **فلا يُهرَّب فعلٌ آخر عبر هذا الباب** (راجع [AuditedWrite.auditOnly]).
+      if (!write.auditOnly || write.entry.action != AuditAction.export) {
+        throw ArgumentError.value(
+          write.documents,
+          'documents',
+          'قيد بلا مستند مكتوب ولا محذوف — والقيد يوثّق تغييراً لا فراغاً',
+        );
+      }
     }
     final List<firestore.Write> writes = <firestore.Write>[
       for (final PendingDocument doc in write.documents) _toWrite(doc),

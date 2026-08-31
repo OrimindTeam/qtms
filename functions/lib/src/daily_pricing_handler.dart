@@ -40,6 +40,7 @@ import 'inventory_handler.dart'
         readItemRecords,
         readLedgerMovements,
         withLedgerItems;
+import 'pending_entries.dart';
 import 'permission_sync_handler.dart' show requestIdField;
 
 /// اسم حقل سبب التعديل في الحمولة.
@@ -215,6 +216,10 @@ final class DailyPricingHandler {
         if (validated is Failure<ValidatedDailyPriceBatch>) {
           throw const AbortTransaction(CallableError.invalidArgument);
         }
+        // ★ **الدفعة المُتحقَّق منها تُقرأ مرةً واحدة** — ⟵ **فالمُخطِّط
+        //   وباني المركز المعلّق يعملان على الكائن نفسه** ⛔ **لا على نسختين.**
+        final ValidatedDailyPriceBatch batch =
+            (validated as Success<ValidatedDailyPriceBatch>).value;
 
         final DailyPricingPlan plan = planDailyPricing(
           DailyPricingRequest(
@@ -222,7 +227,7 @@ final class DailyPricingHandler {
             requestId: requestId,
             sourceId: sourceId,
             date: day,
-            batch: (validated as Success<ValidatedDailyPriceBatch>).value,
+            batch: batch,
             storedSource: reads.document(sourcePath),
             items: items,
             ledger: readLedgerMovements(
@@ -246,6 +251,16 @@ final class DailyPricingHandler {
         }
 
         final DailyPricingAccepted accepted = plan as DailyPricingAccepted;
+
+        // ⏳★★★ **بنود المركز المعلّق — في المعاملة نفسها** (`WU-009` ·
+        //    `FR-SYS-09` · `FR-M9-10`): ⟵ **فالبند يزول في اللحظة التي
+        //    اكتمل فيها التسعير** ⛔ **لا بعدها بمشغّل** (`AT-16`).
+        //    ⚠️⚠️ **ولا يُوقِف شيئاً** — `FR-SYS-06`: **المركز لا يمنع.**
+        final PendingEntrySet pending = pendingFromPricedLines(
+          batch: batch,
+          date: day,
+        );
+
         return AuditedWrite<void>(
           documents: <PendingDocument>[
             for (final InventoryWrite write in accepted.writes)
@@ -256,7 +271,9 @@ final class DailyPricingHandler {
                 updateMask: write.updateMask,
                 serverTimestampFields: write.serverTimestampFields,
               ),
+            ...pendingEntryDocuments(pending),
           ],
+          deletions: pendingEntryDeletions(pending),
           entry: accepted.entry,
           result: null,
         );

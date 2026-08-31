@@ -12,10 +12,13 @@
 library;
 
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qtms/core/design/app_theme.dart';
 import 'package:qtms/core/design/design_tokens.dart';
+import 'package:qtms/core/design/theme_extensions.dart';
 
 // ═══════════════════════════ أدوات القراءة ═══════════════════════════
 
@@ -193,6 +196,51 @@ String _slash(String path) => path.replaceAll(r'\', '/');
 bool _isTokenLayer(String path) =>
     path.replaceAll(r'\', '/').contains('lib/core/design/');
 
+// ═══════════════════════ حساب التباين — WCAG 2.1 ═══════════════════════
+
+/// ★★ نسبةُ تباينٍ فعلية بين لونين — ⛔ **لا تقديرٌ بالعين.**
+///
+/// ⚠️⚠️ **ولماذا تُحسَب هنا لا تُكتَب رقماً في مستند** (`AM-007`): ★ **المستند
+/// كان يقول «كل أزواج `soft × ink` مصمَّمة لتجاوز 4.5:1» منذ أول يوم** —
+/// ⛔ **ولم يكن هناك حساب.** ⟵ **فأيُّ إعادةِ اشتقاقٍ للهوية** (وقد حدثت
+/// مرتين: `AM-003` ثم `AM-007`) **كانت تمرّ بلا فحصٍ واحد.**
+double _contrast(Color a, Color b) {
+  final double la = _relativeLuminance(a);
+  final double lb = _relativeLuminance(b);
+  final double hi = la > lb ? la : lb;
+  final double lo = la > lb ? lb : la;
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+double _relativeLuminance(Color color) {
+  double channel(double v) =>
+      v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+  return 0.2126 * channel(color.r) +
+      0.7152 * channel(color.g) +
+      0.0722 * channel(color.b);
+}
+
+/// ★★ لونٌ شفّافٌ **مخلوطٌ فعلياً** مع خلفيته.
+///
+/// ⛔⛔★★★ **ولا يُقاس نصٌّ شفّافٌ بلونه الاسمي** (`design-tokens.md` §11.1):
+/// ★ **`onTie` بشفافية 78٪ فوق طرف التدرّج الفاتح ليس `onTie`** — ⟵ **وفرقُ
+/// القراءة بينهما هو فرقُ النجاح والفشل** (5.54 مقابل 4.08).
+Color _flatten(Color foreground, Color background) => Color.fromARGB(
+      255,
+      ((foreground.r * foreground.a + background.r * (1 - foreground.a)) * 255)
+          .round(),
+      ((foreground.g * foreground.a + background.g * (1 - foreground.a)) * 255)
+          .round(),
+      ((foreground.b * foreground.a + background.b * (1 - foreground.a)) * 255)
+          .round(),
+    );
+
+/// ★ ألوانُ تدرّجٍ خطّي — **لقياس أسوأ طرفٍ فيه.**
+///
+/// ⛔⛔ **ولا يُقاس زوجٌ بطرفِ تدرّجٍ واحد:** ★ **الرِباطُ داكنٌ إلى أفتح**،
+/// ⟵ **والنصُّ الفاتح يفي بالحدّ على الطرف الداكن ويسقط على الفاتح.**
+List<Color> _stops(Gradient gradient) => (gradient as LinearGradient).colors;
+
 /// هل الملف من طبقة العرض أو من كتالوجات الرسائل؟
 bool _isUserFacing(String path) {
   final String p = path.replaceAll(r'\', '/');
@@ -302,6 +350,17 @@ void main() {
       }
     });
 
+    test('⛔★★★ ولا استدعاءَ للطبقة الأولية خارج طبقة التوكنز — §1', () {
+      // ⚠️⚠️ **وهذه ثغرةٌ كانت مفتوحةً حتى `AM-007`:** ★ **البوابةُ ترفض
+      //    `Color(0x…)` و`Colors.*`** ⛔ **ولا ترفض `Primitives.dangerSoft`**،
+      //    ⟵ **وهي مخالفةٌ لنفس القاعدة بحرفها**: §1 يقول «**الطبقة الأولية
+      //    لا تُستدعى خارج ملف التوكنز إطلاقاً**». ★ **وكانت مخالَفةً في
+      //    عشرة مواضع فعلاً** (سبعُ نسخٍ من شريطٍ واحد).
+      _expectNoMatches(outsideTokens, (_Source s) => s.code, <String, RegExp>{
+        'استدعاءُ الطبقة الأولية': RegExp(r'\bPrimitives\s*\.'),
+      });
+    });
+
     test('★★ و`focusRing` مشتقّ من `primary400` فعلاً لا قيمةً محفورة', () {
       // ⛔ **لو بقيت القيمة القديمة لظلّت حلقةُ التركيز كحلية بعد خضرة الأساس**
       //    — ★ وهي أكثر ما يفوت المراجعة البصرية لأنها تظهر لحظةً واحدة.
@@ -315,6 +374,180 @@ void main() {
         closeTo(0.40, 0.01),
         reason: '§3 يفرض شفافية 40٪',
       );
+    });
+  });
+
+  // ═══════ ①-ب بوابة التباين — `design-tokens.md` §11.1 (`AM-007`) ═══════
+
+  group('★★★ بوابة التباين', () {
+    const QtmsHeroColors hero = QtmsHeroColors.standard();
+    const QtmsCategoryColors cats = QtmsCategoryColors.standard();
+
+    void expectAtLeast(String label, Color fg, Color bg, double minimum) {
+      final double value = _contrast(fg, bg);
+      expect(
+        value,
+        greaterThanOrEqualTo(minimum),
+        reason: '★ $label — القياس ${value.toStringAsFixed(2)}:1 '
+            'والحدّ ${minimum.toStringAsFixed(1)}:1',
+      );
+    }
+
+    test('⛔★★★ كل زوج `soft × ink` لا يقل عن 4.5:1', () {
+      final Map<String, ColorTriad> triads = <String, ColorTriad>{
+        'success': SemanticTriads.success,
+        'danger': SemanticTriads.danger,
+        'warning': SemanticTriads.warning,
+        'info': SemanticTriads.info,
+        'primary': SemanticTriads.primary,
+        'neutral': SemanticTriads.neutral,
+        // ★ **والتصنيفيةُ الخمسُ مشمولةٌ عمداً** — ★ **بقيت بلا تغيير في
+        //   `AM-007` بفحصٍ لا بافتراض**، ⟵ **والفحصُ هو هذا.**
+        'cat1/identity': cats.identity,
+        'cat2/masterData': cats.masterData,
+        'cat3/inventory': cats.inventory,
+        'cat4/receivables': cats.receivables,
+        'cat5/cash': cats.cash,
+      };
+      for (final MapEntry<String, ColorTriad> e in triads.entries) {
+        expectAtLeast('${e.key} soft×ink', e.value.ink, e.value.soft, 4.5);
+      }
+    });
+
+    test('★★ والنصُّ على كل سطحٍ فاتح — 7:1 للرئيسي و4.5:1 لما دونه', () {
+      final Map<String, Color> surfaces = <String, Color>{
+        'surface': SemanticColors.surface,
+        'bg': SemanticColors.background,
+        'surfaceSunken': SemanticColors.surfaceSunken,
+        // ★ **وطرفا تدرّج جسم البطاقة الرئيسية** — ⟵ **فالبطاقةُ فاتحةٌ الآن**
+        //   ⛔ **ولا يكفي قياسُ `surface` وحده.**
+        'heroSurface/start': _stops(hero.surfaceGradient).first,
+        'heroSurface/end': _stops(hero.surfaceGradient).last,
+      };
+      for (final MapEntry<String, Color> s in surfaces.entries) {
+        expectAtLeast(
+            'textPrimary على ${s.key}', SemanticColors.textPrimary, s.value, 7);
+        expectAtLeast('textSecondary على ${s.key}',
+            SemanticColors.textSecondary, s.value, 4.5);
+        expectAtLeast('textTertiary على ${s.key}', SemanticColors.textTertiary,
+            s.value, 4.5);
+      }
+    });
+
+    test('⛔★★★ والنصُّ على الرِباط يُقاس على أسوأ طرفٍ من تدرّجه', () {
+      for (final Color stop in _stops(hero.tieGradient)) {
+        expectAtLeast('onTie', hero.onTie, stop, 4.5);
+        // ⛔⛔ **والتسميةُ بشفافيتها مخلوطةً فعلياً** — §11.1.
+        expectAtLeast(
+            'onTieLabel @${hero.labelOpacity}', _flatten(hero.onTieLabel, stop), stop, 4.5);
+        expectAtLeast('successOnTie', hero.successOnTie, stop, 4.5);
+        expectAtLeast('dangerOnTie', hero.dangerOnTie, stop, 4.5);
+      }
+    });
+
+    test('★ والنصُّ على الأسطح الداكنة والأزرار الأساسية', () {
+      expectAtLeast('textOnPrimary على primary500', SemanticColors.textOnPrimary,
+          Primitives.primary500, 4.5);
+      expectAtLeast('textOnInverse على surfaceInverse',
+          SemanticColors.textOnInverse, SemanticColors.surfaceInverse, 4.5);
+    });
+
+    test('★ والأيقوناتُ والحدودُ الدالّة لا تقل عن 3:1 على السطح', () {
+      final Map<String, Color> bases = <String, Color>{
+        'successBase': Primitives.successBase,
+        'dangerBase': Primitives.dangerBase,
+        'warningBase': Primitives.warningBase,
+        // ★★ **و`infoBase` أُدرِج بـ`IQ-028`** (الخيار ب · 2026-08-29): ⟵ **صار
+        //    لوناً دالاًّ فعلياً لا محايداً ورقياً**، ★ **فيلزمه حدُّ الأيقونات**
+        //    ⛔ **ولا يُستثنى لأنه استثناءُ `DS-003`** — ★ **الاستثناءُ في
+        //    مصدر اللون لا في بوابته.**
+        'infoBase': Primitives.infoBase,
+        'primary400': Primitives.primary400,
+        'primary500': Primitives.primary500,
+      };
+      for (final MapEntry<String, Color> b in bases.entries) {
+        expectAtLeast('${b.key} على surface', b.value, SemanticColors.surface, 3);
+      }
+    });
+  });
+
+  // ═════ ①-ج بوابة خط العرض الثاني — `design-tokens.md` §5-أ (`AM-007`) ═════
+
+  group('★★★ بوابة خط العرض', () {
+    test('⛔⛔★★★ ولا رقمَ بخط `Tajawal` — أرقامه متغيّرة العرض وبلا `tnum`', () {
+      // ★ **الفحصُ بنيويٌّ لا نصّي:** ★ **أيُّ نمطٍ يحمل عائلةَ خط العرض
+      //   يجب أن يخلو من ميزةِ الأرقام الجدولية**، ⟵ **لأن حملَه لها ادّعاءٌ
+      //   لا مفعول له** ⛔ **يُتجاهَل بصمت فيرتجّ العمود.**
+      const Map<String, TextStyle> displayTokens = <String, TextStyle>{
+        'displayTitleLg': TypeScale.displayTitleLg,
+        'displayTitleSm': TypeScale.displayTitleSm,
+      };
+      for (final MapEntry<String, TextStyle> e in displayTokens.entries) {
+        expect(
+          e.value.fontFamily,
+          qtmsDisplayFontFamily,
+          reason: '★ ${e.key} يجب أن يحمل عائلة خط العرض صريحةً',
+        );
+        expect(
+          e.value.fontFeatures ?? const <FontFeature>[],
+          isEmpty,
+          reason: '⛔ ${e.key} لا يحمل ميزةَ أرقامٍ — الخط لا يدعمها',
+        );
+      }
+    });
+
+    test('★★ وكلُّ نمطٍ رقميٍّ على خط الجسم — ⛔ ولا عائلةَ عرضٍ فيه', () {
+      const Map<String, TextStyle> numeric = <String, TextStyle>{
+        'numeric': TypeScale.numeric,
+        'numericSm': TypeScale.numericSm,
+        'numericDisplay': TypeScale.numericDisplay,
+      };
+      for (final MapEntry<String, TextStyle> e in numeric.entries) {
+        expect(
+          e.value.fontFamily,
+          isNot(qtmsDisplayFontFamily),
+          reason: '⛔ ${e.key} لا يُسنَد لخط العرض إطلاقاً',
+        );
+        expect(
+          e.value.fontFeatures,
+          TypeScale.tabular,
+          reason: '★ ${e.key} أرقامٌ جدولية إلزاماً — §5',
+        );
+      }
+    });
+
+    test('★ والوزنان المضمَّنان في `pubspec.yaml` هما 800 و900 فقط', () {
+      // ⚠️ **يقرأ `pubspec.yaml` نفسه** ⛔ **لا نسخةً منه:** ★ **طلبُ وزنٍ غير
+      //    مضمَّن يقع على أقربه بلا إنذار** — ⟵ **فيبدو العنوانُ أثقلَ مما
+      //    يقصد التوكن.** ★ **والعائلةُ لا تحمل 600 أصلاً.**
+      final String pubspec = File('pubspec.yaml').readAsStringSync();
+      final int start = pubspec.indexOf('- family: $qtmsDisplayFontFamily');
+      expect(start, isNot(-1), reason: '★ عائلةُ خط العرض غير مسجَّلة');
+      final String block = pubspec.substring(start);
+      final List<String> weights = RegExp(r'weight:\s*(\d+)')
+          .allMatches(block)
+          .map((Match m) => m.group(1)!)
+          .toList();
+      expect(weights, <String>['800', '900']);
+
+      for (final String file in <String>[
+        'assets/fonts/Tajawal-ExtraBold.ttf',
+        'assets/fonts/Tajawal-Black.ttf',
+        // ★ **ورخصتُه ملفٌّ مستقل** — ⛔ **لا تُدمَج مع رخصةِ خطِّ الجسم:**
+        //   ★ **مالكا حقوقٍ مختلفان ودمجُهما يُفقد أحدَ الإسنادين.**
+        'assets/fonts/OFL-Tajawal.txt',
+      ]) {
+        expect(
+          File(file).existsSync(),
+          isTrue,
+          reason: '★ الأصلُ $file مفقود',
+        );
+      }
+    });
+
+    test('★★ والوزنان مطابقان لجدول §5 من مستند الخطوط', () {
+      expect(TypeScale.displayTitleLg.fontWeight, FontWeight.w900);
+      expect(TypeScale.displayTitleSm.fontWeight, FontWeight.w800);
     });
   });
 
@@ -486,6 +719,56 @@ void main() {
   });
 
   // ═════════ ⑥ بوابة خُطّاف الاختبار — `AM-005` · `DEBT-31` ═════════
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ⛔⛔★★★ بوابةُ `minimumSize` — `DEBT-63`
+  // ═════════════════════════════════════════════════════════════════════
+  //
+  // ★★ **ما تحرسه:** `Size.fromHeight(h)` **هي `Size(double.infinity, h)`**
+  // ⟵ **فتجعل `minWidth` لا نهائياً.** ⛔⛔ **وابنُ `Row` غيرُ المرن يُخطَّط
+  // بعرضٍ غير محدود** ⟹ **قيدٌ مستحيل: الزرُّ يُبنى ويُربَط ولا يُخطَّط أبداً**
+  // (`hasSize=false`) ⛔ **ولا يُرسَم ولا يُخطئ بصوتٍ مسموع.**
+  //
+  // ⛅★★ **وهذا هو سببُ `DEBT-63` مقيساً على `Pixel_6_API_36`:** ★ **زرُّ
+  // «نسخ أسعار أمس» كان الضحيّة الظاهرة** ⟵ **والعطلُ كان يعمّ كلَّ زرٍّ
+  // محاطٍ بعرضٍ غير محدود في التطبيق كلِّه.**
+  //
+  // ⚠️★★ **و`filledButtonTheme` مستثنىً عمداً:** ★ **`Size.fromHeight` فيه
+  // مقصودة** — **الزرُّ الأساسي يملأ العرض** ⟵ **وموضعُه دائماً محدودُ العرض**
+  // (`QtmsStickyActionBar`). ⛔ **ولو وُضع في `Row` لسقط السقوطَ نفسَه.**
+  group('⛔⛔★★★ بوابة minimumSize — DEBT-63', () {
+    test('★ الزرُّ المحاط: `minimumSize` بعرضٍ محدود ⛔ لا لا نهائي', () {
+      final ThemeData theme = buildQtmsTheme();
+      final Size? min = theme.outlinedButtonTheme.style?.minimumSize
+          ?.resolve(<WidgetState>{});
+      expect(min, isNotNull, reason: '⛔ لا حدَّ أدنى معرَّفاً للزرّ المحاط');
+      expect(
+        min!.width.isFinite,
+        isTrue,
+        reason: '⛔⛔ `Size.fromHeight` تُعطي `minWidth = infinity` — '
+            'فلا يُخطَّط الزرُّ داخل `Row` أبداً (DEBT-63)',
+      );
+      // ★ **والمقصودُ هدفُ لمسٍ 48×48** — §5 البند 3.
+      expect(min.width, Sizes.minTouch);
+      expect(min.height, Sizes.minTouch);
+    });
+
+    test('★★ ونظائرُه النصّي والأيقوني على القاعدة نفسِها', () {
+      final ThemeData theme = buildQtmsTheme();
+      for (final (String name, Size? size) in <(String, Size?)>[
+        (
+          'textButton',
+          theme.textButtonTheme.style?.minimumSize?.resolve(<WidgetState>{}),
+        ),
+        (
+          'iconButton',
+          theme.iconButtonTheme.style?.minimumSize?.resolve(<WidgetState>{}),
+        ),
+      ]) {
+        expect(size?.width.isFinite, isTrue, reason: '⛔ $name بعرضٍ لا نهائي');
+      }
+    });
+  });
 
   group('★★ بوابة خُطّاف اختبار المحاكي', () {
     const String hookPath = 'lib/core/startup/staging_qa_credentials.dart';

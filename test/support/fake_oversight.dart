@@ -117,3 +117,201 @@ AuditLogEntryCard testAuditEntry({
       valuesAfter: after,
       reason: reason,
     );
+
+/// ★★ دليل تقارير يُتحكَّم به — `WU-011`.
+///
+/// ⛔⛔★★ **ويُسجِّل ما طُلب منه** — ★ **فيُثبت الاختبار أن الشاشة تستعلم
+/// بالمصدر والفترة اللذين اختارهما المستخدم** ⛔ **لا بثابتٍ في الكود**،
+/// ⟵ **وأن «كل المصادر» تُعدَّد مصادرَ لا تصل غياباً** (`IQ-024` · `DEBT-40`).
+final class FakeReportDirectory implements ReportDirectory {
+  /// المصادر التي استُعلم بها بالترتيب.
+  final List<String> requestedSources = <String>[];
+
+  /// آخر فترةٍ طُلبت.
+  ReportPeriod? lastPeriod;
+
+  /// آخر حالةِ تسويةٍ طُلبت.
+  SettlementStatus? lastSettlementStatus;
+
+  /// ★ هل طُلبت الأسعار؟ — ⛔ **ولا تُطلَب بلا `distributionPriceView`.**
+  bool pricingRequested = false;
+
+  /// ★ هل طُلبت حالاتُ الإيداع؟ — ⛔ **ولا تُطلَب بلا `receiptDepositView`.**
+  bool depositsRequested = false;
+
+  /// ما يردّه الدليل لكل دالة.
+  List<StockMovementCard> movements = const <StockMovementCard>[];
+
+  /// أرصدةُ اليوم.
+  List<ItemDailyBalanceCard> balances = const <ItemDailyBalanceCard>[];
+
+  /// مستنداتُ الوارد عدداً.
+  List<CountedIntakeCard> intakes = const <CountedIntakeCard>[];
+
+  /// الجواني.
+  List<SackCard> sackCards = const <SackCard>[];
+
+  /// التوزيعات.
+  List<DistributionCard> distributionCards = const <DistributionCard>[];
+
+  /// أسعارُ التوزيعات.
+  Map<String, DistributionPricingCard> pricing =
+      const <String, DistributionPricingCard>{};
+
+  /// السندات.
+  List<ReceiptCard> receiptCards = const <ReceiptCard>[];
+
+  /// حالاتُ الإيداع.
+  Map<String, DepositState> deposits = const <String, DepositState>{};
+
+  /// أرصدةُ المقاوته.
+  List<DealerBalanceCard> dealerBalanceCards = const <DealerBalanceCard>[];
+
+  /// قيودُ كشف الحساب.
+  List<DealerLedgerRowCard> statement = const <DealerLedgerRowCard>[];
+
+  /// بنودُ المركز المعلّق.
+  List<PendingEntryCard> pending = const <PendingEntryCard>[];
+
+  /// ★ خطأٌ يُرمى بدل النتيجة — **لاختبار حالة الرفض**.
+  ///
+  /// ⚠️ **ونوعُه `Exception` لا `Object`** — `only_throw_errors`
+  /// (`analysis_options.yaml`): ★ **والرفضُ في الإنتاج استثناءُ منصّة
+  /// (`FirebaseException`)** ⟵ **فهو النوع نفسُه صنفاً.**
+  Exception? failure;
+
+  /// ★★ تأخيرٌ اختياريٌّ قبل الردّ — **لإبقاء إعادة الحساب معلّقةً في اختبار**.
+  ///
+  /// ⛔⛔ **وبه وحده يُقاس `DEBT-74`:** ★ **أن الشاشة لا تعرض جدولَ التقرير
+  /// السابق بينما يُبنى الجديد** — ⟵ **وبلا تأخيرٍ يكتمل المستقبل في نفس
+  /// النبضة** ⛔ **فلا تقع النافذة التي فيها العطل أصلاً.**
+  Duration? delay;
+
+  /// ★ ينتظر [delay] إن وُجد — **قبل كل ردّ**.
+  Future<void> _settle() async {
+    if (delay case final Duration wait) await Future<void>.delayed(wait);
+  }
+
+  void _record(String sourceId, ReportPeriod period) {
+    requestedSources.add(sourceId);
+    lastPeriod = period;
+    if (failure case final Exception error) throw error;
+  }
+
+  @override
+  Future<List<StockMovementCard>> itemMovements({
+    required String sourceId,
+    required String itemKey,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return movements;
+  }
+
+  @override
+  Future<List<ItemDailyBalanceCard>> dailyBalances({
+    required String sourceId,
+    required CalendarDay stockDate,
+  }) async {
+    _record(sourceId, ReportPeriod.singleDay(stockDate));
+    await _settle();
+    return balances;
+  }
+
+  @override
+  Future<List<CountedIntakeCard>> countedIntakes({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return intakes;
+  }
+
+  @override
+  Future<List<SackCard>> sacks({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return sackCards;
+  }
+
+  @override
+  Future<List<DistributionCard>> distributions({
+    required String sourceId,
+    required ReportPeriod period,
+    SettlementStatus? settlementStatus,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    lastSettlementStatus = settlementStatus;
+    return distributionCards;
+  }
+
+  @override
+  Future<Map<String, DistributionPricingCard>> distributionPricing({
+    required List<String> distributionIds,
+  }) async {
+    pricingRequested = true;
+    return pricing;
+  }
+
+  @override
+  Future<List<ReceiptCard>> receipts({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return receiptCards;
+  }
+
+  @override
+  Future<Map<String, DepositState>> receiptDeposits({
+    required List<String> documentNumbers,
+  }) async {
+    depositsRequested = true;
+    return deposits;
+  }
+
+  @override
+  Future<List<DealerBalanceCard>> dealerBalances({
+    required String sourceId,
+    int limit = reportPageSize,
+  }) async {
+    requestedSources.add(sourceId);
+    if (failure case final Exception error) throw error;
+    return dealerBalanceCards;
+  }
+
+  @override
+  Future<List<DealerLedgerRowCard>> dealerStatement({
+    required String dealerId,
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return statement;
+  }
+
+  @override
+  Future<List<PendingEntryCard>> pendingEntries({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return pending;
+  }
+}

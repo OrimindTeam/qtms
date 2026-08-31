@@ -51,7 +51,7 @@ final class FirestoreDistributionDirectory implements DistributionDirectory {
             final List<DistributionCard> cards = <DistributionCard>[
               for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
                   in snapshot.docs)
-                _cardOf(doc.id, doc.data(), stockDate),
+                cardOf(doc.id, doc.data(), stockDate),
             ];
             // ★ **مرتَّبةً باسم المقوت** — ⟵ **فترتيب الشاشة ثابت**،
             //   ⛔ **ولا يقفز صفٌّ بتعديل كميته.**
@@ -74,18 +74,69 @@ final class FirestoreDistributionDirectory implements DistributionDirectory {
           .snapshots()
           .map((DocumentSnapshot<Map<String, dynamic>> doc) {
             final Map<String, dynamic>? data = doc.data();
-            return data == null ? null : _pricingOf(data);
+            return data == null ? null : pricingOf(data);
           })
           // ⛔⛔★★ **والرفض يُطوى إلى `null` عمداً** — راجع ترويسة الملف:
           //    ★ **«لا أرى السعر» حالةٌ طبيعية لا عطل** (`ت-12`).
           .handleError((Object _) {})
           .cast<DistributionPricingCard?>();
 
+  @override
+  Stream<DealerBalanceCard?> watchDealerBalance({
+    required String dealerId,
+    required String sourceId,
+  }) =>
+      _firestore
+          .collection(dealerBalancesCollection)
+          // ★ **المعرّف المركّب `{dealerId}_{sourceId}`** — ⛔ **ولا يُبنى
+          //   هنا نصّاً**: ★ **موضعُ بنائه واحدٌ في طبقة النطاق.**
+          .doc(dealerBalanceId(dealerId: dealerId, sourceId: sourceId))
+          .snapshots()
+          .map((DocumentSnapshot<Map<String, dynamic>> doc) {
+            final Map<String, dynamic>? data = doc.data();
+            return data == null ? null : balanceOf(dealerId, sourceId, data);
+          })
+          // ⛔⛔★★ **والرفض يُطوى إلى `null` عمداً** — ★ **«لا أرى الرصيد»
+          //    حالةٌ طبيعية لمن لا يملك `dealerBalanceView`** (نفس منطق
+          //    الأسعار أعلاه)، ⟵ **ولا تسقط الشاشة لأجلها.**
+          .handleError((Object _) {})
+          .cast<DealerBalanceCard?>();
+
+  /// ★ يفكّ بطاقة الرصيد — ⛔ **والغائب صفرٌ لا خطأ**.
+  ///
+  /// ⚠️ **و`openDebtCount` و`oldestOpenDebtDate` لا يكتبهما `WU-006`** —
+  /// ★ **فيُقرآن صفراً وغياباً** (`distribution.dart` — قناعُ الكتابة الضيّق)،
+  /// ⛔ **ولا يُخترَع لهما حساب هنا** (`ADR-0008`).
+  /// ★★ ومكشوفٌ لأن `FirestoreReportDirectory` يقرأ المجموعةَ نفسَها
+  /// (`R-17` — `WU-011`) — ⛔ **ونسخةٌ ثانية تفترق عند أول حقل.**
+  static DealerBalanceCard balanceOf(
+    String dealerId,
+    String sourceId,
+    Map<String, dynamic> data,
+  ) =>
+      DealerBalanceCard(
+        dealerId: dealerId,
+        sourceId: sourceId,
+        // ★ **والحقل الغائب صفرٌ لا خطأ** — ⛔ **ولا `as int` عارية** (`DEBT-24`).
+        balance: DealerAccountBalance(
+          totalDebit: Money(_int(data['totalDebit']) ?? 0),
+          totalCredit: Money(_int(data['totalCredit']) ?? 0),
+          balance: Money(_int(data['balance']) ?? 0),
+        ),
+        openDebtCount: _int(data['openDebtCount']) ?? 0,
+      );
+
+
   // ═════════════════════════════════════════════════════════════════════
   // التحويل — ⛔ **والمجهول يُقرأ بالافتراض الآمن لا يُسقِط الشاشة**
   // ═════════════════════════════════════════════════════════════════════
 
-  static DistributionCard _cardOf(
+  /// ★ يحوّل مستند توزيعةٍ خاماً إلى بطاقتها.
+  ///
+  /// ★★ **ومكشوفٌ لأن `FirestoreReportDirectory` يقرأ المجموعةَ نفسَها**
+  /// (`R-08` · `R-10` — `WU-011`): ⟵ **ونسخةٌ ثانية من التحويل تفترق عن
+  /// هذه عند أول حقلٍ يُضاف** ⛔ **وهو ما يمنعه `coding-standards.md` §2.2.**
+  static DistributionCard cardOf(
     String id,
     Map<String, dynamic> data,
     CalendarDay? fallbackDay,
@@ -113,7 +164,19 @@ final class FirestoreDistributionDirectory implements DistributionDirectory {
       notes: _text(data['notes']),
       cancelReason: _text(data['cancelReason']),
       amendCount: _int(data['amendCount']) ?? 0,
+      // ★★ **حالةُ التسوية تُقرأ ولا تُفترَض** (`R-10` — `WU-011`):
+      //    ⛔ **والمجهولُ `null` لا `open`** — ★ **فضمارٌ مُصفّى يُعرَض
+      //    مفتوحاً يُطالِب مقوتاً بما سدَّده** (نفس منطق `AuditAction`).
+      settlementStatus: _settlementOf(data['settlementStatus']),
     );
+  }
+
+  /// ★ حالةُ التسوية المقروءة — ⛔ **والمجهول `null` لا افتراضٌ صامت**.
+  static SettlementStatus? _settlementOf(Object? raw) {
+    for (final SettlementStatus status in SettlementStatus.values) {
+      if (status.name == raw) return status;
+    }
+    return null;
   }
 
   /// ★ سطور المستند — ⛔ **بلا سعرٍ فيها** (`ADR-0011`).
@@ -142,7 +205,11 @@ final class FirestoreDistributionDirectory implements DistributionDirectory {
           ? WeightQuantity(WeightKg(_double(quantity)))
           : PieceQuantity(PieceCount(_int(quantity) ?? 0));
 
-  static DistributionPricingCard _pricingOf(Map<String, dynamic> data) {
+  /// 🔒 يحوّل مستند أسعارِ توزيعةٍ — ⛔ **ولا يصل إلا من يملك
+  /// `distributionPriceView`** (`ADR-0011` · `ت-12`).
+  ///
+  /// ★★ **ومكشوفٌ لعمود القيمة في `R-10`** (`WU-011`).
+  static DistributionPricingCard pricingOf(Map<String, dynamic> data) {
     final List<Money?> unitPrices = _moneyList(data['unitPrices']);
     return DistributionPricingCard(
       sourceId: _text(data['sourceId']) ?? '',

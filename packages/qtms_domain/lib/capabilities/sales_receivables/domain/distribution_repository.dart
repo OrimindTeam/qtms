@@ -47,6 +47,7 @@ final class DistributionCard {
     this.notes,
     this.cancelReason,
     this.amendCount = 0,
+    this.settlementStatus,
   }) : lines = List<ValidatedDistributionLine>.unmodifiable(lines);
 
   /// ★ المعرّف المركّب — `{dealerId}_{sourceId}_{stockDate}` (`GR-18`).
@@ -96,6 +97,25 @@ final class DistributionCard {
 
   /// عدد التعديلات — ★ **مصدر شارة «مُعدَّل ×N»** (`FR-M10-16`).
   final int amendCount;
+
+  /// ★★ **حالةُ تسوية الضمار** — و`null` **لتوزيعةٍ بلا الحقل بعد**.
+  ///
+  /// ═════════════════════════════════════════════════════════════════════
+  /// ⚠️⚠️ **ولماذا أُضيفت في `WU-011`:** ★ **`R-10` يفلتر «مفتوحة / مغلقة /
+  /// الكل»** (`FR-M19` §2)، ⟵ **والحقلُ مكتوبٌ فعلاً منذ `WU-006`**
+  /// (`distribution.dart` — `'settlementStatus': settlement.status.name`)
+  /// **ويُحدَّث في `WU-007`** (`receipt.dart`) — ★ **فلا قيمةَ تُخترَع هنا**،
+  /// ⛔ **ولا فهرسَ بلا كاتب.**
+  ///
+  /// ⛔⛔★★ **وهي حالةُ التسوية لا [status]** — ★ **وذاك حالةُ التسعير**
+  /// (معتمد · مسعَّر جزئياً · مسعَّر · ملغى): ⟵ **وخلطُهما يُري المستخدم
+  /// ضماراً «مغلقاً» وهو غيرُ مسعَّر أصلاً** ⛔ **وهما بُعدان مستقلان.**
+  ///
+  /// ★ **و`null` تعني «لم يُقرأ أو لم يُكتب بعد»** — ⛔ **ولا تُقرأ
+  /// [SettlementStatus.open] احتياطاً**: ⟵ **فضمارٌ مُصفّى يُعرَض مفتوحاً
+  /// يُطالِب مقوتاً بما سدَّده.**
+  /// ═════════════════════════════════════════════════════════════════════
+  final SettlementStatus? settlementStatus;
 
   /// ★ **وسم «⏳ سعر غير نهائي»** — يراه الجميع (`firestore.rules` §16).
   bool get hasUnpricedLines => unpricedLineCount > 0;
@@ -206,6 +226,26 @@ abstract interface class DistributionDirectory {
   /// التمييز كان سيُغري بعرض رسالة تكشف وجود مبلغ.**
   Stream<DistributionPricingCard?> watchDistributionPricing({
     required String distributionId,
+  });
+
+  /// 🔒 **رصيد المقوت في مصدر** — ⛔ **ولا يصل إلا لمن يملك `dealerBalanceView`**.
+  ///
+  /// ═══════════════════════════════════════════════════════════════════════
+  /// ★★ **ولماذا لزم في `WU-010`:** `FR-M20-07` يجعل القالب ② يحمل **«ضمار
+  /// اليوم والرصيد السابق والحالي»** — ⟵ **ولا مصدرَ للرصيد في التطبيق قبله.**
+  ///
+  /// ⛔⛔★★ **وقراءةٌ بالمعرّف هنا آمنةٌ بخلاف `distributions`:** ★ **شرط
+  /// القراءة `perm('dealerBalanceView')` وحده** ⛔ **ولا يعتمد `resource.data`**
+  /// (`firestore.rules` — `match /dealer_balances/{balanceId}`)، ⟵ **فالمستند
+  /// الغائب لا يُرفَض بل يُقرأ `null`** — ★ **وهو عكسُ ما رُصد في `DEBT-40`.**
+  ///
+  /// ⚠️ **و`null` تعني «لا رصيد بعد» أو «لا أملك رؤيته» معاً** — ★ **والتمييز
+  /// لا يلزم الشاشة**: ⟵ **كلاهما «لا يُعرَض القالب ②»**، ⛔ **وطلبُ التمييز
+  /// كان سيُغري برسالةٍ تكشف وجود رصيد.**
+  /// ═══════════════════════════════════════════════════════════════════════
+  Stream<DealerBalanceCard?> watchDealerBalance({
+    required String dealerId,
+    required String sourceId,
   });
 }
 

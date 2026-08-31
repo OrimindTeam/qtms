@@ -160,7 +160,14 @@ ThemeData buildQtmsTheme() {
         backgroundColor: SemanticColors.surface,
         // ★★ **هدف اللمس من التوكنز** — §5 البند 3: ⟵ **والافتراضي 40 وحده
         //    كان يُسقِط الشرط في كل مدخل من مداخل الصدَفة.**
-        minimumSize: const Size.fromHeight(Sizes.minTouch),
+        //
+        // ⛔⛔★★★ **و`Size.fromHeight` ممنوعةٌ هنا — `DEBT-63`:** ★ **هي
+        //    `Size(double.infinity, h)`** ⟵ **فتجعل `minWidth` لا نهائياً**،
+        //    ⛔ **وابنُ `Row` غيرُ المرن يُخطَّط بعرضٍ غير محدود** ⟹ **قيدٌ
+        //    مستحيل، فلا يُخطَّط الزرُّ أصلاً ولا يُرسَم** (`hasSize=false`).
+        //    ★ **والمقصود هدفُ لمسٍ 48×48** — **كما في `textButtonTheme`
+        //    و`iconButtonTheme` أدناه حرفاً بحرف.**
+        minimumSize: const Size(Sizes.minTouch, Sizes.minTouch),
         side: const BorderSide(
           color: SemanticColors.border,
           width: Sizes.borderWidth,

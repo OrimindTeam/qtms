@@ -26,10 +26,14 @@ class SessionBlockedScreen extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Icon(
+                Icon(
                   Icons.lock_outline,
-                  size: 48,
-                  color: Primitives.dangerBase,
+                  size: Sizes.iconBox,
+                  // ★ **المقدّمة من الثلاثية** — §3.3: **نصّاً وأيقونةً معاً.**
+                  //   ⚠️ **و`const` تسقط هنا بحكم اللغة** — ★ **الوصولُ إلى
+                  //   حقلِ كائنٍ ثابتٍ ليس تعبيراً ثابتاً** ⛔ **ولا يُعالَج
+                  //   بنسخِ القيمة الخام** ⟵ **فذلك يعيد المخالفة نفسها.**
+                  color: SemanticTriads.danger.ink,
                 ),
                 const SizedBox(height: Spacing.space16),
                 Text(

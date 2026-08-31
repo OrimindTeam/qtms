@@ -102,3 +102,25 @@ final Provider<List<SourceCard>> activeSourcesProvider =
       if (source.isActive) source,
   ];
 });
+
+/// ★★ اسمُ المصدر للعرض في مستندٍ مُصدَّر — **نطاق `CR-004` المُعتمَد**.
+///
+/// ★ **والمعطَّل يُسمّى كالنشط** — ⟵ **فالمستند التاريخي يُقرأ بعد تعطيل
+/// مصدره** (`FR-M2-06`): ⛔ **والتصفيةُ على مدخلات الإنشاء وحدها.**
+///
+/// ⛔⛔★★ **ولا اسمَ يُخترَع عند الغياب** — ★ **يقع على المعرّف نفسِه**
+/// (`SRC-001`): ⟵ **معرّفٌ صادقٌ خيرٌ من فراغٍ يُقرأ «بلا مصدر»**، ⛔ **ومن
+/// اسمٍ مُلفَّق.** ★ **و[auditAllSourcesId] وحدها تُترجَم «كل المصادر»** —
+/// **كما ينسُبها كاتبُ القيد** (`audit_entry.dart`).
+// ⚠️ **ونوعُه مُستنتَجٌ لا مكتوب** — ★ **كما في `dealerBalanceProvider`**:
+// ⟵ **`Provider.family` لا تُصرَّح باسمِ صنفٍ عامٍّ في Riverpod 3.**
+final sourceDisplayNameProvider =
+    Provider.family<String, String>((Ref ref, String sourceId) {
+  if (sourceId == auditAllSourcesId) return 'كل المصادر';
+  final List<SourceCard> all =
+      ref.watch(sourcesProvider).value ?? const <SourceCard>[];
+  for (final SourceCard source in all) {
+    if (source.sourceId == sourceId) return source.name;
+  }
+  return sourceId;
+});

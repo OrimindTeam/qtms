@@ -54,12 +54,14 @@ void main() {
     test('الحارس نفسه ليس فارغاً — وإلا نجح بلا أن يفحص شيئاً', () {
       // ★ حارس على الحارس: لو انكسر التحليل لعادت مجموعة فارغة **فنجح
       //   الفحصان أدناه دائماً**. هذا يمنع ذلك.
-      expect(catalog.length, 74,
-          reason: 'الكتالوج يعلن 74 مفتاحاً — فإن تغيّر العدد فُحص عمداً');
+      expect(catalog.length, 81,
+          reason: 'الكتالوج يعلن 81 مفتاحاً — فإن تغيّر العدد فُحص عمداً');
       expect(catalog, contains('sackView'));
       // ★ `IQ-021` الخيار أ — ⛔ ولا يُقاس عليه مفتاحٌ حقلي.
       expect(catalog, contains('sackCreate'));
       expect(catalog, contains('disposalCancel'));
+      // ★ `IQ-032` الخيار أ — مفتاح التصدير الواحد للسندات والتقارير معاً.
+      expect(catalog, contains('documentExport'));
     });
 
     test('⟵ لا مفتاح في الكود بلا سطر في المستند', () {
@@ -73,7 +75,7 @@ void main() {
     test('اسم قيمة التعداد هو المفتاح حرفياً — فلا جدول تحويل', () {
       expect(Permission.sackView.name, 'sackView');
       expect(Permission.distributionPriceView.name, 'distributionPriceView');
-      expect(Permission.values.length, 74);
+      expect(Permission.values.length, 81);
     });
 
     test('★ المفاتيح الإدارية التسعة موجودة — `IQ-007` الخيار أ', () {

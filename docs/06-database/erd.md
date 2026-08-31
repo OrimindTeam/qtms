@@ -287,6 +287,13 @@ erDiagram
         money netFinal
         timestamp retroUpdatedAt "⟳ مُحدَّث بأثر رجعي"
     }
+    OWNER_LEDGER_TREND {
+        string key PK "sourceId  ·  all"
+        string sourceId "مطلوب — شرط القراءة يقرؤه"
+        json points "7 عناصر: date + netFinal + retroUpdated"
+        timestamp updatedAt
+    }
+    DAILY_SUMMARY ||--|| OWNER_LEDGER_TREND : "يُبنيان في حدث واحد"
     AUDIT_LOG {
         string id PK
         timestamp occurredAt "توقيت الخادم"
@@ -311,12 +318,18 @@ erDiagram
         string reason "★ نصي إلزامي"
     }
     PENDING_ENTRY {
-        string documentType
+        string id PK "documentType_documentId_missingFieldKey"
+        string documentType "sack · dailyPrice · distribution"
         string documentId
-        string readableTitle
-        string sourceId
-        string missingField
-        string navigationTarget
+        string documentNumber "لِما له رقم — لا daily_prices"
+        string readableTitle "يفهمه المستخدم بلا فتح المستند"
+        string sourceId "مطلوب — شرط القراءة يقرؤه"
+        date date "تاريخ المخزون لا تاريخ الإدخال"
+        string missingField "القيمة الناقصة بالعربية"
+        string missingFieldKey "مفتاح ثابت — لا يُفكّك من المعرّف"
+        string navigationScreen "وجهة زر إدخال — الشاشة"
+        string navigationField "وجهة زر إدخال — الحقل"
+        timestamp detectedAt "توقيت الخادم"
     }
     AGED_REMAINDER {
         string key PK "sourceId_itemKey_stockDate"

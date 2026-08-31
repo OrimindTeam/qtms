@@ -43,5 +43,33 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+
+        <!-- ★★ WU-010 (FR-M20-01): إعلانُ رؤيةٍ لا إذنُ وصول.
+             أندرويد 11+ يُخفي الحِزَم المثبَّتة عن التطبيقات، ⟵ فبدون هذه
+             الكتلة تُرجِع `canLaunchUrl` قيمة `false` دائماً فيظهر «واتساب
+             غير مثبَّت» على جهازٍ مثبَّتٌ عليه فعلاً.
+             ⛔ وليست من الأذونات: لا `<uses-permission>` واحدة تُضاف هنا،
+             ★ والأذونات المعتمدة تبقى كما هي (dependency-management-policy §3).
+             ⛔ ولا إذنَ بلوتوث: الطباعة الحرارية خارج النطاق (ADR-0023). -->
+        <!-- ★★ ومخطَّط واتساب صراحةً — ⛔ لا `https` وحده:
+             `wa.me` رابطُ `https` يعالجه المتصفحُ دائماً، ⟵ فلا يُقاس غيابُ
+             واتساب أبداً ويُفتَح المتصفحُ بدله (رُصد حيّاً 2026-08-30). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="whatsapp"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="sms"/>
+        </intent>
+        <!-- ★ ومشاركةُ الملف المُصدَّر عبر ورقة النظام — FR-M20-14. -->
+        <intent>
+            <action android:name="android.intent.action.SEND"/>
+            <data android:mimeType="*/*"/>
+        </intent>
     </queries>
 </manifest>

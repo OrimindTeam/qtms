@@ -201,7 +201,7 @@ final class FirestoreReceiptDirectory implements ReceiptDirectory {
             (QuerySnapshot<Map<String, dynamic>> snapshot) => <ReceiptCard>[
               for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
                   in snapshot.docs)
-                _cardOf(doc.id, doc.data()),
+                cardOf(doc.id, doc.data()),
             ],
           );
 
@@ -217,7 +217,7 @@ final class FirestoreReceiptDirectory implements ReceiptDirectory {
           .snapshots()
           .map((DocumentSnapshot<Map<String, dynamic>> doc) {
             final Map<String, dynamic>? data = doc.data();
-            return data == null ? null : _depositOf(data);
+            return data == null ? null : depositOf(data);
           })
           // ⛔⛔★★ **والرفض يُطوى إلى `null` عمداً** — راجع ترويسة الملف.
           .handleError((Object _) {})
@@ -254,7 +254,11 @@ final class FirestoreReceiptDirectory implements ReceiptDirectory {
   // التحويل — ⛔ **والمجهول يُقرأ بالافتراض الآمن لا يُسقِط الشاشة**
   // ═════════════════════════════════════════════════════════════════════
 
-  static ReceiptCard _cardOf(String id, Map<String, dynamic> data) {
+  /// ★ يحوّل مستند سندِ قبضٍ خاماً إلى بطاقته.
+  ///
+  /// ★★ **ومكشوفٌ لأن `FirestoreReportDirectory` يقرأ المجموعةَ نفسَها**
+  /// (`R-14` — `WU-011`) — ⛔ **ونسخةٌ ثانية تفترق عند أول حقل.**
+  static ReceiptCard cardOf(String id, Map<String, dynamic> data) {
     final Object? rawLines = data['lines'];
     final List<ReceiptCardLine> lines = <ReceiptCardLine>[
       if (rawLines is List<dynamic>)
@@ -297,7 +301,11 @@ final class FirestoreReceiptDirectory implements ReceiptDirectory {
     );
   }
 
-  static ReceiptDepositCard _depositOf(Map<String, dynamic> data) =>
+  /// 🔒 يحوّل مستند حالةِ الإيداع — ⛔ **ولا يصل إلا من يملك
+  /// `receiptDepositView`** (`ADR-0017`).
+  ///
+  /// ★★ **ومكشوفٌ لعمود الإيداع في `R-14`** (`WU-011`).
+  static ReceiptDepositCard depositOf(Map<String, dynamic> data) =>
       ReceiptDepositCard(
         // ★ **والافتراض «لم يُودع»** — `schema/receipts.md`: **تبدأ كذلك**.
         state: data['isDeposited'] == true

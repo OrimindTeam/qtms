@@ -28,8 +28,12 @@ import 'package:qtms_domain/qtms_domain.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
+import '../../../core/design/brand.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/hub_section.dart';
+import '../../../core/ui/needs_action_row.dart';
+import '../../oversight/application/pending_entries_providers.dart';
+import '../../oversight/application/report_providers.dart';
 import '../application/session_providers.dart';
 import 'permission_gate.dart';
 
@@ -46,7 +50,40 @@ class HomeShell extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: SemanticColors.surface,
-        title: Text(session.displayName, style: TypeScale.titleSm),
+        // ★★ **شريطُ التطبيق: شعارُ العميل واسمُ المحل ثم اسمُ المستخدم**
+        //    (`ui-guidelines.md` نمط 1 ①) — ⛔ **ولا نصَّ اسمٍ محفورٌ هنا:**
+        //    ★ **`appDisplayName` و`BrandLogo` مصدرُ الحقيقة الواحد** (`AM-002`).
+        //    ⚠️★ **ولا مؤشّرَ اتصالٍ بعد** — ★ **لا مصدرَ حالةِ شبكةٍ حيٌّ في
+        //    التطبيق اليوم**، ⛔ **ووسمُ «متصل» بلا قياسٍ ادّعاءٌ لا معلومة**
+        //    ⟵ **وهو ضدُّ ما وُجد المؤشّرُ لأجله** (`ADR-0003`).
+        title: Row(
+          children: <Widget>[
+            const BrandLogo(size: Sizes.chipHeight),
+            const SizedBox(width: Spacing.space8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    appDisplayName,
+                    style: TypeScale.titleSm
+                        .copyWith(color: SemanticColors.textPrimary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    session.displayName,
+                    style: TypeScale.caption
+                        .copyWith(color: SemanticColors.textTertiary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: <Widget>[
           IconButton(
             onPressed: () => ref.read(authRepositoryProvider).signOut(),
@@ -64,6 +101,20 @@ class HomeShell extends ConsumerWidget {
           //    «عدد الصلاحيات» رقمٌ بلا فعل**: ⟵ **فصار سطرين، والمداخلُ
           //    تبدأ قبل نهاية الطيّة.**
           _IdentityStrip(session: session),
+          const SizedBox(height: Spacing.space12),
+
+          // ⏳★★★ **العدّاد الحيّ للإدخالات المعلّقة** — `FR-SYS-03` الموضع
+          //    الرابع («**لوحة التحكم: بطاقة ⏳ الإدخالات المعلّقة بالعدد
+          //    الإجمالي**») · `FR-SYS-21`.
+          //
+          // ⚠️⚠️ **وهو صفُّ «يحتاج إجراء» بعقده** (`design-system.md` §7) —
+          //    ⛔ **لا بطاقةُ تنبيهٍ مربّعة**: `ui-guidelines.md` §3 نمط 1
+          //    القرار 2 («**المربعاتُ المتساوية تُسوّي بين متبقٍّ عمرُه خمسةُ
+          //    أيام وبين عدّادٍ للعلم**»).
+          //
+          // ⛔ **وبلا بوابة صلاحية** — ★ **لا مفتاح للمركز في الكتالوج §2**،
+          //    ⟵ **والقاعدة تكتفي بالنطاق** (`pending_entries_providers.dart`).
+          const _PendingEntriesRow(),
           const SizedBox(height: Spacing.space24),
 
           // ③ ⛔⛔★★★ **والترتيب بالتكرار اليومي لا بالتسلسل الإداري.**
@@ -239,10 +290,60 @@ class HomeShell extends ConsumerWidget {
                   ),
                 ),
               ),
+              // ⛔⛔★★ **ومدخلُ التقارير بستة مفاتيحَ لا بواحد** (`IQ-034`) —
+              //    ★ **فلا تصلح [PermissionGate] وهي على مفتاحٍ واحد**:
+              //    ⟵ **والشرطُ «يملك مفتاحَ عائلةٍ واحدةٍ على الأقل»**،
+              //    ⛔ **ومَن لا يملك أياً منها لا يرى مدخلاً يفتح على فراغ.**
+              if (ref.watch(visibleReportsProvider).isNotEmpty)
+                QtmsHubButton(
+                  entry: QtmsHubEntry(
+                    label: 'التقارير',
+                    icon: Icons.assessment_outlined,
+                    onPressed: () => context.go(reportsRoute),
+                  ),
+                ),
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+/// ⏳★★★ **صفُّ الإدخالات المعلّقة الحيّ** — `FR-SYS-03` · `FR-SYS-21`.
+///
+/// ⛔⛔ **ولا يُخفى عند الصفر** — `ui-guidelines.md` §3 نمط 1: «**وفارغٌ «لا
+/// يحتاج شيءٌ إجراءً» بأيقونةٍ هادئة ⛔ لا إخفاءَ البطاقة**»: ⟵ **فاختفاؤه
+/// يجعل المستخدم يشكّ أهو صفرٌ أم عطل.**
+///
+/// ⚠️ **وأثناء التحميل يُعرَض بلا رقم** — ⛔ **ولا صفرٌ مؤقّت**: ★ **عدّادٌ
+/// يقول «٠» ثم يصير «٧» يُقرأ عطلاً** (`pendingEntriesCountProvider`).
+class _PendingEntriesRow extends ConsumerWidget {
+  const _PendingEntriesRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<int> count = ref.watch(pendingEntriesCountProvider);
+    final int? value = count.hasError ? null : count.value;
+    final bool hasPending = value != null && value > 0;
+
+    return QtmsNeedsActionRow(
+      icon: Icons.hourglass_bottom_outlined,
+      title: 'الإدخالات المعلّقة',
+      destination: hasPending
+          ? 'قيمٌ تُركت لاحقاً — افتح المركز لاستكمالها'
+          : 'المركز يذكّر بما تُرك لاحقاً — ولا يمنع شيئاً',
+      count: value ?? 0,
+      // ★★ **الحدّةُ تصل ثلاثيةً جاهزة** — §5.1: ⛔ **ولا يقارن المكوّن رقماً.**
+      triad:
+          hasPending ? SemanticTriads.warning : SemanticTriads.neutral,
+      countLabel: switch (value) {
+        null when count.hasError => 'تعذّر',
+        null => '—',
+        0 => 'لا شيء',
+        _ => null,
+      },
+      onTap: () => context.go(pendingEntriesRoute),
     );
   }
 }
@@ -261,9 +362,12 @@ class _IdentityStrip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsetsDirectional.all(Spacing.cardPadding),
         decoration: BoxDecoration(
-          color: SemanticColors.surface,
+          // ★★ **وثلاثيةُ `primary` لا السطحُ المحايد** (`AM-007`): ⟵ **الدورُ
+          //    ونطاقُ المصادر هويةُ الجلسة**، ★ **وهي أولُ ما يجب أن يُقرأ.**
+          //    ⛔ **ولا لونٌ خارج الثلاثية** — §3.3.
+          color: SemanticTriads.primary.soft,
           border: Border.all(
-            color: SemanticColors.border,
+            color: SemanticTriads.primary.border,
             width: Sizes.borderWidth,
           ),
           borderRadius: BorderRadius.circular(Radii.card),
@@ -272,7 +376,11 @@ class _IdentityStrip extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text(session.roleName ?? 'بلا دور', style: TypeScale.titleSm),
+            Text(
+              session.roleName ?? 'بلا دور',
+              style: TypeScale.titleSm
+                  .copyWith(color: SemanticTriads.primary.ink),
+            ),
             const SizedBox(height: Spacing.space4),
             Text(
               _scopeLabel(session.sourceScope),

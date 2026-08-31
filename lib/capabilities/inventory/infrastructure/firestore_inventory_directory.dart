@@ -14,7 +14,6 @@
 library;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:qtms_domain/qtms_domain.dart';
 
 /// الدليل الحقيقي.
@@ -42,7 +41,7 @@ final class FirestoreInventoryDirectory implements InventoryDirectory {
                 <ItemDailyBalanceCard>[
               for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
                   in snapshot.docs)
-                _balanceOf(doc.data(), stockDate),
+                balanceOf(doc.data(), stockDate),
             ],
           );
 
@@ -89,7 +88,7 @@ final class FirestoreInventoryDirectory implements InventoryDirectory {
             final List<CountedIntakeCard> cards = <CountedIntakeCard>[
               for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
                   in snapshot.docs)
-                _intakeOf(doc.id, doc.data(), stockDate),
+                intakeOf(doc.id, doc.data(), stockDate),
             ];
             // ★ الأحدث أولاً — ⛔ **بالرقم لا بتاريخ الإدخال**: الرقم
             //   **متسلسل داخل اليوم** فترتيبه ترتيبُ الإنشاء بلا فهرس.
@@ -104,7 +103,13 @@ final class FirestoreInventoryDirectory implements InventoryDirectory {
   // التحويل — ⛔ **والمجهول يُقرأ بالافتراض الآمن لا يُسقِط الشاشة**
   // ═════════════════════════════════════════════════════════════════════
 
-  static ItemDailyBalanceCard _balanceOf(
+  /// ★ يحوّل مستند رصيدٍ يوميٍّ خاماً إلى بطاقته.
+  ///
+  /// ★★ **ومكشوفٌ لأن `FirestoreReportDirectory` يقرأ المجموعةَ نفسَها**
+  /// (`R-02` · `R-05` — `WU-011`): ⟵ **ونسخةٌ ثانية من التحويل تفترق عن
+  /// هذه عند أول حقلٍ يُضاف** ⛔ **وهو حرفياً ما يمنعه `coding-standards.md`
+  /// §2.2** (مصدر حقيقة واحد).
+  static ItemDailyBalanceCard balanceOf(
     Map<String, dynamic> data,
     CalendarDay fallbackDay,
   ) {
@@ -122,11 +127,12 @@ final class FirestoreInventoryDirectory implements InventoryDirectory {
 
   /// يحوّل مستند حركةٍ خاماً إلى بطاقته.
   ///
-  /// ★★ **مكشوفٌ للاختبار وحده** (تقرير `2026-08-26-run2` · بند التدقيق ①) —
-  /// ★ **لأن العطل الذي رُصد في
-  /// `WU-004` كان في هذا التحويل نفسه**، ⟵ ⛔ **فحراسته تحتاج اختبار
-  /// ارتدادٍ سلوكياً لا نصّياً.**
-  @visibleForTesting
+  /// ★★ **مكشوفٌ لسببين لا لسبب** (تقرير `2026-08-26-run2` · بند التدقيق ①):
+  /// ① **الاختبار** — ★ **لأن العطل الذي رُصد في `WU-004` كان في هذا التحويل
+  /// نفسه**، ⟵ ⛔ **فحراسته تحتاج اختبار ارتدادٍ سلوكياً لا نصّياً.**
+  /// ② ★★ **و`FirestoreReportDirectory` يقرأ الدفترَ نفسَه** (`R-01` —
+  /// `WU-011`) — ⟵ **ولذلك سقطت `@visibleForTesting`**: ★ **فللدالة الآن
+  /// مستهلكٌ إنتاجيٌّ حقيقي**، ⛔ **ونسخةٌ ثانية منها تفترق عند أول حقل.**
   static StockMovementCard movementOf(String id, Map<String, dynamic> data) {
     final ItemUnit unit = _unitOf(data['unit']);
     return StockMovementCard(
@@ -152,10 +158,17 @@ final class FirestoreInventoryDirectory implements InventoryDirectory {
       isAmended: data['lastAmendedAt'] != null,
       movementTag: _tagOf(data['movementTag']),
       userName: _text(data['amendedBy']),
+      // ★★ **تاريخُ المخزون يُقرأ ولا يُشتقّ من `entryDate`** (`RISK-07`) —
+      //    ⟵ **و`R-01` يمتدّ على فترة فيعرضه عموداً** (`WU-011`).
+      stockDate: _dayOf(data['stockDate']),
     );
   }
 
-  static CountedIntakeCard _intakeOf(
+  /// ★ يحوّل مستند وارد عدداً خاماً إلى بطاقته.
+  ///
+  /// ★★ **ومكشوفٌ لأن `FirestoreReportDirectory` يقرأ المجموعةَ نفسَها**
+  /// (`R-03` — `WU-011`) — راجع [balanceOf].
+  static CountedIntakeCard intakeOf(
     String id,
     Map<String, dynamic> data,
     CalendarDay fallbackDay,

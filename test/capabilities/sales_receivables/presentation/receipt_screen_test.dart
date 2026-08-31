@@ -367,5 +367,63 @@ void main() {
 
       expect(find.text('يتجاوز المتبقي'), findsOneWidget);
     });
+
+    // ═══════════ ⛔⛔★★★ ارتدادُ `DEBT-61` — كشفه المحاكي وحده ═══════════
+    //
+    // ★★★ **العطل كما وقع فعلاً على `Pixel_6_API_36` (2026-08-29):** ★ **سندُ
+    //    قبضٍ بـ3000 على ضمارٍ متبقيه 5000 نجح فعلاً في السحابة**
+    //    (`remaining` **صار 2000 مقيساً في Firestore**) ⛔ **والشاشة بقيت
+    //    تعرض «المتبقي: 5000» ولافتةَ «5000 ريال» — حتى بعد الخروج من
+    //    الشاشة والرجوع إليها**، ★ **ولم تصحّ إلا بإقلاعٍ جديد للتطبيق.**
+    //
+    // ⛔⛔★★★ **ولماذا لم يكشفه أيٌّ من 1507 اختباراً آلياً:** ★ **السببُ يعيش
+    //    في حدٍّ بين طبقتين لا داخل واحدة** — **`openDebtLotsProvider` يبثّ
+    //    مستنداتِ `distributions` الأب، والمتبقي يُقرأ قراءةً مفردةً من
+    //    `pricing/current`** ⟵ **وسندُ القبض لا يمسّ الأب إطلاقاً**
+    //    (`IQ-027` · `ADR-0011`): ⛔ **فلا حدثَ بثٍّ يقع.** ★★ **وبديلُ
+    //    الاختبار يبثّ ما يُملى عليه فيُخفي الحدَّ نفسَه** — ⟹ **وهذا ثالثُ
+    //    وجوه درس `DEBT-37`: اختبارُ الطبقة لا يُغني عن اختبار ما يعبر بينها.**
+    //
+    // ★ **فالحارسُ هنا سلوكيٌّ لا حسابي:** ⛔ **لا يفحص رقماً** — ★ **يفحص أن
+    //    الشاشة أعادت طلبَ المشتقّ بعد كتابةٍ ناجحة**، ⟵ **وهو بالضبط ما كان
+    //    غائباً.**
+    testWidgets(
+        '⛔⛔★★★ DEBT-61 — بعد حفظٍ ناجح تُعاد قراءةُ الضمارات ⛔ لا تبقى قيمةً بائتة',
+        (WidgetTester tester) async {
+      receipts.emitLots(<OpenDebtLot>[lot(remaining: 5000)]);
+      await pumpReceipts(tester);
+      await selectDealer(tester);
+      final int before = receipts.requestedSources.length;
+
+      await tester.enterText(find.byType(TextField).first, '3000');
+      await tester.pumpAndSettle();
+      await tapVisible(tester, find.byKey(const Key('receipt-save')));
+
+      // ★ **الكتابة نجحت فعلاً** — ⟵ **فالشرط منطبق.**
+      expect(admin.created.single.lines.single.amount, const Money(3000));
+      // ⛔⛔★★★ **والمشتقُّ أُعيد طلبُه** — ★ **قبل الإصلاح كان يبقى كما هو.**
+      expect(
+        receipts.requestedSources.length,
+        greaterThan(before),
+        reason: '★ سندٌ ناجح يجب أن يُبطِل قراءة الضمارات المفتوحة — DEBT-61',
+      );
+    });
+
+    testWidgets('⛔★★ وسندٌ فاشل لا يُبطِل شيئاً — ⟵ فلا قراءةَ بلا سبب', (
+      WidgetTester tester,
+    ) async {
+      admin.nextResult = const Failure<String>(ValidationError('BR-M12-02'));
+      receipts.emitLots(<OpenDebtLot>[lot(remaining: 5000)]);
+      await pumpReceipts(tester);
+      await selectDealer(tester);
+      final int before = receipts.requestedSources.length;
+
+      await tester.enterText(find.byType(TextField).first, '3000');
+      await tester.pumpAndSettle();
+      await tapVisible(tester, find.byKey(const Key('receipt-save')));
+
+      // ★ **الفشلُ لا يُغيِّر رصيداً** — ⟵ **فإبطالُه قراءةٌ بلا موجب.**
+      expect(receipts.requestedSources.length, before);
+    });
   });
 }

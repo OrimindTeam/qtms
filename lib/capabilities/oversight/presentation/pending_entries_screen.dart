@@ -1,0 +1,265 @@
+/// شاشة **مركز الإدخالات المعلّقة** — **نمط 2** (`ui-guidelines.md` §3).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **يلاحق ويذكّر ولا يمنع** — `GR-50` · `FR-SYS-06` (**حرجة**):
+/// ⟵ **فلا زرَّ يحفظ هنا، ولا عمليةَ تُعطَّل من هذه الشاشة، ولا حقلَ
+/// يُدخَل فيها.** ★ **وكلُّ ما تفعله: تُظهر ما ينقص وتفتح شاشتَه.**
+///
+/// ⛔⛔★★★ **ولا شاشة إدخالٍ بديلة** — `FR-SYS-04` · §6 من مستند الوحدة:
+/// «**بناء شاشة إدخال موحّدة داخل المركز مخالفة تصميمية — تُنتج مساراً
+/// ثانياً للكتابة بقواعد تحقّق منفصلة تفترق عن الأصلية**». ⟵ **وزرُّ
+/// [ إدخال ] يفتح الشاشة الأصلية على سياق البند** ⛔ **ولا نموذجَ هنا.**
+///
+/// ⚠️⚠️ **وبلا بوابة صلاحية** — ⛔ **لا مفتاح لها في الكتالوج §2**:
+/// ★ **والقاعدة تكتفي بالنطاق** (`isSignedIn() && storedInScope()`)،
+/// ⟵ **وبوابةٌ هنا كانت ستُخفي شاشةً تسمح بها القاعدة** (نفس ما فُعِل
+/// بمخزون اليوم والتسعير في `home_shell.dart`).
+/// ═══════════════════════════════════════════════════════════════════════
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:qtms_domain/qtms_domain.dart';
+
+import '../../../app/router.dart';
+import '../../../core/design/design_tokens.dart';
+import '../../../core/ui/async_state_view.dart';
+import '../../../core/ui/date_labels.dart';
+import '../../../core/ui/entity_tile.dart';
+import '../../../core/ui/filter_bar.dart';
+import '../../../core/ui/inline_banner.dart';
+import '../../../core/ui/status_pill.dart';
+import '../../inventory/application/inventory_providers.dart';
+import '../application/pending_entries_providers.dart';
+
+/// شاشة مركز الإدخالات المعلّقة.
+class PendingEntriesScreen extends ConsumerWidget {
+  /// ينشئ الشاشة.
+  const PendingEntriesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<List<PendingEntryCard>> entries =
+        ref.watch(pendingEntriesProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: SemanticColors.surface,
+        title: const Text('الإدخالات المعلّقة', style: TypeScale.titleSm),
+      ),
+      body: Column(
+        children: <Widget>[
+          const _PendingFilterBar(),
+          const _RemindsNotEnforcesNotice(),
+          const SizedBox(height: Spacing.space8),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: Spacing.screenPadding,
+              ),
+              child: AsyncStateView<PendingEntryCard>(
+                value: entries,
+                errorMessage: (Object _) =>
+                    'تحقق من صلاحيتك ونطاق مصادرك، ثم أعد المحاولة.',
+                onRetry: () => ref.invalidate(pendingEntriesProvider),
+                empty: const EmptyStateSpec(
+                  icon: Icons.task_alt_outlined,
+                  triad: SemanticTriads.success,
+                  title: 'لا قيمة معلّقة في هذا المصدر',
+                  // ★ **سببُ الفراغ والخطوةُ التالية** — `ui-guidelines.md` §6.
+                  message: 'كل ما حُفظ هنا مكتملُ القيم. '
+                      'وأي قيمة تُترك لاحقاً ستظهر في هذه الشاشة فوراً.',
+                ),
+                builder: (List<PendingEntryCard> items) => ListView.separated(
+                  padding: const EdgeInsets.only(
+                    bottom: Spacing.fabSafeBottom,
+                  ),
+                  itemCount: items.length,
+                  separatorBuilder: (BuildContext context, int index) =>
+                      const SizedBox(height: Spacing.cardGap),
+                  itemBuilder: (BuildContext context, int index) =>
+                      _PendingTile(entry: items[index]),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ★★ شريطٌ يُعلن أن المركز يذكّر ولا يمنع — ⛔ **ولا يُخفى**.
+///
+/// ⚠️⚠️ **ولماذا يُعرَض دائماً:** `FR-SYS-06` **متطلبٌ حرج**، ⟵ **ومستخدمٌ
+/// يظنّ أن بنداً معلّقاً يمنعه من الإقفال يتوقّف عن العمل بلا سبب** —
+/// ★ **وإعلانُ القاعدة جزءٌ من أثرها** (بنفس منطق شريط سجل التدقيق).
+class _RemindsNotEnforcesNotice extends StatelessWidget {
+  const _RemindsNotEnforcesNotice();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: Spacing.screenPadding),
+        child: QtmsInlineBanner(
+          text: 'هذه الشاشة تذكّر ولا تمنع — لا شيء هنا يوقف حفظاً '
+              'ولا توزيعاً ولا تصديراً.',
+          triad: SemanticTriads.info,
+        ),
+      );
+}
+
+/// ★★ شريط الفلاتر — `FR-SYS-10`: **المصدر · نوع المستند**.
+///
+/// ⛔⛔★★★ **والمصدر أولاً وفي كل حال** — ★ **استعلامٌ بلا قيدٍ عليه يُرفَض
+/// من القاعدة كاملاً** (راجع `FirestorePendingEntryDirectory`)، ⟵ **فلا
+/// بطاقةَ «كل المصادر» هنا** ⛔ **ولو ملك المستخدم النطاق الشامل.**
+///
+/// ⚠️ **وفلترُ التاريخ ليس شريحة** — `FR-SYS-10` يذكره، ★ **والقائمة مرتَّبةٌ
+/// بالتاريخ تنازلياً أصلاً والتاريخ ظاهرٌ في كل بطاقة**: ⟵ **ومدىً زمنيٌّ
+/// على مجموعةٍ لا تتجاوز صفحةً واحدة زينةٌ لا أداة.** ★ **وأثرٌ معلَن.**
+class _PendingFilterBar extends ConsumerWidget {
+  const _PendingFilterBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final PendingEntryFilter? filter = ref.watch(pendingFilterProvider);
+    final PendingFilterState controller =
+        ref.read(pendingFilterProvider.notifier);
+    final List<SourceCard> sources = ref.watch(pendingSourceOptionsProvider);
+
+    if (sources.isEmpty) {
+      // ⚠️ **نطاقٌ فارغ حالةٌ حقيقية** — `E-35`: مستخدمٌ بلا مصدر.
+      return const QtmsFilterBar.notice(
+        message: 'لا يوجد مصدر ضمن نطاقك. راجع المدير.',
+      );
+    }
+
+    return QtmsFilterBar(
+      groups: <List<QtmsFilterOption>>[
+        <QtmsFilterOption>[
+          for (final SourceCard source in sources)
+            QtmsFilterOption(
+              label: source.name,
+              selected: filter?.sourceId == source.sourceId,
+              onSelected: () => controller.selectSource(source.sourceId),
+            ),
+        ],
+        <QtmsFilterOption>[
+          QtmsFilterOption(
+            label: 'الكل',
+            selected: filter?.kind == null,
+            onSelected: () => controller.selectKind(null),
+          ),
+          for (final PendingDocumentKind kind in PendingDocumentKind.values)
+            QtmsFilterOption(
+              label: kind.label,
+              selected: filter?.kind == kind,
+              onSelected: () => controller.selectKind(kind),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+/// ★★★ بطاقةُ بندٍ معلّق — **عنوانٌ مقروء + القيمة الناقصة + زر [ إدخال ]**.
+class _PendingTile extends ConsumerWidget {
+  const _PendingTile({required this.entry});
+
+  final PendingEntryCard entry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => EntityTile(
+        leading: IconBadgeBox(
+          icon: Icons.hourglass_bottom_outlined,
+          // ★★ **⏳ برتقالية موحّدة في كل النظام** — §4 من مستند الوحدة:
+          //    ⛔ **ولا شكلَ بديل في أي شاشة**، ★ **وعائلةُ «تنبيه · تأخّر»
+          //    هي `warning`** (`design-system.md` §3.4).
+          triad: SemanticTriads.warning,
+        ),
+        title: entry.readableTitle,
+        subtitle: _subtitle(entry),
+        badges: <Widget>[
+          StatusPill(
+            label: entry.missingField,
+            triad: SemanticTriads.warning,
+            icon: Icons.hourglass_empty,
+          ),
+        ],
+        actions: <Widget>[
+          if (entry.hasDestination)
+            TextButton(
+              onPressed: () => _open(context, ref, entry),
+              child: const Text('إدخال'),
+            )
+          else
+            // ⛔ **بندٌ من إصدارٍ أحدث يُعرَض ولا يُفتَح** — ★ **فاختفاؤه
+            //   يُخفي نقصاً قائماً**، ⛔ **وفتحُه على شاشةٍ مُخمَّنة أسوأ.**
+            Text(
+              'حدِّث التطبيق لفتح هذا البند',
+              style: TypeScale.caption
+                  .copyWith(color: SemanticColors.textTertiary),
+            ),
+        ],
+        semanticLabel: '${entry.readableTitle} — ${entry.missingField}',
+      );
+
+  /// ★ سطرٌ ثانويٌّ واحد — **الرقم والتاريخ** (§6.د: سطرٌ واحد لا أكثر).
+  static String _subtitle(PendingEntryCard entry) {
+    final String date = entry.date == null
+        ? 'بلا تاريخ'
+        : 'تاريخ المخزون ${dayLabel(entry.date!)}';
+    final String? number = entry.documentNumber;
+    return number == null ? date : '$number · $date';
+  }
+
+  /// ★★★ **يفتح الشاشة الأصلية على سياق البند** — `FR-SYS-04`.
+  ///
+  /// ═════════════════════════════════════════════════════════════════════
+  /// ⛔⛔ **ولا نموذجَ إدخالٍ هنا** (§6 من مستند الوحدة) — ★ **والسياق
+  /// يُهيَّأ في مزوّداته قبل الملاحة**، ⟵ **فالشاشة الأصلية تُفتَح جاهزةً
+  /// بلا أن تعرف بالمركز شيئاً** ⛔ **ولا يتسرّب المركز إلى ثلاث شاشات.**
+  ///
+  /// ★ **والمصدر أولاً وفي كل حال** — ★ **كل شاشةٍ تشغيلية مقيَّدةٌ بمصدرها**
+  /// (`A-01`)، ⟵ **وشاشةٌ تُفتَح على مصدرٍ آخر تعرض «لا بيانات» فيبدو البند
+  /// كذباً.**
+  ///
+  /// ★★ **ثم ما يخصّ كل نوع:**
+  ///   · **التسعير** ⟵ **مرشِّح «لم يُسعَّر»** فيصير الحقلُ الناقص أول
+  ///     ما يُرى (`FR-M9-05`) — ⛔ **بلا قائمةٍ كاملة يبحث فيها.**
+  ///   · **التوزيع** ⟵ **المقوت المقصود** ([PendingFocus.dealerId]) —
+  ///     ★ **وهو حالةٌ محلية في تلك الشاشة**، ⟵ **فيُمرَّر عبر
+  ///     [pendingFocusProvider].**
+  ///   · **الجونية** ⟵ **المصدر وحده يكفي**: ★ **القائمة تعرض جواني اليوم
+  ///     بشاراتها ⏳**، ⛔ **ولا حالةَ اختيارٍ ثانية فيها تُضبَط.**
+  ///
+  /// ⚠️⚠️ **وحدٌّ معلَن لا يُطوى** (`DEBT-64`): ★ **الوجهةُ تفتح الشاشة على
+  /// سياق البند** ⛔ **ولا تفتح الورقة السفلية للحقل نفسه** — ⟵ **فبندُ
+  /// «ضريبة الكيلو» يصل قائمةَ الجواني لا نموذجَ الضريبة.**
+  /// ═════════════════════════════════════════════════════════════════════
+  static void _open(BuildContext context, WidgetRef ref, PendingEntryCard e) {
+    final PendingDocumentKind kind = e.kind!;
+    ref.read(selectedSourceProvider.notifier).select(e.sourceId);
+
+    switch (kind) {
+      case PendingDocumentKind.dailyPrice:
+        ref
+            .read(pricingFilterProvider.notifier)
+            .select(PricingStatusFilter.unpriced);
+      case PendingDocumentKind.distribution:
+        ref.read(pendingFocusProvider.notifier).request(
+              PendingFocus(
+                kind: kind,
+                sourceId: e.sourceId,
+                documentId: e.documentId,
+                field: e.field!,
+              ),
+            );
+      case PendingDocumentKind.sack:
+        break;
+    }
+
+    context.go(pendingScreenRoute(kind.screen));
+  }
+}

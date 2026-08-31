@@ -46,6 +46,7 @@ import 'inventory_handler.dart'
         readWeight;
 import 'permission_sync_handler.dart' show requestIdField;
 import 'sack_intake.dart';
+import 'pending_entries.dart';
 
 /// اسم حقل سبب التعديل أو الإلغاء في الحمولة.
 const String sackReasonField = 'reason';
@@ -274,6 +275,36 @@ final class SackIntakeHandler {
         }
 
         final SackAccepted accepted = plan as SackAccepted;
+
+        // ⏳★★★ **بنودُ المركز المعلّق — في المعاملة نفسها** (`WU-009`):
+        //    ★ **`E-06` حرفياً — جونيةٌ بأوزانها بلا أنواع ولا ضريبة تُحفظ
+        //    ويدخل السكرب المخزن فوراً، ومعها بنودُ المركز.**
+        //    ⛔⛔ **والضريبة غائبةٌ يقيناً هنا لا افتراضاً** — ★ **مسارُ
+        //    `enterSackTax` هو الوحيد الذي يكتبها** (`FR-M7-27`)،
+        //    ⟵ **وجونيةٌ تُنشَأ الآن لم يمرّ عليها ذلك المسار.**
+        //    ⛔ **ولا أسعارَ تُقرأ للسكرب** — ★ **مفتاحُه يحمل تسلسلاً
+        //    خُصِّص للتوّ** (راجع «ولا حركات تُقرأ للإنشاء» أعلاه): ⟵ **فلا
+        //    سعرَ سابق يمكن أن يحمله**، ★ **و`FR-M9-02` يمنع تسعير ما لا
+        //    كمية له أصلاً.**
+        final PendingEntrySet pending = mergePendingSets(<PendingEntrySet>[
+          pendingFromSackState(
+            writes: accepted.writes,
+            sackId: number,
+            sourceId: sourceId,
+            stockDate: day,
+            storedDisplayName: number,
+            storedHasLines: false,
+            storedRemainingKilograms: 0,
+            storedLostWeightConfirmed: false,
+            hasTax: false,
+          ),
+          pendingFromBalanceWrites(
+            writes: accepted.writes,
+            sourceId: sourceId,
+            date: day,
+          ),
+        ]);
+
         return AuditedWrite<void>(
           documents: <PendingDocument>[
             for (final InventoryWrite write in accepted.writes)
@@ -291,7 +322,9 @@ final class SackIntakeHandler {
               fields: <String, Object?>{counterValueField: dailySequence},
               updateMask: const <String>[counterValueField],
             ),
+            ...pendingEntryDocuments(pending),
           ],
+          deletions: pendingEntryDeletions(pending),
           entry: accepted.entry,
           result: null,
         );
@@ -373,9 +406,30 @@ final class SackIntakeHandler {
         _transaction.documentPath(sacksCollection, number);
     final String sourcePath =
         _transaction.documentPath(sourcesCollection, sourceId);
+    // 🔒★★ **ماليةُ الجونية** — `ADR-0011`: ⟵ **والضريبةُ لا تُقرأ من
+    //    المستند الأب أبداً**، ★ **وبندُ «ضريبة الكيلو» في المركز يحتاج
+    //    أن يعرف هل كُتبت** (`FR-M7-10` · `E-06`).
+    final String financePath = _transaction.documentPath(
+      sackFinancePathOf(number),
+      sackFinanceDocumentId,
+    );
+    // ⏳★★ **وسعرُ اليوم لكل مفتاحٍ تلمسه العملية** — ⟵ **فبندُ `M9`
+    //    يُنشَأ أو يُمحى بدقّة** ⛔ **ولا يُفترَض غيابُ سعرٍ قائم.**
+    final Map<String, String> pricePaths = <String, String>{
+      for (final String key in keys)
+        key: _transaction.documentPath(
+          dailyPricesCollection,
+          dailyPriceId(sourceId: sourceId, itemKey: key, date: day),
+        ),
+    };
 
     await _transaction.run<void>(
-      readPaths: <String>[documentPath, sourcePath],
+      readPaths: <String>[
+        documentPath,
+        sourcePath,
+        financePath,
+        ...pricePaths.values,
+      ],
       queries: <DocumentQuery>[
         if (operation.touchesScrap || operation.touchesLines) _scrapItemQuery(),
         for (final String key in keys)
@@ -433,11 +487,49 @@ final class SackIntakeHandler {
         }
 
         final SackAccepted accepted = plan as SackAccepted;
+
+        // ⏳★★★ **بنودُ المركز المعلّق — في المعاملة نفسها** (`WU-009`).
+        //    ★ **والحالةُ المخزَّنة تُقرأ ثم تُغطّى بما تكتبه هذه العملية**
+        //    (راجع [pendingFromSackState]) ⛔ **ولا يُقرأ المستند بعد
+        //    الالتزام.**
+        final PendingEntrySet pending = mergePendingSets(<PendingEntrySet>[
+          pendingFromSackState(
+            writes: accepted.writes,
+            sackId: number,
+            sourceId: sourceId,
+            stockDate: day,
+            storedDisplayName: stored.displayName,
+            storedHasLines: stored.lines.isNotEmpty,
+            // ★ **المتبقي من الحاسبة نفسها** — ⛔ **ولا معادلةَ ثانية.**
+            storedRemainingKilograms: explainSackWeight(
+              weights: stored.weights,
+              lines: stored.lines,
+              lostWeightConfirmed: stored.lostWeightConfirmed,
+            ).remainingWeight.kilograms,
+            storedLostWeightConfirmed: stored.lostWeightConfirmed,
+            // 🔒 **الضريبةُ من ماليتها أو من هذه العملية نفسها.**
+            hasTax: reads.document(financePath)?['taxPerKilo'] != null ||
+                operation == SackOperation.enterSackTax,
+            isCancelled: stored.status == SackStatus.cancelled,
+          ),
+          pendingFromBalanceWrites(
+            writes: accepted.writes,
+            sourceId: sourceId,
+            date: day,
+            storedPrices: <String, Map<String, Object?>?>{
+              for (final MapEntry<String, String> entry in pricePaths.entries)
+                entry.key: reads.document(entry.value),
+            },
+          ),
+        ]);
+
         return AuditedWrite<void>(
           documents: <PendingDocument>[
             for (final InventoryWrite write in accepted.writes)
               _toPending(write),
+            ...pendingEntryDocuments(pending),
           ],
+          deletions: pendingEntryDeletions(pending),
           entry: accepted.entry,
           result: null,
         );

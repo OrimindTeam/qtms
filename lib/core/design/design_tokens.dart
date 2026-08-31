@@ -10,64 +10,93 @@
 /// ★★ **`AM-003` — وضعٌ واحد فقط: الفاتح.** ⛔ **لا مجموعة قيم ثانية، ولا
 /// `ThemeMode`، ولا قراءة لتفضيل النظام.** ★ **وآلية الثيم أُبقيت بنيوياً**
 /// (`design-tokens.md` §1) ⛔ **لكنها تُغذَّى بمجموعة واحدة لا مجموعتين.**
+///
+/// ★★★ **و`AM-007` (`DS-002`) أعاد اشتقاق كل قيمة لونية من شعار العميل نفسه:**
+/// ★ **المحايدُ ورقيٌّ دافئ، والأساسيُّ زيتونيُّ الشعار حرفياً، والحالاتُ
+/// مربوطةٌ بعناصره** (الرِباط · السيقان الطينية · الأوراق الذهبية).
+/// ⛔ **ولا لونَ خارجيٍّ واحد** — ★ **والبنيةُ الثلاثية نفسُها بلا تغيير.**
 library;
 
 import 'package:flutter/material.dart';
 
 /// الطبقة الأولية — §2.
 abstract final class Primitives {
-  // ═══════════════ §2.1 المحايد — أساس النظام بميل بارد ═══════════════
+  // ══════════ §2.1 المحايد — ★★ ورقيٌّ دافئ من خلفية الشعار (`AM-007`) ══════════
+  //    ⛔ **ولا ميلَ بارداً بعد اليوم:** ★ كان رمادياً مزرقّاً بينما الأساسي
+  //    أخضر ⟵ **فكان اللونان يتقاتلان في كل شاشة.**
+  //    ★★ ولاحظ أن `neutral900` = `primary800` قيمةً: ★ **الحبر في هذه الهوية
+  //    زيتونيٌّ لا رمادي** — ⟵ **وهي خاصّةٌ فعلية للشعار** ⛔ لا سهوَ نسخ.
   static const Color neutral0 = Color(0xFFFFFFFF);
-  static const Color neutral25 = Color(0xFFFAFBFC);
-  static const Color neutral50 = Color(0xFFF5F6FA);
-  static const Color neutral100 = Color(0xFFEFF1F5);
-  static const Color neutral200 = Color(0xFFE3E6ED);
-  static const Color neutral300 = Color(0xFFCDD2DD);
-  static const Color neutral400 = Color(0xFFA2AAB9);
-  static const Color neutral500 = Color(0xFF7A8496);
-  static const Color neutral600 = Color(0xFF5C6675);
-  static const Color neutral700 = Color(0xFF414A58);
-  static const Color neutral800 = Color(0xFF28303C);
-  static const Color neutral900 = Color(0xFF161C26);
-  static const Color neutral950 = Color(0xFF0E131B);
+  static const Color neutral25 = Color(0xFFFDFCF6);
+  static const Color neutral50 = Color(0xFFFAF9F2);
+  static const Color neutral100 = Color(0xFFF5F4EA);
+  static const Color neutral200 = Color(0xFFE8E6D6);
+  static const Color neutral300 = Color(0xFFD9D7C4);
+  static const Color neutral400 = Color(0xFFB3B29B);
+  static const Color neutral500 = Color(0xFF8A8B73);
+  static const Color neutral600 = Color(0xFF6B7157);
+  static const Color neutral700 = Color(0xFF57604A);
+  static const Color neutral800 = Color(0xFF3A4230);
+  static const Color neutral900 = Color(0xFF26301A);
+  static const Color neutral950 = Color(0xFF1D2415);
 
-  // ═════ §2.2 الأساسي — ★★ أخضر عميق مستخلَص من شعار العميل (`AM-003`) ═════
-  //    ⛔ لا الكحلي القديم: القيمة عُدِّلت عمداً عن إدخال مكتبة التصميم
-  //    لتطابق الهوية البصرية الفعلية. ✅ و`primary500` مع نصّ أبيض = 6.2:1.
-  static const Color primary50 = Color(0xFFE2F0D8);
-  static const Color primary100 = Color(0xFFC5E0B1);
-  static const Color primary200 = Color(0xFF9CC77D);
-  static const Color primary300 = Color(0xFF73A650);
-  static const Color primary400 = Color(0xFF5C8C3A);
-  static const Color primary500 = Color(0xFF446B28);
-  static const Color primary600 = Color(0xFF3C5E24);
-  static const Color primary700 = Color(0xFF2E471B);
-  static const Color primary800 = Color(0xFF223614);
-  static const Color primary900 = Color(0xFF1A2910);
+  // ═════ §2.2 الأساسي — ★★★ زيتوني الشعار حرفياً (`AM-007` · `DS-002`) ═════
+  //    ⛔ **ولا الأخضر العميق المُقدَّر في `AM-003`:** ★ كان اشتقاقاً بصرياً
+  //    قريباً، ★ **وهذا استخراجٌ فعلي**: `primary600` لونُ نصّ «محمد» في
+  //    الشعار · `primary400` لونُ القوس خلفه · `primary500` درجةُ الرِباط.
+  //    ✅ و`primary500` مع نصّ أبيض = 6.25:1 (مقيسٌ في بوابة التباين).
+  static const Color primary50 = Color(0xFFF7F5E4);
+  static const Color primary100 = Color(0xFFEFEBC9);
+  static const Color primary200 = Color(0xFFDCD9A6);
+  static const Color primary300 = Color(0xFFB4B45C);
+  static const Color primary400 = Color(0xFF7A7D1C);
+  static const Color primary500 = Color(0xFF55672A);
+  static const Color primary600 = Color(0xFF3C491E);
+  static const Color primary700 = Color(0xFF313D19);
+  static const Color primary800 = Color(0xFF26301A);
+  static const Color primary900 = Color(0xFF1D2415);
 
-  // ═════════════════════ §2.3 عائلات الحالات ═════════════════════
-  static const Color successSoft = Color(0xFFE7F5EC);
-  static const Color successBorder = Color(0xFFB7E0C6);
-  static const Color successBase = Color(0xFF2E9E5B);
-  static const Color successInk = Color(0xFF1E6B3E);
+  // ═══════ §2.3 عائلات الحالات — ★★ مربوطةٌ بعناصر الشعار (`AM-007`) ═══════
+  //    ⛔ **والبنيةُ لم تُستبدَل — أُعيد ربطها فقط:** ★ الرِباط الأخضر للنجاح ·
+  //    ★★ **السيقان الطينية للخطر والمتأخر** — لأنه لونُ ما يتقادم ويضرّ ·
+  //    ★★ **والأوراق الذهبية للتنبيه** — لأنه قيمةٌ مؤجَّلة لا خطأ.
+  static const Color successSoft = Color(0xFFEDF1DD);
+  static const Color successBorder = Color(0xFFC9D6A8);
+  static const Color successBase = Color(0xFF5E7C2C);
+  static const Color successInk = Color(0xFF3F551A);
 
-  static const Color dangerSoft = Color(0xFFFDECEC);
-  static const Color dangerBorder = Color(0xFFF5BFBF);
-  static const Color dangerBase = Color(0xFFD93B3B);
-  static const Color dangerInk = Color(0xFF9B2626);
+  static const Color dangerSoft = Color(0xFFFAE7E0);
+  static const Color dangerBorder = Color(0xFFEED6CC);
+  static const Color dangerBase = Color(0xFFC4553A);
+  static const Color dangerInk = Color(0xFF9E3F27);
 
-  static const Color warningSoft = Color(0xFFFEF4E3);
-  static const Color warningBorder = Color(0xFFF7D9A4);
-  static const Color warningBase = Color(0xFFD98A17);
-  static const Color warningInk = Color(0xFF8F5A0C);
+  // ⛔★ **والذهبي الفاتح `#B5A83A` لا يُستخدَم نصّاً إطلاقاً** — ★ درجتُه
+  //    النصّية `warningInk` وحدها تضمن 4.5:1 على `warningSoft`.
+  static const Color warningSoft = Color(0xFFFBF0D6);
+  static const Color warningBorder = Color(0xFFF0DCA6);
+  static const Color warningBase = Color(0xFFC08A16);
+  static const Color warningInk = Color(0xFF946010);
 
-  static const Color infoSoft = Color(0xFFE9F1FB);
-  static const Color infoBorder = Color(0xFFBBD3F0);
-  static const Color infoBase = Color(0xFF2C6FD1);
-  static const Color infoInk = Color(0xFF1B4A8F);
+  // ✅★★★ **و`info` حُسمت بـ`IQ-028` (الخيار ب · 2026-08-29):** ★ **أزرقٌ
+  //    رماديٌّ خافت — ⛔ اللونُ الوحيدُ في النظام من خارج شعار العميل**،
+  //    ★ **واستثناءٌ موثَّقٌ صراحةً في `DS-003`** ⛔ **لا تطبيقٌ صامت.**
+  //    ★ **ولماذا لزم:** ⛔ **الشعار بلا لونٍ باردٍ واحد** ⟵ **والقيمةُ
+  //    المؤقتة السابقة (ورقيةٌ محايدة) كانت تكاد تُطابق الثلاثيةَ المحايدة**،
+  //    ★ **فتُلغي عملياً تفريقَ §3.4 بين «معلومة محايدة» و«غياب الحكم».**
+  //    ⛔⛔ **ولا يُقاس عليه لونٌ خارجيٌّ ثانٍ** — ★ **استثناءٌ واحدٌ محصور
+  //    في هذه العائلة وحدها** (`DS-003` الشرط 2).
+  //    ⚠️ **وهو مختلفٌ عن `cat1` الأزرق الفولاذي عمداً** — ★ **أخفتُ إشباعاً
+  //    وأدكنُ درجةً**: ⟵ **فلا يُقرأ وسمُ حالةٍ تصنيفاً.**
+  static const Color infoSoft = Color(0xFFEAEEF2);
+  static const Color infoBorder = Color(0xFFCBD6DE);
+  static const Color infoBase = Color(0xFF4F6675);
+  static const Color infoInk = Color(0xFF3A4E5B);
 
   // ════════════ §2.4 العائلات التصنيفية — ★ خمس فقط لا أكثر ════════════
   //    ⛔ **ولا `border` مستقل لها** — الحدّ يساوي `base` عند الحاجة.
+  //    ✅★★ **وبقيت كما هي بعد `DS-002` بفحصٍ لا بافتراض** (`AM-007`):
+  //    ★ أزواجها `soft × ink` كلُّها ≥ 4.5:1 في بوابة التباين، ★ ولا واحدةٌ
+  //    منها تقترب من الزيتوني الجديد ⟵ **فلا تعارضَ يُوجِب تغييراً.**
   static const Color cat1Soft = Color(0xFFE8EFF6);
   static const Color cat1Base = Color(0xFF3E7096);
   static const Color cat1Ink = Color(0xFF2F5F87);
@@ -102,21 +131,24 @@ abstract final class Primitives {
 abstract final class SemanticColors {
   static const Color background = Primitives.neutral50;
   static const Color surface = Primitives.neutral0;
-  static const Color surfaceSunken = Color(0xFFF2F3F7);
-  static const Color surfaceInverse = Color(0xFF141C2E);
+  // ★★ **وثلاثةٌ صارت مشتقّةً بدل قيمةٍ محفورة** (`AM-007`): ⟵ **القيمةُ
+  //    المحفورة تبقى باردةً بعد تدفئة المحايد** ⛔ **وهي بالضبط ما جعل
+  //    `focusRing` كحليّاً بعد `AM-003`.**
+  static const Color surfaceSunken = Primitives.neutral100;
+  static const Color surfaceInverse = Primitives.neutral900;
   static const Color border = Primitives.neutral200;
-  static const Color divider = Color(0xFFF0F1F5);
-  static const Color textPrimary = Color(0xFF131A2B);
-  static const Color textSecondary = Primitives.neutral600;
-  static const Color textTertiary = Color(0xFF656E7E);
-  static const Color textOnInverse = Color(0xFFF7F9FC);
+  static const Color divider = Color(0xFFEFEDDF);
+  static const Color textPrimary = Primitives.neutral900;
+  static const Color textSecondary = Primitives.neutral700;
+  static const Color textTertiary = Primitives.neutral600;
+  static const Color textOnInverse = Color(0xFFF4F2DF);
   static const Color textOnPrimary = Color(0xFFFFFFFF);
   // ★★ مشتقّ من `primary400` — ⟵ **وتغيُّره مع تغيُّر العائلة إلزامي**
   //    (`AM-003`): ⛔ **قيمة معتّمة يدوياً تبقى كحليةً بعد خضرة الأساس.**
-  static const Color focusRing = Color(0x665C8C3A); // primary400 بشفافية 40٪
-  static const Color overlay = Color(0x7A0E131B); // neutral950 بشفافية 48٪
-  static const Color skeleton = Color(0xFFE9ECF2);
-  static const Color skeletonHighlight = Color(0xFFF4F6FA);
+  static const Color focusRing = Color(0x667A7D1C); // primary400 بشفافية 40٪
+  static const Color overlay = Color(0x7A1D2415); // neutral950 بشفافية 48٪
+  static const Color skeleton = Color(0xFFEDEBDC);
+  static const Color skeletonHighlight = Color(0xFFF7F6EC);
 }
 
 /// ★ ثلاثيةٌ لونية واحدة — **تعبئة وحدّ ومقدّمة من العائلة نفسها** (§3.3).
@@ -248,9 +280,12 @@ abstract final class Elevation {
   static const List<BoxShadow> e0 = <BoxShadow>[];
 
   /// بطاقة عادية.
+  ///
+  /// ★★ **ولونُ الظل `neutral900` لا رمادٌ محايد** (`AM-007`): ⟵ **ظلٌّ
+  /// مزرقٌّ على خلفيةٍ ورقيةٍ دافئة يُقرأ وسخاً لا عمقاً.**
   static const List<BoxShadow> e1 = <BoxShadow>[
     BoxShadow(
-      color: Color(0x0F0E131B),
+      color: Color(0x0F26301A),
       offset: Offset(0, 4),
       blurRadius: 12,
     ),
@@ -259,7 +294,7 @@ abstract final class Elevation {
   /// بطاقة مرفوعة أو نشطة.
   static const List<BoxShadow> e2 = <BoxShadow>[
     BoxShadow(
-      color: Color(0x140E131B),
+      color: Color(0x1426301A),
       offset: Offset(0, 8),
       blurRadius: 24,
     ),
@@ -268,7 +303,7 @@ abstract final class Elevation {
   /// زر عائم · ورقة سفلية · حوار.
   static const List<BoxShadow> e3 = <BoxShadow>[
     BoxShadow(
-      color: Color(0x1F0E131B),
+      color: Color(0x1F26301A),
       offset: Offset(0, 12),
       blurRadius: 32,
     ),
@@ -355,8 +390,25 @@ abstract final class Breakpoints {
   }
 }
 
-/// اسم عائلة الخط المعتمَد — §5.
+/// اسم عائلة خط الجسم والجداول وكل رقم — §5.
 const String qtmsFontFamily = 'IBM Plex Sans Arabic';
+
+/// ★★ اسم عائلة **خط العرض الثاني** — §5-أ (`DS-002` · `AM-007`).
+///
+/// ⛔⛔★★★ **ولا رقمَ به إطلاقاً — قرارٌ مقيسٌ لا احتياط:** ★ **فُحص ملفَّا
+/// الخط نفسيهما** (`hmtx` و`GSUB`) فظهر أن **أرقامه اللاتينية بتسعة عروضٍ
+/// مختلفة** (408 … 572 من 1000) ⛔ **وأن ميزة `tnum` غائبةٌ كلياً عن `GSUB`.**
+///
+/// ⚠️⚠️ **والغيابُ أخطرُ من الفشل:** ★ **طلبُ [TypeScale.tabular] من خطٍّ لا
+/// يحمل الميزة لا يُفشِل البناء ولا يُنبِّه** — ⟵ **يُتجاهَل بصمت**، ★ **فيرتجّ
+/// عمودُ الرقم عند كل تحديثٍ لحظي** ⛔ **وتُبطَل المقارنةُ البصرية السريعة
+/// التي يعتمد عليها المالك.** ★ **ولذلك صار الشرطُ بوابةً آلية** في
+/// `test/core/design/design_gates_test.dart`.
+///
+/// ★ **فاستعمالُه محصورٌ في [TypeScale.displayTitleLg] و
+/// [TypeScale.displayTitleSm]** — ⛔ **ولا ثالثَ لهما.**
+/// **التحقق الكامل:** `docs/19-assets/fonts/README.md` §4.
+const String qtmsDisplayFontFamily = 'Tajawal';
 
 /// §5 — التايبوغرافيا.
 ///
@@ -374,6 +426,32 @@ abstract final class TypeScale {
     fontSize: 26,
     fontWeight: FontWeight.w700,
     height: 1.30,
+    letterSpacing: -0.3,
+  );
+
+  // ═══════ §5-أ ★★ توكنا خط العرض الثاني — **للنصّ الحرفي وحده** ═══════
+  //    ⛔⛔ **ولا رقمَ بهما** — راجع [qtmsDisplayFontFamily] للسبب المقيس.
+  //    ★ **والتوكنان القائمان أعلاه باقيان كما هما** ⛔ **لم يُحذف واحدٌ منهما.**
+
+  /// ★★ عنوان البطاقة الرئيسية الحرفي — **`Tajawal` وزن 900**.
+  static const TextStyle displayTitleLg = TextStyle(
+    fontFamily: qtmsDisplayFontFamily,
+    fontSize: 32,
+    fontWeight: FontWeight.w900,
+    height: 1.20,
+    letterSpacing: -0.5,
+  );
+
+  /// ★★ عنوان قسمٍ بارز — **`Tajawal` وزن 800**.
+  ///
+  /// ⛔ **ولا وزنَ ثالثاً من العائلة:** ★ **المضمَّنُ اثنان (800 و900)**،
+  /// ⟵ **وطلبُ 600 أو 700 يقع على أقربهما فيبدو العنوانُ أثقلَ مما يقصد
+  /// التوكن** — ★ **والعائلةُ لا تحمل 600 أصلاً.**
+  static const TextStyle displayTitleSm = TextStyle(
+    fontFamily: qtmsDisplayFontFamily,
+    fontSize: 26,
+    fontWeight: FontWeight.w800,
+    height: 1.25,
     letterSpacing: -0.3,
   );
 

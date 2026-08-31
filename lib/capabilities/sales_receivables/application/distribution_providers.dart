@@ -9,6 +9,7 @@
 /// السحابية** (`ADR-0013` القاعدة 3 · `RISK-02` · `ت-12`).
 library;
 
+import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
@@ -151,6 +152,41 @@ final distributionPricingProvider =
 ///
 /// ⚠️⚠️ **وهذه تصفيةُ عرضٍ لا حماية** — ★ **والدالة السحابية تُعيد الفحص
 /// نفسه على سجل المقوت** (`distribution.dart` `_partiesGate`).
+/// ★★ رصيد المقوت في مصدر — 🔒 **بـ`dealerBalanceView`** (`WU-010`).
+///
+/// ⚠️ **و`null` تعني «لا أرى» أو «لا يوجد» معاً** — ★ **والتمييز لا يلزم
+/// الشاشة**: ⟵ **كلاهما «لا يُعرَض القالب ② للرسالة»** (`FR-M20-07`).
+final dealerBalanceProvider =
+    StreamProvider.family<DealerBalanceCard?, DealerBalanceQuery>(
+  (Ref ref, DealerBalanceQuery query) =>
+      ref.watch(distributionDirectoryProvider).watchDealerBalance(
+            dealerId: query.dealerId,
+            sourceId: query.sourceId,
+          ),
+);
+
+/// مفتاح استعلام رصيد المقوت.
+@immutable
+final class DealerBalanceQuery {
+  /// ينشئ المفتاح.
+  const DealerBalanceQuery({required this.dealerId, required this.sourceId});
+
+  /// المقوت.
+  final String dealerId;
+
+  /// ★ المصدر — **والرصيد يخصّه وحده** (`GR-20`).
+  final String sourceId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DealerBalanceQuery &&
+      other.dealerId == dealerId &&
+      other.sourceId == sourceId;
+
+  @override
+  int get hashCode => Object.hash(dealerId, sourceId);
+}
+
 final Provider<List<DealerCard>> distributionDealersProvider =
     Provider<List<DealerCard>>((Ref ref) {
   final List<DealerCard> all =

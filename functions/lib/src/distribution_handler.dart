@@ -32,6 +32,7 @@ import 'audited_transaction.dart';
 import 'callable.dart';
 import 'counter_allocator.dart' show counterValueField;
 import 'distribution.dart';
+import 'pending_entries.dart';
 import 'identity_gateway.dart';
 import 'inventory.dart';
 import 'inventory_handler.dart'
@@ -41,6 +42,7 @@ import 'inventory_handler.dart'
         readInt,
         readItemRecords,
         readLedgerMovements,
+        readStoredName,
         withLedgerItems;
 import 'permission_sync_handler.dart' show requestIdField;
 
@@ -214,6 +216,16 @@ final class DistributionHandler {
       for (final _LineRequest line in lines)
         line.itemId: _transaction.documentPath(itemsCollection, line.itemId),
     };
+    // ⏳★★ **وسجل سعر اليوم لكل نوع** — ⟵ **فبندُ `M9` يُمحى حين يستنفد
+    //    التوزيعُ رصيدَ النوع** (`pending-entries-design.md` §9)، ★ **ويبقى
+    //    قائماً بدقّة حين يبقى رصيدٌ بلا تسعير.**
+    final Map<String, String> pricePaths = <String, String>{
+      for (final _LineRequest line in lines)
+        line.itemId: _transaction.documentPath(
+          dailyPricesCollection,
+          dailyPriceId(sourceId: sourceId, itemKey: line.itemId, date: day),
+        ),
+    };
     // ★★★ **سجلّا الفائض** — `FR-M12-11`: **العامُّ وفائضُ هذا المصدر**.
     //    ⛔ **ولا سجلَّ مصدرٍ آخر يُقرأ** (`E-13`) — ★ **والمفتاح يمنعه أصلاً.**
     final Map<String, SurplusScope> surplusPaths = <String, SurplusScope>{
@@ -239,6 +251,7 @@ final class DistributionHandler {
         documentPath,
         counterPath,
         ...itemPaths.values,
+        ...pricePaths.values,
         ...surplusPaths.keys,
       ],
       queries: <DocumentQuery>[
@@ -319,6 +332,29 @@ final class DistributionHandler {
         }
 
         final DistributionAccepted accepted = plan as DistributionAccepted;
+
+        // ⏳★★★ **بندُ التوزيعة وبنودُ التسعير معاً** (`WU-009`) —
+        //    `FR-M10-08` (**سطرٌ بلا سعر يدخل المركز**) · `AT-23` · `AT-24`.
+        final PendingEntrySet pending = mergePendingSets(<PendingEntrySet>[
+          describeDistributionPending(
+            distributionId: compositeId,
+            sourceId: sourceId,
+            stockDate: day,
+            dealerName: readStoredName(reads.document(dealerPath)) ?? dealerId,
+            documentNumber: number,
+            unpricedLineCount: validated.value.unpricedLineCount,
+          ),
+          pendingFromBalanceWrites(
+            writes: accepted.writes,
+            sourceId: sourceId,
+            date: day,
+            storedPrices: <String, Map<String, Object?>?>{
+              for (final MapEntry<String, String> entry in pricePaths.entries)
+                entry.key: reads.document(entry.value),
+            },
+          ),
+        ]);
+
         return AuditedWrite<void>(
           documents: <PendingDocument>[
             for (final InventoryWrite write in accepted.writes)
@@ -332,7 +368,9 @@ final class DistributionHandler {
               fields: <String, Object?>{counterValueField: sequence},
               updateMask: const <String>[counterValueField],
             ),
+            ...pendingEntryDocuments(pending),
           ],
+          deletions: pendingEntryDeletions(pending),
           entry: accepted.entry,
           result: null,
         );
@@ -411,6 +449,14 @@ final class DistributionHandler {
       for (final String itemId in itemIds)
         itemId: _transaction.documentPath(itemsCollection, itemId),
     };
+    // ⏳★★ **وسجل سعر اليوم لكل نوع مسّته العملية** — بنفس علّة مسار الإنشاء.
+    final Map<String, String> pricePaths = <String, String>{
+      for (final String itemId in itemIds)
+        itemId: _transaction.documentPath(
+          dailyPricesCollection,
+          dailyPriceId(sourceId: sourceId, itemKey: itemId, date: day),
+        ),
+    };
 
     await _transaction.run<void>(
       readPaths: <String>[
@@ -419,6 +465,7 @@ final class DistributionHandler {
         sourcePath,
         dealerPath,
         ...itemPaths.values,
+        ...pricePaths.values,
       ],
       queries: <DocumentQuery>[
         for (final String itemId in itemIds)
@@ -480,11 +527,37 @@ final class DistributionHandler {
         }
 
         final DistributionAccepted accepted = plan as DistributionAccepted;
+
+        // ⏳★★★ **وبندُ التوزيعة يُعاد ملاءمته** — ★ **والإلغاء يُخليه**
+        //    (`GR-06` · `FR-M10-18`)، ★ **وتسعيرُ الباقي يُزيله** (`AT-24`).
+        final PendingEntrySet pending = mergePendingSets(<PendingEntrySet>[
+          describeDistributionPending(
+            distributionId: compositeId,
+            sourceId: sourceId,
+            stockDate: day,
+            dealerName: readStoredName(reads.document(dealerPath)) ?? dealerId,
+            documentNumber: number,
+            unpricedLineCount: distribution?.unpricedLineCount ?? 0,
+            isCancelled: operation.isCancel,
+          ),
+          pendingFromBalanceWrites(
+            writes: accepted.writes,
+            sourceId: sourceId,
+            date: day,
+            storedPrices: <String, Map<String, Object?>?>{
+              for (final MapEntry<String, String> entry in pricePaths.entries)
+                entry.key: reads.document(entry.value),
+            },
+          ),
+        ]);
+
         return AuditedWrite<void>(
           documents: <PendingDocument>[
             for (final InventoryWrite write in accepted.writes)
               _toPending(write),
+            ...pendingEntryDocuments(pending),
           ],
+          deletions: pendingEntryDeletions(pending),
           entry: accepted.entry,
           result: null,
         );

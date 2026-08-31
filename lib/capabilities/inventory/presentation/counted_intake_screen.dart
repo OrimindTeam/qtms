@@ -22,6 +22,7 @@ import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/context_header.dart';
 import '../../../core/ui/destructive_sheet.dart';
+import '../../../core/ui/inline_banner.dart';
 import '../../identity_access/presentation/permission_gate.dart';
 import '../../master_data/application/master_data_providers.dart';
 import '../../oversight/presentation/audit_trail_view.dart';
@@ -533,16 +534,8 @@ class _Rejection extends StatelessWidget {
   final CatalogMessage message;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(Spacing.space12),
-        decoration: BoxDecoration(
-          color: Primitives.dangerSoft,
-          border: Border.all(color: Primitives.dangerBorder),
-          borderRadius: BorderRadius.circular(Radii.card),
-        ),
-        child: Text(
-          catalogText(message),
-          style: TypeScale.bodyMd.copyWith(color: Primitives.dangerInk),
-        ),
+  Widget build(BuildContext context) => QtmsInlineBanner(
+        text: catalogText(message),
+        triad: SemanticTriads.danger,
       );
 }

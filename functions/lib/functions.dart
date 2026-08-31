@@ -3,12 +3,12 @@
 /// ★ يولّد `functions_framework_builder` من التعليقات التوضيحية هنا الملف
 /// `bin/server.dart` — ⛔ **ولا يُحرَّر ذلك الملف يدوياً**.
 ///
-/// **الحالة الآن:** ★★ **ثلاثون عمليةً مستدعاة خلف نقطة دخول واحدة**
+/// **الحالة الآن:** ★★ **أربعٌ وثلاثون عمليةً مستدعاة خلف نقطة دخول واحدة**
 /// (`callables` — حسم `IQ-019` الخيار أ) ★★ **وعمليتان مشغَّلتان بالكتابة**
 /// من §3.2 (`provisionAccountsOnSourceAdd` · `provisionAccountsOnPartyAdd`).
 /// بقية الدوال تُبنى في زياداتها، كما يفرض `ADR-0009` ②.
 ///
-/// ★★★ **وثلاثة أهداف لا ثلاثون** (`FUNCTION_TARGET`): `callables` +
+/// ★★★ **وثلاثة أهداف لا أربعٌ وثلاثون** (`FUNCTION_TARGET`): `callables` +
 /// المُشغَّلتان. ⟵ ⛔ **والعمليات المستدعاة ليست أهدافاً مستقلة** — ★ **لأن
 /// `FUNCTION_TARGET` هدفٌ واحد لكل حاوية ولا يوجّه بالمسار**، ⟵ **فنشرُها
 /// أهدافاً منفصلة كان يعني مضيفاً لكل عملية**، وهو ما رفضه `IQ-019`.
@@ -33,6 +33,8 @@ import 'src/daily_pricing.dart';
 import 'src/daily_pricing_handler.dart';
 import 'src/distribution.dart';
 import 'src/distribution_handler.dart';
+import 'src/export_log.dart';
+import 'src/export_log_handler.dart';
 import 'src/identity_gateway.dart';
 import 'src/inventory.dart';
 import 'src/inventory_handler.dart';
@@ -85,6 +87,7 @@ Future<InventoryHandler>? _inventoryHandler;
 Future<DailyPricingHandler>? _dailyPricingHandler;
 Future<DistributionHandler>? _distributionHandler;
 Future<ReceiptHandler>? _receiptHandler;
+Future<ExportLogHandler>? _exportLogHandler;
 
 /// ★★★ **`callables` — نقطة الدخول الوحيدة للعمليات المستدعاة** (`IQ-019`).
 ///
@@ -177,7 +180,29 @@ Future<Response> callables(Request request) async {
       _receipt(request, ReceiptOperation.cancelReceipt),
     CallableOperation.confirmReceiptDeposit =>
       _receipt(request, ReceiptOperation.confirmReceiptDeposit),
+    CallableOperation.logExport =>
+      _exportLog(request, ExportLogOperation.logExport),
   };
+}
+
+/// ★ مسار تسجيل التصدير (`WU-010`).
+///
+/// ⛔★★ **ولا يحتاج `QTMS_OWNER_UID`:** حارس المالك (`BR-M1-02`) يخصّ
+/// **حسابات المستخدمين** وحدها — ★ **وتفويض التصدير مفتاحُه `documentExport`
+/// مع نطاق المصادر**، ويُفحَصان في `exportLogGate`.
+Future<Response> _exportLog(
+  Request request,
+  ExportLogOperation operation,
+) async {
+  final ExportLogHandler handler =
+      await (_exportLogHandler ??= _buildExportLog());
+  return handler.handle(request, operation);
+}
+
+Future<ExportLogHandler> _buildExportLog() async {
+  final (IdentityGateway identity, AuditedTransaction transaction) =
+      await _connectDependencies();
+  return ExportLogHandler(identity: identity, transaction: transaction);
 }
 
 /// ★ المسار المشترك لعمليات التوزيع الثلاث (`WU-006`).

@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qtms_domain/qtms_domain.dart';
 
 import '../capabilities/identity_access/application/session_providers.dart';
 import '../capabilities/identity_access/application/session_state.dart';
@@ -23,6 +24,9 @@ import '../capabilities/inventory/presentation/sack_intake_screen.dart';
 import '../capabilities/inventory/presentation/daily_pricing_screen.dart';
 import '../capabilities/inventory/presentation/today_stock_screen.dart';
 import '../capabilities/oversight/presentation/audit_log_screen.dart';
+import '../capabilities/oversight/presentation/pending_entries_screen.dart';
+import '../capabilities/oversight/presentation/report_view_screen.dart';
+import '../capabilities/oversight/presentation/reports_screen.dart';
 import '../capabilities/sales_receivables/presentation/distribution_screen.dart';
 import '../capabilities/sales_receivables/presentation/receipt_screen.dart';
 import '../capabilities/master_data/application/master_data_providers.dart';
@@ -112,6 +116,39 @@ const String receiptRoute = '/home/receipts';
 /// شاشته** (`FR-M18-10`) ⛔ **لا مسارٌ ثالث**: ⟵ **ومسارٌ يقبل كياناً كان
 /// سيصير طريقاً ثانياً لقراءة السجل** بلا الشاشة التي تملك صلاحيته.
 const String auditLogRoute = '/home/audit';
+
+/// ★ مسار مركز الإدخالات المعلّقة (`FR-SYS-01`…`FR-SYS-10`) — **مستويان**.
+///
+/// ⛔★★ **ولا معامل مستندٍ ولا حقلٍ في المسار** — ★ **وجهةُ زر [ إدخال ]
+/// حالةٌ في التطبيق** (`pendingFocusProvider`) ⛔ **لا رابطٌ يُشارَك**:
+/// ⟵ **ومسارٌ يحمل معرّف بندٍ كان يصير طريقاً ثانياً لفتح مستند** بلا
+/// الشاشة التي تملك صلاحيته وسياقه (بنفس علّة `auditLogRoute`).
+const String pendingEntriesRoute = '/home/pending';
+
+/// ★★★ **مسارُ الشاشة الأصلية لبندٍ معلّق** — `FR-SYS-04`.
+///
+/// ⛔⛔ **ولا شاشةَ إدخالٍ بديلة** (`pending-entries-design.md` §6) —
+/// ★ **وطبقةُ النطاق تُسمّي الشاشة، والتطبيق وحده يعرف مسارَها**
+/// (`ADR-0009`): ⟵ **فلا مسارٌ محفورٌ في `qtms_domain`.**
+String pendingScreenRoute(PendingScreen screen) => switch (screen) {
+      PendingScreen.sackIntake => sackIntakeRoute,
+      PendingScreen.dailyPricing => dailyPricingRoute,
+      PendingScreen.distribution => distributionRoute,
+    };
+
+/// ★ مسار قائمة التقارير (`FR-M19`) — **مستويان**.
+///
+/// ⛔★★ **ولا معامل تقريرٍ هنا** — ★ **القائمةُ وجهةٌ والتقريرُ وجهةٌ تحتها**:
+/// ⟵ **فيبقى العمق ثلاثةً وهو الحدّ** (`ui-guidelines.md` §4).
+const String reportsRoute = '/home/reports';
+
+/// ★★ مسارُ تقريرٍ بعينه — **ثلاثة مستويات وهو الحدّ** (`ui-guidelines.md` §4).
+///
+/// ⛔⛔★★ **ولا فلاترَ في المسار** — ★ **الفترةُ والمصدر حالةٌ في التطبيق**
+/// (`reportRequestProvider`) ⛔ **لا رابطٌ يُشارَك**: ⟵ **ومسارٌ يحملها كان
+/// يصير طريقاً ثانياً لقراءة أرقامٍ مالية** بلا الشاشة التي تملك صلاحيتها
+/// (بنفس علّة `auditLogRoute` حرفياً).
+String reportRoute(ReportId report) => '$reportsRoute/${report.code}';
 
 /// ★★ مسار الإعداد التأسيسي (`FR-M21-04`) — **خارج الصدَفة عمداً**.
 ///
@@ -224,6 +261,34 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             path: 'audit',
             builder: (BuildContext context, GoRouterState state) =>
                 const AuditLogScreen(),
+          ),
+          // ── مركز الإدخالات المعلّقة (`WU-009`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'pending',
+            builder: (BuildContext context, GoRouterState state) =>
+                const PendingEntriesScreen(),
+          ),
+          // ── التقارير (`WU-011`) — قائمةٌ بمستويين وتقريرٌ بثلاثة ──
+          GoRoute(
+            path: 'reports',
+            builder: (BuildContext context, GoRouterState state) =>
+                const ReportsScreen(),
+            routes: <RouteBase>[
+              GoRoute(
+                path: ':reportCode',
+                builder: (BuildContext context, GoRouterState state) {
+                  final ReportId? report =
+                      ReportId.tryParse(state.pathParameters['reportCode']);
+                  // ⛔⛔★★ **ورمزٌ لا يعرفه هذا الإصدار يعود للقائمة** —
+                  //    ★ **ولا يُفتَح على تقريرٍ آخر** (`ReportId.tryParse`):
+                  //    ⟵ **وفتحُ تقريرٍ غيرِ المقصود أسوأ من عدم فتحه**،
+                  //    ⛔ **ولا شاشةَ بيضاء ولا انهيار.**
+                  return report == null
+                      ? const ReportsScreen()
+                      : ReportViewScreen(report: report);
+                },
+              ),
+            ],
           ),
         ],
       ),

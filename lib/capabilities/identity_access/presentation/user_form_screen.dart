@@ -18,6 +18,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
+import '../../../core/ui/inline_banner.dart';
 import '../application/admin_providers.dart';
 import '../../../core/ui/optional_reason.dart';
 
@@ -189,17 +190,9 @@ class _RejectionBanner extends StatelessWidget {
   final CatalogMessage message;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(Spacing.space12),
-        decoration: BoxDecoration(
-          color: Primitives.dangerSoft,
-          border: Border.all(color: Primitives.dangerBorder),
-          borderRadius: BorderRadius.circular(Radii.card),
-        ),
-        child: Text(
-          catalogText(message),
-          style: TypeScale.bodyMd.copyWith(color: Primitives.dangerInk),
-        ),
+  Widget build(BuildContext context) => QtmsInlineBanner(
+        text: catalogText(message),
+        triad: SemanticTriads.danger,
       );
 }
 

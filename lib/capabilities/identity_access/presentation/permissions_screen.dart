@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/design/design_tokens.dart';
+import '../../../core/ui/inline_banner.dart';
 import '../../../core/ui/skeleton.dart';
 import '../../../core/messages/error_messages.dart';
 import '../application/admin_providers.dart';
@@ -182,21 +183,17 @@ class _PermissionsEditorState extends ConsumerState<_PermissionsEditor> {
         ),
         if (_rejection case final CatalogMessage message) ...<Widget>[
           const SizedBox(height: Spacing.space12),
-          _Banner(
+          QtmsInlineBanner(
             text: catalogText(message),
-            ink: Primitives.dangerInk,
-            soft: Primitives.dangerSoft,
-            border: Primitives.dangerBorder,
+            triad: SemanticTriads.danger,
           ),
         ],
         if (_saved) ...<Widget>[
           const SizedBox(height: Spacing.space12),
-          const _Banner(
+          const QtmsInlineBanner(
             // ★ **حالة نجاح حقيقية** — ⛔ لا صمت بعد عملية نجحت فعلاً.
             text: '✅ حُفظت الصلاحيات.',
-            ink: Primitives.primary700,
-            soft: Primitives.primary50,
-            border: Primitives.primary200,
+            triad: SemanticTriads.primary,
           ),
         ],
         const SizedBox(height: Spacing.space16),
@@ -469,7 +466,7 @@ class _ScopeEditor extends StatelessWidget {
                 'نطاق هذا المستخدم الآن «كل المصادر»، وهو أوسع من نطاقك — '
                 'والحفظ سيقصره على ما تختاره أدناه.',
                 style: TypeScale.bodyMd
-                    .copyWith(color: Primitives.warningInk),
+                    .copyWith(color: SemanticTriads.warning.ink),
               ),
             ),
           // ⛔ **والقائمة المحدَّدة لا تُخلَط بـ«الكل»** — `AllSources` تشمل
@@ -519,28 +516,5 @@ class _ScopeEditor extends StatelessWidget {
   }
 }
 
-class _Banner extends StatelessWidget {
-  const _Banner({
-    required this.text,
-    required this.ink,
-    required this.soft,
-    required this.border,
-  });
-
-  final String text;
-  final Color ink;
-  final Color soft;
-  final Color border;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(Spacing.space12),
-        decoration: BoxDecoration(
-          color: soft,
-          border: Border.all(color: border),
-          borderRadius: BorderRadius.circular(Radii.card),
-        ),
-        child: Text(text, style: TypeScale.bodyMd.copyWith(color: ink)),
-      );
-}
+// ⛔★★ **والشريطُ المحلي رُفِع إلى `lib/core/ui/inline_banner.dart`** (`AM-007`)
+//    — ★ **كان منسوخاً في سبع شاشات ويستدعي الطبقة الأولية مباشرةً.**

@@ -615,7 +615,7 @@ SackPlan _planTax(SackRequest request, String? reason) {
     documentNumber: request.documentNumber,
     writes: <InventoryWrite>[
       InventoryWrite(
-        collectionId: _financePath(request.documentNumber),
+        collectionId: sackFinancePathOf(request.documentNumber),
         documentId: sackFinanceDocumentId,
         fields: <String, Object?>{
           ...finance,
@@ -1493,7 +1493,7 @@ String? _nameOf(Map<String, Object?>? stored) {
 ///
 /// ⚠️ **ويُبنى من ثابتَي النطاق لا من نصٍّ محفور** — ⟵ **فتغيّرُ أيٍّ منهما
 /// يسري على الكاتب والقارئ معاً**، ⛔ **ولا مسارٌ ثانٍ يفترق عنه.**
-String _financePath(String documentNumber) =>
+String sackFinancePathOf(String documentNumber) =>
     '$sacksCollection/$documentNumber/$sackFinanceSubcollection';
 
 String? _trimmed(String? value) {

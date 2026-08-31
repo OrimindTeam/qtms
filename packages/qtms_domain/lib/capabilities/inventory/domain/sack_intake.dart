@@ -573,12 +573,35 @@ SackWeightExplanation explainSackWeight({
     claimableWeight: weights.claimableWeight,
     explainedWeight: explained,
     remainingWeight: isZero ? WeightKg.zero : remaining,
-    state: isZero
-        ? SackWeightState.fullyExplained
-        : lostWeightConfirmed
-            ? SackWeightState.lostConfirmed
-            : SackWeightState.unexplained,
+    state: sackWeightStateOf(
+      remainingKilograms: remaining.kilograms,
+      lostWeightConfirmed: lostWeightConfirmed,
+    ),
   );
+}
+
+/// ★★★ **حالةُ التفسير من المتبقي والتأكيد** — ⛔ **ولا نسخةَ ثانية منها**.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⚠️⚠️ **ولماذا دالةٌ مستقلة عن [explainSackWeight]:** الحالة تُشتقّ في
+/// موضعين لا موضع: ★ **عند الحساب الحيّ** (من السطور)، ★★ **وعند قراءة
+/// جونيةٍ مخزَّنة** (`remainingWeight` و`lostWeightConfirmed` مكتوبان في
+/// المستند — `sack-intake-design.md` §5) ⟵ **وهو ما يحتاجه باني المركز
+/// المعلّق** (`WU-009` · `E-10`). ⛔ **ونسختان من الشرط تفترقان عند أول
+/// تغييرٍ للهامش** (`coding-standards.md` §2.2).
+///
+/// ⚠️ **والهامش هو [weightEpsilonKg] نفسه** — راجع [explainSackWeight].
+/// ═══════════════════════════════════════════════════════════════════════
+SackWeightState sackWeightStateOf({
+  required double remainingKilograms,
+  required bool lostWeightConfirmed,
+}) {
+  if (remainingKilograms.abs() < weightEpsilonKg) {
+    return SackWeightState.fullyExplained;
+  }
+  return lostWeightConfirmed
+      ? SackWeightState.lostConfirmed
+      : SackWeightState.unexplained;
 }
 
 /// ★ هامش مقارنة الأوزان — **نصف أصغر خانة معتمدة** (`WeightKg.decimals`).

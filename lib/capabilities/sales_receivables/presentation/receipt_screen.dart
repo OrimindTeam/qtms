@@ -31,7 +31,10 @@ import '../../../core/ui/live_summary.dart';
 import '../../../core/ui/skeleton.dart';
 import '../../../core/ui/sticky_action_bar.dart';
 import '../../inventory/application/inventory_providers.dart';
+import '../../identity_access/application/session_providers.dart';
 import '../../master_data/application/master_data_providers.dart';
+import '../../oversight/application/messaging_providers.dart';
+import '../../oversight/presentation/send_document_sheet.dart';
 import '../application/receipt_providers.dart';
 
 /// شاشة المقبوضات.
@@ -95,6 +98,13 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                     //   مبالغُ مقوتٍ سابق في حقول مقوتٍ آخر.**
                     key: ValueKey<String>('${dealerId}_${_sourceFilter ?? '*'}'),
                     dealerId: dealerId,
+                    // ★ **اسمُ المقوت للإيصال** — ⟵ **من القائمة المقروءة
+                    //   أصلاً** ⛔ **بلا قراءةٍ إضافية.**
+                    dealerName: dealers
+                            .where((DealerCard d) => d.dealerId == dealerId)
+                            .map((DealerCard d) => d.name)
+                            .firstOrNull ??
+                        '',
                     sourceFilter: _sourceFilter,
                   ),
           ),
@@ -171,12 +181,17 @@ class _ReceiptHeader extends StatelessWidget {
 class _ReceiptForm extends ConsumerStatefulWidget {
   const _ReceiptForm({
     required this.dealerId,
+    required this.dealerName,
     required this.sourceFilter,
     required this.sourceIds,
     super.key,
   });
 
   final String dealerId;
+
+  /// ★ اسمُ المقوت **كما يظهر في الإيصال** — `FR-M20-07` ③.
+  final String dealerName;
+
   final String? sourceFilter;
 
   /// ★ المصادر المُعدَّدة — راجع [OpenDebtQuery].
@@ -195,6 +210,15 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
   bool _usedAutoAllocation = false;
   bool _saving = false;
   String? _status;
+
+  /// ★★ آخر سندٍ حُفِظ في هذه الجلسة — **لإرساله أو تصديره** (`FR-M20-04`).
+  ///
+  /// ⛔⛔★★ **ولا يُبنى قبل الحفظ:** ★ **رقم السند من السحابة** (`naming-conventions.md`
+  /// §5) — ⟵ **وإيصالٌ بلا رقمٍ يَعِد المقوتَ بمستندٍ لا وجود له.**
+  ///
+  /// ⚠️ **ويُمحى عند تغيّر المدخلات** — ★ **فلا يُرسَل إيصالُ سندٍ سابق
+  /// بأرقامٍ صارت على الشاشة لغيره.**
+  ReceiptMessageData? _lastVoucher;
 
   @override
   void dispose() {
@@ -256,6 +280,16 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
       _saving = true;
       _status = null;
     });
+    // ★ **يُلتقَط قبل الاستدعاء** — ⟵ **فالمزوّد يُبطَل بعد النجاح**
+    //   (`_refreshDerivedReads`) **فتتغيّر قيم `lots` تحت أيدينا.**
+    final Money openBefore =
+        totalOpenRemaining(lots.map((OpenDebtLot lot) => lot.remaining));
+    final Map<String, OpenDebtLot> lotsById = <String, OpenDebtLot>{
+      for (final OpenDebtLot lot in lots) lot.debtLotId: lot,
+    };
+    final Money paidSurplus = _surplusAmount;
+    final CalendarDay paidOn = _date ?? today;
+
     final Outcome<String> result =
         await ref.read(receiptAdminProvider).createReceipt(
               dealerId: widget.dealerId,
@@ -278,7 +312,25 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
         Failure<String>(:final AppError error) =>
           catalogText(appErrorMessage(error)),
       };
-      if (result is Success<String>) {
+      if (result case Success<String>(:final String value)) {
+        // ★★ **بياناتُ الإيصال تُبنى في طبقة النطاق** — ⛔ **ولا حسابَ هنا**
+        //    (`design-system.md` §5.1).
+        _lastVoucher = buildReceiptMessageData(
+          dealerName: widget.dealerName,
+          documentNumber: value,
+          paidOn: paidOn,
+          settled: <ReceiptSettlementInput>[
+            for (final ReceiptLineInput line in lines)
+              if (lotsById[line.debtLotId] case final OpenDebtLot lot)
+                ReceiptSettlementInput(
+                  stockDate: lot.stockDate,
+                  remainingBefore: lot.remaining,
+                  amount: line.amount,
+                ),
+          ],
+          openRemainingBefore: openBefore,
+          surplusAmount: paidSurplus,
+        );
         for (final TextEditingController controller in _amounts.values) {
           controller.clear();
         }
@@ -286,6 +338,45 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
         _usedAutoAllocation = false;
       }
     });
+    if (result is Success<String>) _refreshDerivedReads();
+  }
+
+  /// ⛔⛔★★★ **إبطالُ المشتقّات بعد كتابةٍ ناجحة — `DEBT-61`.**
+  ///
+  /// ★★ **ولماذا لا يكفي بثُّ [openDebtLotsProvider] وحدَه وهو `StreamProvider`:**
+  /// ★ **بثُّه على مستندات `distributions` الأب** ⛔ **والمتبقي يُقرأ قراءةً
+  /// مفردةً من `pricing/current`** (`FirestoreReceiptDirectory._remainingOf`) —
+  /// ⟵ **وسندُ القبض لا يمسّ الأب إطلاقاً**: ★ **يكتب `settledAmount`
+  /// و`remaining` في المستند الفرعي وحده** (`IQ-027` · `ADR-0011`).
+  /// ⟹ ⛔⛔ **فلا حدثَ بثٍّ يقع، ويبقى «المتبقي» على قيمته قبل القبض حتى
+  /// إقلاعٍ جديد للتطبيق** — ★ **وهو أخطرُ ما يكون في شاشة تحصيلٍ نقدي:**
+  /// ⟵ **يُقرأ ديناً قائماً فيُقبَض مرتين.**
+  ///
+  /// ⚠️★★ **وهذا علاجُ الكاتب لنفسه** — ⛔ **لا للكتابة الآتية من جهازٍ آخر:**
+  /// ★ **تلك تبقى بلا بثٍّ حتى إعادة الدخول** ⟵ **والحدُّ معلَنٌ في `DEBT-61`**
+  /// ⛔ **لا مُدَّعىً حلُّه.**
+  void _refreshDerivedReads() {
+    ref
+      ..invalidate(
+        openDebtLotsProvider(
+          OpenDebtQuery(
+            dealerId: widget.dealerId,
+            sourceIds: widget.sourceIds,
+          ),
+        ),
+      )
+      // ★ **والفائضُ يتغيّر بالسند نفسِه** — `FR-M12-11`.
+      ..invalidate(
+        availableSurplusProvider(
+          SurplusQuery(
+            dealerId: widget.dealerId,
+            scope: widget.sourceFilter == null
+                ? SurplusScope.general
+                : SurplusScope.source,
+            sourceId: widget.sourceFilter,
+          ),
+        ),
+      );
   }
 
   @override
@@ -368,6 +459,21 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
                 onChanged: () => setState(() {}),
                 openDebt: totalDebt,
               ),
+              // ★★ **الإرسال والتصدير بعد الحفظ وحده** — `FR-M20-04` (`WU-010`).
+              //
+              // ⛔ **ولا يظهر قبله:** ★ **رقم السند من السحابة**، ⟵ **وإيصالٌ
+              //    بلا رقمٍ يَعِد المقوتَ بمستندٍ لا وجود له.**
+              if (_lastVoucher case final ReceiptMessageData voucher) ...<Widget>[
+                const SizedBox(height: Spacing.space16),
+                _ReceiptSendActions(
+                  voucher: voucher,
+                  dealerId: widget.dealerId,
+                  // ★ **مصدرُ القيد للتسجيل** — ★ **وسندُ «الكل» يُنسَب إلى
+                  //   `all`** كما يفعل كاتبُ القيد نفسُه (`api-overview.md`
+                  //   §3.1-ح)، ⟵ **فلا يُنسَب لمصدرٍ دون البقية.**
+                  sourceId: widget.sourceFilter ?? auditAllSourcesId,
+                ),
+              ],
             ],
           ),
         ),
@@ -582,6 +688,70 @@ class _SurplusField extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// ★★★ صفُّ إرسال سند القبض وتصديره — `M20` (`WU-010`).
+///
+/// ⛔⛔★★ **ولا يحسب شيئاً** — ★ **[ReceiptMessageData] مبنيّةٌ في طبقة
+/// النطاق** (`buildReceiptMessageData`)، ⟵ **فالرسالةُ والملفُّ يخرجان من
+/// مصدرٍ واحد** ⛔ **ولا يفترقان رقماً واحداً.**
+class _ReceiptSendActions extends ConsumerWidget {
+  const _ReceiptSendActions({
+    required this.voucher,
+    required this.dealerId,
+    required this.sourceId,
+  });
+
+  final ReceiptMessageData voucher;
+  final String dealerId;
+  final String sourceId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bool canSend =
+        ref.watch(hasPermissionProvider(Permission.messagingSend));
+    final bool canExport =
+        ref.watch(hasPermissionProvider(Permission.documentExport));
+    // ★ **«الصلاحيات تُخفي لا تُعطِّل»** — `ui-guidelines.md` §2.
+    if (!canSend && !canExport) return const SizedBox.shrink();
+
+    final MessageBusiness business = ref.watch(messageBusinessProvider);
+    final String sourceName = ref.watch(sourceDisplayNameProvider(sourceId));
+    final String phone = ref
+            .watch(dealersProvider)
+            .value
+            ?.where((DealerCard dealer) => dealer.dealerId == dealerId)
+            .map((DealerCard dealer) => dealer.phone)
+            .firstOrNull ??
+        '';
+
+    return OutlinedButton.icon(
+      key: const Key('receipt-send'),
+      onPressed: () => showQtmsSendSheet(
+        context,
+        document: SendableDocument(
+          title: 'إرسال سند القبض',
+          // ★ **قالبٌ واحد للسندات** — ⟵ **فلا يُعرَض اختيارٌ من واحد.**
+          offersTemplateChoice: false,
+          pricedTemplateAvailable: false,
+          phone: phone,
+          renderMessage: (MessageTemplate _) =>
+              renderReceiptMessage(business: business, data: voucher),
+          // ⛔ **ولا نسخةَ مختصرة للسند** — ★ **`FR-M20-13` يذكرها للتوزيع**
+          //    (**«الإجمالي والرصيد»**)، ⛔ **والإيصالُ سطورُه هي مضمونه.**
+          renderShortMessage: null,
+          buildExport: (MessageTemplate _) => buildReceiptExport(
+            business: business,
+            data: voucher,
+            sourceId: sourceId,
+            sourceName: sourceName,
+          ),
+        ),
+      ),
+      icon: const Icon(Icons.send_outlined),
+      label: const Text('إرسال أو تصدير'),
     );
   }
 }

@@ -39,7 +39,10 @@ import '../../identity_access/application/session_providers.dart';
 import '../../identity_access/presentation/permission_gate.dart';
 import '../../inventory/application/inventory_providers.dart';
 import '../../inventory/presentation/inventory_widgets.dart';
+import '../../oversight/application/pending_entries_providers.dart';
+import '../../oversight/application/messaging_providers.dart';
 import '../../oversight/presentation/audit_trail_view.dart';
+import '../../oversight/presentation/send_document_sheet.dart';
 import '../application/distribution_providers.dart';
 import '../../../core/ui/optional_reason.dart';
 
@@ -106,6 +109,46 @@ class _DistributionBody extends ConsumerStatefulWidget {
 
 class _DistributionBodyState extends ConsumerState<_DistributionBody> {
   String? _dealerId;
+
+  /// ⏳★★★ **وجهةُ زر [ إدخال ] من المركز المعلّق** — `FR-SYS-04`.
+  ///
+  /// ⚠️⚠️ **وتُستهلَك مرةً واحدة** ([PendingFocusState.take]) — ⟵ **فلا
+  /// تُعيد فتح المقوت نفسه في كل زيارةٍ لاحقة**، ⛔ **ولا يعلق المستخدم في
+  /// سياقٍ لم يطلبه.**
+  ///
+  /// ═════════════════════════════════════════════════════════════════════
+  /// ⛔⛔★★★ **والاستهلاك بعد أول إطار لا داخل [initState] — عطلٌ مقيسٌ لا
+  /// احتياط:** ★ **كُتب أولاً في [initState] مباشرةً، فسقطت الشاشة حيّاً
+  /// على `Pixel_6_API_36`** بـ**«Tried to modify a provider while the
+  /// widget tree was building»** (2026-08-30 · `DEBT-68`) — ⟵ **لأن
+  /// [PendingFocusState.take] *تكتب* حالةً، وRiverpod يمنع الكتابة في
+  /// دورة حياة الويدجت.**
+  ///
+  /// ⛔⛔ **ولم يكشفه أيٌّ من 1594 اختباراً آلياً** — ★ **لأن اختبار الشاشة
+  /// لا يصلها ووجهةٌ مضبوطة**: ⟹ **وهو الوجهُ الخامس لدرس `DEBT-37`**
+  /// (**اختبارُ الطبقة لا يُغني عن اختبار ما يعبر بينها**).
+  ///
+  /// ⛔ **ولا نموذجَ إدخالٍ يُفتَح هنا** (`pending-entries-design.md` §6) —
+  /// ★ **يُضبَط المقوت وحده**، ⟵ **والتوزيعةُ تُعرَض بسطورها غير المسعَّرة
+  /// كما تُعرَض دائماً.**
+  /// ═════════════════════════════════════════════════════════════════════
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((Duration _) {
+      if (!mounted) return;
+      final PendingFocus? focus = ref.read(pendingFocusProvider);
+      if (focus == null ||
+          focus.kind != PendingDocumentKind.distribution ||
+          focus.sourceId != widget.query.sourceId) {
+        return;
+      }
+      ref.read(pendingFocusProvider.notifier).take();
+      // ⛔ **ومعرّفٌ لا يطابق شكل المفتاح المركّب يُهمَل** — ★ **فالشاشة
+      //   تُفتَح بلا مقوت** ⛔ **ولا تُفتَح على مقوتٍ مُخمَّن.**
+      setState(() => _dealerId = focus.dealerId);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -315,6 +358,19 @@ class _DistributionFormState extends ConsumerState<_DistributionForm> {
                   decoration: const InputDecoration(
                     labelText: 'سبب التعديل (اختياري)',
                   ),
+                ),
+              ],
+              // ⑧-أ ★★ **الإرسال والتصدير** — `FR-M20-04` (`WU-010`).
+              //
+              // ⛔ **ولا يظهر قبل الحفظ** — ★ **ولا يُرسَل ما لم يُقيَّد بعد**:
+              //    ⟵ **ورسالةٌ بتوزيعةٍ لم تُحفظ تَعِد المقوتَ بما قد لا يقع.**
+              if (isAmend) ...<Widget>[
+                const SizedBox(height: Spacing.space16),
+                _SendActions(
+                  card: card,
+                  sourceId: widget.query.sourceId,
+                  dealerId: widget.dealerId,
+                  dealerName: widget.dealerName,
                 ),
               ],
               // ⑨ ⛔⛔★★★ **والمدمّر في ذيل المحتوى الممرَّر** — §5b `P8`:
@@ -621,4 +677,130 @@ class _LineEdit {
   final TextEditingController quantity;
 
   void dispose() => quantity.dispose();
+}
+
+/// ★★★ صفُّ الإرسال والتصدير — `M20` (`WU-010`).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★ **ولا يحسب شيئاً** (`design-system.md` §5.1): ★ **الأسعار وقيم
+/// السطور من `pricing/current`** (`ADR-0011`) · **والرصيد من
+/// `dealer_balances`** · **والنصوص من طبقة النطاق** — ⟵ **فالرسالةُ
+/// والملفُّ يخرجان من مصدرٍ واحد** ⛔ **ولا يفترقان رقماً واحداً.**
+///
+/// ⚠️⚠️ **والقالب ② مشروطٌ بشرطين معاً لا واحد:** ★ **كل السطور مسعَّرة**
+/// (`FR-M20-03` · `AT-63`) · ★ **والرصيد مقروءٌ فعلاً** — ⟵ **فمن لا يملك
+/// `dealerBalanceView` لا يستطيع أن يضع رصيداً في رسالة**، ⛔ **ولا يُخترَع
+/// له صفر.**
+/// ═══════════════════════════════════════════════════════════════════════
+class _SendActions extends ConsumerWidget {
+  const _SendActions({
+    required this.card,
+    required this.sourceId,
+    required this.dealerId,
+    required this.dealerName,
+  });
+
+  final DistributionCard card;
+  final String sourceId;
+  final String dealerId;
+  final String dealerName;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bool canSend =
+        ref.watch(hasPermissionProvider(Permission.messagingSend));
+    final bool canExport =
+        ref.watch(hasPermissionProvider(Permission.documentExport));
+    // ★ **ولا يظهر الزرّ لمن لا يملك أياً منهما** — ⛔ **ولا يظهر معطَّلاً**:
+    //   ⟵ **«الصلاحيات تُخفي لا تُعطِّل»** (`ui-guidelines.md` §2).
+    if (!canSend && !canExport) return const SizedBox.shrink();
+
+    final MessageBusiness business = ref.watch(messageBusinessProvider);
+    final String sourceName = ref.watch(sourceDisplayNameProvider(sourceId));
+    final DistributionPricingCard? pricing =
+        ref.watch(distributionPricingProvider(card.distributionId)).value;
+    final DealerBalanceCard? balance = ref
+        .watch(
+          dealerBalanceProvider(
+            DealerBalanceQuery(dealerId: dealerId, sourceId: sourceId),
+          ),
+        )
+        .value;
+    final String phone = ref
+        .watch(distributionDealersProvider)
+        .where((DealerCard dealer) => dealer.dealerId == dealerId)
+        .map((DealerCard dealer) => dealer.phone)
+        .firstOrNull ??
+        '';
+
+    final DistributionMessageData data = _messageData(pricing, balance);
+    // ★ **الشرطان معاً** — راجع ترويسة الصنف.
+    final bool priced = pricing != null &&
+        card.unpricedLineCount == 0 &&
+        balance != null;
+
+    return OutlinedButton.icon(
+      onPressed: () => showQtmsSendSheet(
+        context,
+        document: SendableDocument(
+          title: 'إرسال التوزيعة',
+          offersTemplateChoice: true,
+          pricedTemplateAvailable: priced,
+          phone: phone,
+          renderMessage: (MessageTemplate template) =>
+              renderDistributionMessage(
+            business: business,
+            data: data,
+            template: template,
+          ),
+          renderShortMessage: () => renderShortDistributionMessage(
+            business: business,
+            data: data,
+          ),
+          buildExport: (MessageTemplate template) => buildDistributionExport(
+            business: business,
+            data: data,
+            sourceId: sourceId,
+            sourceName: sourceName,
+            entityId: card.distributionId,
+            withPricing: template == MessageTemplate.distributionWithPricing,
+          ),
+        ),
+      ),
+      icon: const Icon(Icons.send_outlined),
+      label: const Text('إرسال أو تصدير'),
+    );
+  }
+
+  /// ★ يجمع بيانات الرسالة — ⛔ **بلا حسابٍ إلا ما تُجريه طبقة النطاق**.
+  DistributionMessageData _messageData(
+    DistributionPricingCard? pricing,
+    DealerBalanceCard? balance,
+  ) {
+    final Money current = balance?.balance.balance ?? Money.zero;
+    final Money debt = pricing?.debtValue ?? Money.zero;
+    return DistributionMessageData(
+      dealerName: dealerName,
+      stockDate: card.stockDate,
+      lines: <MessageLine>[
+        for (int i = 0; i < card.lines.length; i++)
+          MessageLine(
+            itemName: card.lines[i].itemName,
+            quantity: card.lines[i].quantity,
+            // ★ **والأسعار موازيةٌ لترتيب السطور** (`DistributionPricingCard`).
+            unitPrice: _at(pricing?.unitPrices, i),
+            lineTotal: _at(pricing?.lineTotals, i),
+          ),
+      ],
+      debtValue: debt,
+      // ★★ **والمعادلة في طبقة النطاق** — ⛔ **لا طرحٌ في شاشة.**
+      previousBalance:
+          balanceBeforeTodayDebt(currentBalance: current, todayDebt: debt),
+      currentBalance: current,
+    );
+  }
+
+  /// ★ عنصرٌ بموضعه — و`null` لقائمةٍ أقصر (⛔ **ولا رميٌ على طول مختلف**).
+  static Money? _at(List<Money?>? values, int index) =>
+      values != null && index < values.length ? values[index] : null;
 }

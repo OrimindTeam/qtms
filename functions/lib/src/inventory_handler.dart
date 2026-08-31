@@ -42,6 +42,7 @@ import 'callable.dart';
 import 'counter_allocator.dart' show counterValueField;
 import 'identity_gateway.dart';
 import 'inventory.dart';
+import 'pending_entries.dart';
 import 'permission_sync_handler.dart' show requestIdField;
 
 /// اسم حقل سبب التعديل أو الإلغاء في الحمولة.
@@ -425,13 +426,29 @@ final class InventoryHandler {
       for (final _LineRequest line in lines)
         line.itemId: _transaction.documentPath(itemsCollection, line.itemId),
     };
+    // ⏳★★ **سجل سعر اليوم لكل نوع** — ⟵ **فبندُ المركز المعلّق يُنشَأ أو
+    //    يُمحى بدقّة** (`PendingPricingMode.exact`): ⛔ **ولا يُفترَض غيابُ
+    //    السعر** — ★ **فتوريدٌ ثانٍ لنوعٍ سُعِّر صباحاً كان سيُعيد بندَه.**
+    final Map<String, String> pricePaths = <String, String>{
+      for (final _LineRequest line in lines)
+        line.itemId: _transaction.documentPath(
+          dailyPricesCollection,
+          dailyPriceId(sourceId: sourceId, itemKey: line.itemId, date: day),
+        ),
+    };
     final String? supplierPath = supplierId == null
         ? null
         : _transaction.documentPath(suppliersCollection, supplierId);
 
     _DayMismatch? drift;
     await _transaction.run<void>(
-      readPaths: <String>[sourcePath, counterPath, ...itemPaths.values, ?supplierPath],
+      readPaths: <String>[
+        sourcePath,
+        counterPath,
+        ...itemPaths.values,
+        ...pricePaths.values,
+        ?supplierPath,
+      ],
       queries: <DocumentQuery>[
         for (final _LineRequest line in lines)
           _ledgerQuery(sourceId: sourceId, itemKey: line.itemId, day: day),
@@ -495,6 +512,20 @@ final class InventoryHandler {
         }
 
         final InventoryAccepted accepted = plan as InventoryAccepted;
+
+        // ⏳★★★ **بنود `M9` من الرصيد الناتج** (`FR-M9-10` · `WU-009`) —
+        //    ⟵ **فنوعٌ ورد اليوم بلا سعرٍ يظهر في المركز فوراً**،
+        //    ★ **والسعر مقروءٌ فلا يُعاد بندُ نوعٍ سُعِّر.**
+        final PendingEntrySet pending = pendingFromBalanceWrites(
+          writes: accepted.writes,
+          sourceId: sourceId,
+          date: day,
+          storedPrices: <String, Map<String, Object?>?>{
+            for (final MapEntry<String, String> entry in pricePaths.entries)
+              entry.key: reads.document(entry.value),
+          },
+        );
+
         return AuditedWrite<void>(
           documents: <PendingDocument>[
             for (final InventoryWrite write in accepted.writes)
@@ -508,7 +539,9 @@ final class InventoryHandler {
               fields: <String, Object?>{counterValueField: sequence},
               updateMask: const <String>[counterValueField],
             ),
+            ...pendingEntryDocuments(pending),
           ],
+          deletions: pendingEntryDeletions(pending),
           entry: accepted.entry,
           result: null,
         );
@@ -576,6 +609,16 @@ final class InventoryHandler {
       for (final String itemId in itemIds)
         itemId: _transaction.documentPath(itemsCollection, itemId),
     };
+    // ⏳★★ **وسجل سعر اليوم لكل نوع مسّته العملية** — بنفس علّة مسار
+    //    الإنشاء: ⟵ **فتعديلٌ يُنقِص كميةً إلى صفر يمحو بندَ تسعيرها**،
+    //    ★ **وتعديلٌ يزيدها يُعيد البند إن لم تُسعَّر بعد.**
+    final Map<String, String> pricePaths = <String, String>{
+      for (final String itemId in itemIds)
+        itemId: _transaction.documentPath(
+          dailyPricesCollection,
+          dailyPriceId(sourceId: sourceId, itemKey: itemId, date: day),
+        ),
+    };
     final String? supplierPath = supplierId == null
         ? null
         : _transaction.documentPath(suppliersCollection, supplierId);
@@ -585,6 +628,7 @@ final class InventoryHandler {
         documentPath,
         sourcePath,
         ...itemPaths.values,
+        ...pricePaths.values,
         ?supplierPath,
       ],
       queries: <DocumentQuery>[
@@ -636,11 +680,26 @@ final class InventoryHandler {
         }
 
         final InventoryAccepted accepted = plan as InventoryAccepted;
+
+        // ⏳★★ **وبنود `M9` تُعاد ملاءمتها للرصيد الناتج** — §9: **نوع نفد
+        //    رصيدُه اليوم يختفي بند تسعيره.**
+        final PendingEntrySet pending = pendingFromBalanceWrites(
+          writes: accepted.writes,
+          sourceId: sourceId,
+          date: day,
+          storedPrices: <String, Map<String, Object?>?>{
+            for (final MapEntry<String, String> entry in pricePaths.entries)
+              entry.key: reads.document(entry.value),
+          },
+        );
+
         return AuditedWrite<void>(
           documents: <PendingDocument>[
             for (final InventoryWrite write in accepted.writes)
               _toPending(write),
+            ...pendingEntryDocuments(pending),
           ],
+          deletions: pendingEntryDeletions(pending),
           entry: accepted.entry,
           result: null,
         );

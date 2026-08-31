@@ -15,9 +15,12 @@ final class FakeDistributionDirectory implements DistributionDirectory {
       StreamController<List<DistributionCard>>.broadcast();
   final StreamController<DistributionPricingCard?> _pricing =
       StreamController<DistributionPricingCard?>.broadcast();
+  final StreamController<DealerBalanceCard?> _balance =
+      StreamController<DealerBalanceCard?>.broadcast();
 
   List<DistributionCard> _lastList = const <DistributionCard>[];
   DistributionPricingCard? _lastPricing;
+  DealerBalanceCard? _lastBalance;
 
   /// المعرّفات التي طُلبت لأسعارها — ★ **لإثبات أن الشاشة تستعلم بالمعرّف
   /// المركّب على مستند الأسعار وحده** (`ADR-0011`).
@@ -64,10 +67,27 @@ final class FakeDistributionDirectory implements DistributionDirectory {
     yield* _pricing.stream;
   }
 
+  /// ★ يبثّ رصيد المقوت — و`null` تعني **«لا أرى» أو «لا يوجد»** معاً
+  /// (نفس عقد الأسعار — `WU-010`).
+  void emitBalance(DealerBalanceCard? value) {
+    _lastBalance = value;
+    _balance.add(value);
+  }
+
+  @override
+  Stream<DealerBalanceCard?> watchDealerBalance({
+    required String dealerId,
+    required String sourceId,
+  }) async* {
+    yield _lastBalance;
+    yield* _balance.stream;
+  }
+
   /// يغلق التدفّقات.
   void dispose() {
     _list.close();
     _pricing.close();
+    _balance.close();
   }
 }
 

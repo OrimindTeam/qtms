@@ -83,8 +83,9 @@ String permissionLabel(Permission permission) => switch (permission) {
       Permission.sourceNetImpactView => 'عرض الأثر النهائي على حساب المصدر',
       Permission.auditLogViewCentral => 'عرض سجل التدقيق المركزي',
       Permission.auditLogViewContextual => 'السجل السياقي',
-      // ── الإرسال (1) ──
+      // ── الإرسال والتصدير (2) ──
       Permission.messagingSend => 'الإرسال',
+      Permission.documentExport => 'تصدير السندات والتقارير',
       // ── التعديل والإلغاء (20) ──
       Permission.incomingCountAmend => 'تعديل الوارد عدداً',
       Permission.incomingCountCancel => 'إلغاء الوارد عدداً',
@@ -116,6 +117,13 @@ String permissionLabel(Permission permission) => switch (permission) {
       Permission.sourceScopeSet => 'تحديد نطاق المصادر',
       Permission.roleWrite => 'إضافة دور أو تعديله',
       Permission.roleDelete => 'حذف دور',
+      // ── التقارير (6) — ★★ `IQ-034` الخيار ب ──
+      Permission.reportInventoryView => 'عرض التقارير المخزنية',
+      Permission.reportSalesView => 'عرض التقارير البيعية',
+      Permission.reportFinancialView => 'عرض التقارير المالية',
+      Permission.reportOutflowView => 'عرض تقارير السحبيات والخرجيات',
+      Permission.reportSupplierView => 'عرض تقارير الرعية',
+      Permission.reportOversightView => 'عرض التقارير الرقابية',
     };
 
 /// ★ مجموعات الكتالوج **بترتيبها فيه** — ⟵ **فالشاشة تعرضها كما يقرؤها
@@ -201,9 +209,10 @@ const List<PermissionGroup> permissionGroups = <PermissionGroup>[
     ],
   ),
   PermissionGroup(
-    title: 'الإرسال',
+    title: 'الإرسال والتصدير',
     permissions: <Permission>[
       Permission.messagingSend,
+      Permission.documentExport,
     ],
   ),
   PermissionGroup(
@@ -243,6 +252,19 @@ const List<PermissionGroup> permissionGroups = <PermissionGroup>[
       Permission.sourceScopeSet,
       Permission.roleWrite,
       Permission.roleDelete,
+    ],
+  ),
+  // ★★ **التقارير — `IQ-034` الخيار ب (2026-08-30):** ⟵ **مفتاحٌ لكلِّ
+  //    عائلةٍ كما يُصنِّفها `FR-M19` §2 نفسُه**، ⛔ **لا 31 مفتاحاً ولا واحد.**
+  PermissionGroup(
+    title: 'التقارير',
+    permissions: <Permission>[
+      Permission.reportInventoryView,
+      Permission.reportSalesView,
+      Permission.reportFinancialView,
+      Permission.reportOutflowView,
+      Permission.reportSupplierView,
+      Permission.reportOversightView,
     ],
   ),
 ];

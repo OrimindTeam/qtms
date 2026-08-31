@@ -119,7 +119,7 @@
 | **مشغّل Eventarc** | `qtms-provision-on-dealer-add` | `document=dealers/{dealerId}` |
 | **مشغّل Eventarc** | `qtms-provision-on-supplier-add` | `document=suppliers/{supplierId}` |
 | **صورة الحاوية** | `…/qtms/provision-accounts` | `dart:3.11` ⛔ **بلا Flutter** (`ADR-0012`) |
-| ★★★ **خدمة Cloud Run** | **`qtms-callables`** | `me-central1` · ★★ **حاويةٌ واحدة توجّه بالمسار** (حسم `IQ-019` الخيار أ) · `FUNCTION_TARGET=callables` · ✅★★★ **وتحمل 30 عملية منذ 2026-08-26** (تسعٌ إدارية + **تسع البيانات المرجعية** `WU-002` + **ثلاث المخزون** `WU-003` + **التسعير اليومي** `WU-005` + ★★ **ثماني الجواني** `WU-004`) · **المراجعة `qtms-callables-00007-ctd`** · صورتها `callables:wu004` · ★★ **وإثبات التوجيه حيّاً: 15 مساراً معروفاً ردّت `401` ومسارٌ مجهول ردّ `404`**. ⚠️⚠️ **ورُصد عند هذا النشر أن `WU-003` و`WU-005` لم تُنشَرا قط** — ★ **الخدمة بقيت على `callables:wu002` حتى اليوم**، ⟵ **فالصورة الجديدة تحمل الثلاث معاً** |
+| ★★★ **خدمة Cloud Run** | **`qtms-callables`** | `me-central1` · ★★ **حاويةٌ واحدة توجّه بالمسار** (حسم `IQ-019` الخيار أ) · `FUNCTION_TARGET=callables` · ✅★★★ **وتحمل 38 عملية منذ 2026-08-30** (**المراجعة `qtms-callables-00021-v7j`** · الصورة `callables:wu010` · **100٪ من المرور**) — ★ **مقيسٌ لا مُقدَّر:** **38 مساراً معروفاً ردّت `401` ومسارٌ مجهول ردّ `404`**، **والعددُ مستخرَجٌ من `CallableOperation` نفسِها.** ⚠️★★ **وكان مكتوباً هنا «30 عملية · `00007-ctd`» حتى هذا التحديث** — ⛔ **قيمةٌ تجاوزها أربعةُ نشرات**: ⟵ ★ **والعبرةُ أن حالة المنشور تُقرأ بـ`describe` لا من مستند** · ★★ **وأحدثُ إضافةٍ `logExport`** (`WU-010`) — ⟵ **وكانت `404` قبل هذا النشر بساعات.** ⛔⛔ **ولم تُنشَر بـ`--no-allow-unauthenticated`** — **`get-iam-policy` ردّ `allUsers` على `roles/run.invoker` بعد النشر** |
 | ★★ **حساب خدمتها** | `qtms-callables@…` | ★ **أقل امتياز:** `datastore.user` · `firebaseauth.admin` — ⛔ **ولا شيء غيرهما** |
 | ★ **صورتها** | `…/qtms/callables` | نفس `Dockerfile` وسياق الجذر (`ADR-0012`) |
 
@@ -214,6 +214,7 @@
 | **متغيّر البريد** | ★ **`QTMS_STAGING_QA_EMAIL`** |
 | **متغيّر كلمة المرور** | ★ **`QTMS_STAGING_QA_PASSWORD`** |
 | **مسار الملف السرّي** | ★ **`.secrets/qtms-staging-qa-account.env`** — ⛔ **مستثنى فعلياً بـ`/.secrets/` في `.gitignore`** |
+| ✅★★ **آخر مزامنة** | **2026-08-31 — 75 مفتاحاً** (`documentExport` ضمنها) · `isActive: true` · `sourceScope: all` — ★ **مقيسةٌ بقراءة `users/{uid}` بعد المنح** · **نُفِّذت بـ`tools/staging/qa_permission_sync.py`** ⛔ **والفاعلُ المالك لا الحساب نفسُه** |
 | **معرّف الحساب (UID)** | ✅ **`mjmK8owk4ZaciYT2yj1711jRgWB3`** — ★ **معرّف لا سرّ** (كما في §1.3) · **أُنشئ الحساب 2026-08-26** ⛅ **على `qtms-orimind-master`** · ★ **ومُتحقَّقٌ منه بتسجيل دخولٍ فعلي** ⛔ **بلا مرور أي قيمة اعتماد في سياق الأداة** |
 | ★★ **خُطّاف الملء المسبق** | ✅★★ **مبنيٌّ ومحروسٌ ومُثبَتٌ ببناءٍ إنتاجيٍّ فعلي** (`AM-005` · `DEBT-31`) — ⛔ **غائبٌ كلياً عن حزمة الإنتاج ولو مُرِّر إليها الاعتماد عمداً** — [`staging_qa_credentials.dart`](../../lib/core/startup/staging_qa_credentials.dart) · ⛔ **ملءٌ فقط بلا إرسالٍ تلقائي** |
 | **الرَنبوك التشغيلي** | [`../13-operations/runbooks/RB-staging-qa-account.md`](../13-operations/runbooks/RB-staging-qa-account.md) |

@@ -315,7 +315,8 @@ class EntityList extends StatelessWidget {
     if (onRefresh case final Future<void> Function() refresh) {
       return RefreshIndicator(
         onRefresh: refresh,
-        color: Primitives.primary500,
+        // ★ **المقدّمة من ثلاثية `primary`** — §3.3 · ⛔ **لا الطبقة الأولية.**
+        color: SemanticTriads.primary.ink,
         backgroundColor: SemanticColors.surface,
         child: list,
       );

@@ -263,23 +263,24 @@ class _DeltaBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool added = delta == PermissionDelta.grantedBeyondRole;
+    // ★★ **ثلاثيةٌ واحدة تُختار ثم تُقرأ أطرافُها** (`AM-007` · §3.3) —
+    //    ⛔ **لا ثلاثةُ شروطٍ منفصلة على ثلاث قيم**: ⟵ **الشرطُ المكرَّر ثلاثاً
+    //    يسمح بخلط تعبئةٍ من عائلةٍ مع نصٍّ من أخرى بسهوٍ واحد.**
+    final ColorTriad triad =
+        added ? SemanticTriads.primary : SemanticTriads.warning;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: Spacing.space8,
         vertical: Spacing.space4,
       ),
       decoration: BoxDecoration(
-        color: added ? Primitives.primary50 : Primitives.warningSoft,
-        border: Border.all(
-          color: added ? Primitives.primary200 : Primitives.warningBorder,
-        ),
+        color: triad.soft,
+        border: Border.all(color: triad.border),
         borderRadius: BorderRadius.circular(Radii.field),
       ),
       child: Text(
         added ? 'فوق الدور' : 'دون الدور',
-        style: TypeScale.bodyMd.copyWith(
-          color: added ? Primitives.primary700 : Primitives.warningInk,
-        ),
+        style: TypeScale.bodyMd.copyWith(color: triad.ink),
       ),
     );
   }

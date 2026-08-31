@@ -97,71 +97,97 @@ class QtmsCategoryColors extends ThemeExtension<QtmsCategoryColors> {
 
 /// ★★★ **طقم البطاقة الرئيسية** — `design-tokens.md` §4.
 ///
-/// ★ **سطحٌ داكن فوق خلفية فاتحة** — ★ **فيحتاج طقم نصّ خاصاً به** ⛔ **لا
-/// يُستعار من توكنز السطح العادي.**
+/// ⚠️⚠️★★★ **مقلوبٌ بـ`AM-007` (`DS-002`): البطاقةُ سطحٌ فاتحٌ الآن لا داكن.**
+/// ★ **جسمُها ورقيٌّ فاتح تُقرأ عليه بنودُ الاشتقاق**، ★ **والداكنُ انحصر في
+/// شريطٍ واحد أسفلها — «الرِباط» — يحمل الحصيلة.**
 ///
-/// ⛔⛔ **وهو التدرّج الوحيد المسموح في التطبيق كله** — §8 المحظور السابع:
-/// «**تدرّج لوني خارج البطاقة الرئيسية**»، ★ **وحملُه في امتداد السمة يجعل
-/// كلَّ مستعملٍ له ظاهراً في مراجعةٍ واحدة.**
+/// ★ **والمبرّر وظيفيٌّ لا جمالي:** ★ **تسعةُ أرقامٍ على سطحٍ داكن تُقرأ
+/// أثقلَ وتفقد الهرمية لأن كلَّ سطرٍ يصير بارزاً** — ★ **والحصيلةُ وحدها هي
+/// ما يستحق البروز.** ★ **وشكلُه من الشعار: سطورُ البطاقة تنتهي إلى شريطٍ
+/// واحد كما تنتهي سيقانُ الحزمة إلى رباطها.**
+///
+/// ⛔⛔ **وتدرّجاه الاثنان داخل البطاقة الرئيسية لا خارجها** — §8 المحظور
+/// السابع قائمٌ كما هو، ★ **وحملُهما في امتداد السمة يجعل كلَّ مستعملٍ لهما
+/// ظاهراً في مراجعةٍ واحدة.**
 @immutable
 class QtmsHeroColors extends ThemeExtension<QtmsHeroColors> {
   /// ينشئ الطقم.
   const QtmsHeroColors({
-    required this.gradient,
-    required this.onHero,
-    required this.successOnHero,
-    required this.dangerOnHero,
+    required this.surfaceGradient,
+    required this.tieGradient,
+    required this.onTie,
+    required this.successOnTie,
+    required this.dangerOnTie,
     required this.labelOpacity,
   });
 
   /// ★ الطقم المعتمَد — §4 حرفياً.
   const QtmsHeroColors.standard()
-      : gradient = const LinearGradient(
+      : surfaceGradient = const LinearGradient(
+          // ★ **رأسيٌّ فاتح** — §4: جسمُ البطاقة من السطح النقي إلى ورقيٍّ خفيف.
+          begin: AlignmentDirectional.topCenter,
+          end: AlignmentDirectional.bottomCenter,
+          colors: <Color>[SemanticColors.surface, Color(0xFFF7F6E9)],
+        ),
+        tieGradient = const LinearGradient(
           // ★ **قطريٌّ من أعلى-النهاية إلى أسفل-البداية** — §4 نصّاً.
           //   ⛔ **ولا `topRight`/`bottomLeft`**: بوابة الاتجاه ترفضهما،
           //   ★ **و`AlignmentDirectional` تنقل النيّة نفسها باتجاه RTL.**
           begin: AlignmentDirectional.topEnd,
           end: AlignmentDirectional.bottomStart,
-          colors: <Color>[Primitives.primary600, Primitives.primary900],
+          // ⛔⛔★★ **وطرفُه الفاتح `primary500` لا `primary400`** — ★ **شدٌّ
+          //    مقصودٌ عن النموذج المرجعي للتباين لا للذوق:** ⟵ **النموذج
+          //    ينتهي بالقوس الزيتوني والنصُّ الفاتح عليه 3.90:1** ⛔ **دون الحدّ.**
+          colors: <Color>[Primitives.primary600, Primitives.primary500],
         ),
-        onHero = const Color(0xFFF7F9FC),
-        successOnHero = const Color(0xFF7BD3A0),
-        dangerOnHero = const Color(0xFFF49A9A),
-        labelOpacity = 0.78;
+        onTie = const Color(0xFFF4F2DF),
+        // ★ **ومؤشّرا الموجب والسالب أُفتحا** حتى بلغا 4.86 و4.75 على أسوأ
+        //   طرفٍ من التدرّج — ✅ **مقيسان في بوابة التباين.**
+        successOnTie = const Color(0xFFDCE9B0),
+        dangerOnTie = const Color(0xFFF9DAD0),
+        labelOpacity = 0.88;
 
-  /// التدرّج — ★ **الوحيد في التطبيق.**
-  final Gradient gradient;
+  /// ★ تدرّجُ جسم البطاقة — **فاتح.**
+  final Gradient surfaceGradient;
 
-  /// ★ نصّ فاتح على التدرّج — ⛔ **قائمٌ بذاته لا مشتقٌّ من `textOnInverse`**:
-  /// ★ **الأول يصف نصاً على تدرّج البطاقة، والثاني نصاً على `surfaceInverse`**
+  /// ★★ تدرّجُ الرِباط — **الموضعُ الداكن الوحيد في الشاشة.**
+  final Gradient tieGradient;
+
+  /// ★ نصّ فاتح على الرِباط — ⛔ **قائمٌ بذاته لا مشتقٌّ من `textOnInverse`**:
+  /// ★ **الأول يصف نصاً على تدرّج الرِباط، والثاني نصاً على `surfaceInverse`**
   /// — ★ **وخلطهما يجعل تغيير أحدهما يغيّر الآخر بلا قصد.**
-  final Color onHero;
+  final Color onTie;
 
-  /// مؤشّر موجب فوق التدرّج.
-  final Color successOnHero;
+  /// مؤشّر موجب فوق الرِباط.
+  final Color successOnTie;
 
-  /// مؤشّر سالب فوق التدرّج.
-  final Color dangerOnHero;
+  /// مؤشّر سالب فوق الرِباط.
+  final Color dangerOnTie;
 
-  /// ★ **78٪ كحدّ أدنى — لا أقل** (§4).
+  /// ★★ **88٪ كحدّ أدنى — لا أقل** (§4).
+  ///
+  /// ⛔⛔ **ولا 78٪ بعد اليوم:** ★ **78٪ فوق طرف التدرّج الفاتح تُعطي 4.08:1**
+  /// ⛔ **دون الحدّ** — ★ **و«لا أقل» في القاعدة يسمح بالشدّ لا بالتخفيف.**
   final double labelOpacity;
 
-  /// ★ لون التسمية الثانوية فوق التدرّج — **بالشفافية المفروضة.**
-  Color get onHeroLabel => onHero.withValues(alpha: labelOpacity);
+  /// ★ لون التسمية الثانوية فوق الرِباط — **بالشفافية المفروضة.**
+  Color get onTieLabel => onTie.withValues(alpha: labelOpacity);
 
   @override
   QtmsHeroColors copyWith({
-    Gradient? gradient,
-    Color? onHero,
-    Color? successOnHero,
-    Color? dangerOnHero,
+    Gradient? surfaceGradient,
+    Gradient? tieGradient,
+    Color? onTie,
+    Color? successOnTie,
+    Color? dangerOnTie,
     double? labelOpacity,
   }) =>
       QtmsHeroColors(
-        gradient: gradient ?? this.gradient,
-        onHero: onHero ?? this.onHero,
-        successOnHero: successOnHero ?? this.successOnHero,
-        dangerOnHero: dangerOnHero ?? this.dangerOnHero,
+        surfaceGradient: surfaceGradient ?? this.surfaceGradient,
+        tieGradient: tieGradient ?? this.tieGradient,
+        onTie: onTie ?? this.onTie,
+        successOnTie: successOnTie ?? this.successOnTie,
+        dangerOnTie: dangerOnTie ?? this.dangerOnTie,
         labelOpacity: labelOpacity ?? this.labelOpacity,
       );
 
