@@ -22,6 +22,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../app/router.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -44,10 +46,7 @@ class PendingEntriesScreen extends ConsumerWidget {
         ref.watch(pendingEntriesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('الإدخالات المعلّقة', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'الإدخالات المعلّقة'),
       body: Column(
         children: <Widget>[
           const _PendingFilterBar(),

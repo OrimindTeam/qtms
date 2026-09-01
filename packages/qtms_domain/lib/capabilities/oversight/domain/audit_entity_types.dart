@@ -73,6 +73,14 @@ const String receiptEntityType = 'receipt';
 /// ⟵ **فالسجلُّ السياقي 🕘 يجمع تصديراتِ تقريرٍ بعينه** ⛔ **لا كلَّ تصدير.**
 const String reportEntityType = 'report';
 
+/// ★ سند البيع النقدي — `M11` (`WU-012`).
+///
+/// ⚠️ **ومعرّفه رقم المستند `CSH-YYYYMMDD-####`** — ★ **بخلاف
+/// [distributionEntityType] الذي معرّفه مركّب**: ⟵ **لأن `cash_sales`
+/// مفتاحُها `documentNumber` نفسُه** (`schema/cash-sales.md`)، ★ **والسجل
+/// السياقي 🕘 يستعلم بما يُفتَح به المستند فعلاً** (`FR-M18-10`).
+const String cashSaleEntityType = 'cashSale';
+
 /// المستخدم — `M1`.
 const String userEntityType = 'user';
 
@@ -108,6 +116,12 @@ const List<String> auditEntityTypes = <String>[
   //    ⛔ **فبلا هذا السطر يُرفَض تصديرُ كل تقرير** — ★ **وهو حرفياً ما
   //    وقع لسند القبض في `WU-010`.**
   reportEntityType,
+  // ⚠️★★ **أُضيف في `WU-012` (2026-09-01) — ★ وله كاتبٌ فعلي في نفس الزيادة:**
+  //    ★ **`cash_sale.dart` يكتبه في `entityType` لكل إنشاءٍ وتعديلٍ وإلغاء**،
+  //    ⟵ **وحارسُ `planExportLog` يقرأ هذه القائمةَ نفسَها** (`IQ-032`):
+  //    ⛔ **فبلا هذا السطر يُرفَض تصديرُ كل سند بيعٍ نقدي** — ★ **وهو حرفياً
+  //    ما وقع لسند القبض في `WU-010` وللتقرير في `WU-011`.**
+  cashSaleEntityType,
   userEntityType,
   roleEntityType,
 ];

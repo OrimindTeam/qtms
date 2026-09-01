@@ -20,10 +20,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/context_header.dart';
+import '../../../core/ui/item_line_editor.dart';
 import '../../../core/ui/destructive_sheet.dart';
 import '../../../core/ui/inline_banner.dart';
 import '../../../core/ui/live_summary.dart';
@@ -49,10 +52,7 @@ class SackIntakeScreen extends ConsumerWidget {
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('الوارد جواني', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'الوارد جواني'),
       floatingActionButton: sourceId == null
           ? null
           : PermissionGate(
@@ -73,8 +73,11 @@ class SackIntakeScreen extends ConsumerWidget {
           QtmsContextHeader(
             sources: sources,
             selectedSourceId: sourceId,
-            onSourceSelected: (String id) =>
-                ref.read(selectedSourceProvider.notifier).select(id),
+            // ⛔ **وشاشةُ عمليةٍ على مصدرٍ واحد** — ★ **بلا خيار «الكل»**
+            //   (`AM-009` ③ · `A-01`): ⟵ **و`null` لا تصل هنا أبداً.**
+            onSourceSelected: (String? id) {
+              if (id != null) ref.read(selectedSourceProvider.notifier).select(id);
+            },
             day: today,
           ),
           Expanded(
@@ -558,10 +561,18 @@ class SackLinesFormSheet extends ConsumerStatefulWidget {
 class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
   /// ★ مُدخَلات كل نوع بمعرّفه — ★ **والمفتاح يفرض «لا سطران لنفس النوع»**
   /// بنيوياً (`FR-M7-23`).
-  late final Map<String, _LineDraft> _drafts = <String, _LineDraft>{
+  /// ★★★ **السطورُ قائمةٌ يُنشئها المستخدم** — `AM-009` ④.
+  ///
+  /// ⛔⛔★★★ **وكانت خريطةً على *كل* أنواع المصدر بمربّعِ اختيارٍ لكلٍّ:**
+  /// ⟵ **فالورقةُ تطول بطول الكتالوج**، ⛔ **والمستخدم يمرّ أربعين نوعاً
+  /// ليؤشّر ثلاثة** — ★ **وصار صفّاً واحداً يُنشأ بالطلب.**
+  ///
+  /// ⛔⛔★★ **و«لا سطران لنفس النوع» بنيويٌّ في [optionsForRow]**
+  /// (`FR-M7-23`) — ⟵ **فالنوعُ المختار يسقط من خيارات إخوته.**
+  late final List<_SackDraftRow> _rows = <_SackDraftRow>[
     for (final ValidatedSackLine line in widget.sack.lines)
-      line.itemId: _LineDraft.fromLine(line),
-  };
+      _SackDraftRow(itemId: line.itemId, draft: _LineDraft.fromLine(line)),
+  ];
 
   final TextEditingController _reason = TextEditingController();
   CatalogMessage? _rejection;
@@ -569,8 +580,8 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
 
   @override
   void dispose() {
-    for (final _LineDraft draft in _drafts.values) {
-      draft.dispose();
+    for (final _SackDraftRow row in _rows) {
+      row.draft.dispose();
     }
     _reason.dispose();
     super.dispose();
@@ -637,16 +648,33 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    for (final ItemCard item in items)
+                    // ④ ★★★ **صفٌّ لكل نوعٍ أدخله المستخدم** — `AM-009` ④.
+                    for (final (int index, _SackDraftRow row) in _rows.indexed)
                       _SackLineRow(
-                        item: item,
-                        draft: _drafts[item.itemId],
-                        onToggle: (bool on) => setState(() {
-                          if (on) {
-                            _drafts[item.itemId] = _LineDraft.forItem(item);
-                          } else {
-                            _drafts.remove(item.itemId)?.dispose();
-                          }
+                        key: ValueKey<int>(row.seed),
+                        item: _itemOf(items, row.itemId),
+                        options: optionsForRow(
+                          all: _optionsFor(items),
+                          takenIds: <String?>[
+                            for (final _SackDraftRow other in _rows)
+                              other.itemId,
+                          ],
+                          ownId: row.itemId,
+                        ),
+                        row: row,
+                        onSelected: (String id) => setState(() {
+                          final ItemCard? picked = _itemOf(items, id);
+                          if (picked == null) return;
+                          // ★★ **وتبديلُ النوع يُعيد بناء المسوّدة** —
+                          //    ⟵ **فوزنُ الحبة المُهيَّأ يخصّ نوعَه**،
+                          //    ⛔ **ولا يُورَّث من نوعٍ إلى آخر** (`FR-M7-15`).
+                          row.draft.dispose();
+                          row
+                            ..itemId = id
+                            ..draft = _LineDraft.forItem(picked);
+                        }),
+                        onRemove: () => setState(() {
+                          _rows.removeAt(index).draft.dispose();
                         }),
                         onChanged: () => setState(() {}),
                       ),
@@ -656,6 +684,14 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
                         'لا توجد أنواع مرتبطة بهذا المصدر.',
                         style: TypeScale.bodyMd
                             .copyWith(color: SemanticColors.textSecondary),
+                      ),
+                    if (items.isNotEmpty)
+                      QtmsAddLineButton(
+                        onPressed: _rows.length >= items.length
+                            ? null
+                            : () => setState(
+                                  () => _rows.add(_SackDraftRow.empty()),
+                                ),
                       ),
                     const SizedBox(height: Spacing.space16),
                     // ⑤ حقل السبب **(اختياري)**.
@@ -732,17 +768,34 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
       for (final ItemCard item in items) item.itemId: item,
     };
     final List<ValidatedSackLine> lines = <ValidatedSackLine>[];
-    for (final MapEntry<String, _LineDraft> entry in _drafts.entries) {
-      final ItemCard? item = byId[entry.key];
+    for (final _SackDraftRow row in _rows) {
+      final ItemCard? item = byId[row.itemId];
       if (item == null) continue;
       final Outcome<ValidatedSackLine> resolved =
-          resolveSackLine(entry.value.toInput(item));
+          resolveSackLine(row.draft.toInput(item));
       if (resolved is Success<ValidatedSackLine>) {
         lines.add(resolved.value);
       }
     }
     return lines;
   }
+
+  /// ★ نوعٌ بمعرّفه — و`null` **لصفٍّ لم يُختَر نوعُه بعد**.
+  static ItemCard? _itemOf(List<ItemCard> items, String? itemId) {
+    if (itemId == null) return null;
+    for (final ItemCard item in items) {
+      if (item.itemId == itemId) return item;
+    }
+    return null;
+  }
+
+  /// ★ خياراتُ القائمة المنسدلة — ⛔ **بلا رصيدٍ هنا**: ⟵ **الجونيةُ *تُورِد*
+  /// لا تصرف**، ★ **والمتبقّي شأنُ شاشات الصرف** (`FR-M10-06`).
+  static List<QtmsItemOption> _optionsFor(List<ItemCard> items) =>
+      <QtmsItemOption>[
+        for (final ItemCard item in items)
+          QtmsItemOption(id: item.itemId, label: item.name),
+      ];
 
   Future<void> _submit(List<ItemCard> items) async {
     final Map<String, ItemCard> byId = <String, ItemCard>{
@@ -751,11 +804,11 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
 
     // ★★ **وكل سطرٍ يمرّ بالجدول الثلاثي** — ⛔ **والرفض يُعرَض برسالته.**
     final List<ValidatedSackLine> lines = <ValidatedSackLine>[];
-    for (final MapEntry<String, _LineDraft> entry in _drafts.entries) {
-      final ItemCard? item = byId[entry.key];
+    for (final _SackDraftRow row in _rows) {
+      final ItemCard? item = byId[row.itemId];
       if (item == null) continue;
       final Outcome<ValidatedSackLine> resolved =
-          resolveSackLine(entry.value.toInput(item));
+          resolveSackLine(row.draft.toInput(item));
       if (resolved case Failure<ValidatedSackLine>(:final AppError error)) {
         setState(() => _rejection = sackRejectionMessage(error));
         return;
@@ -823,104 +876,120 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
   }
 }
 
-/// ★★★ صفّ سطر — **ويُظهر الحقول بحسب حالة النوع من الثلاث**.
+/// ★★★ صفّ سطر — **منسدلٌ للنوع، ثم حقولٌ بحسب حالته من الثلاث.**
+///
+/// ★★ **وتغيّر شكلُه في `AM-009` ④ لا منطقُه:** ⟵ **كان مربّعَ اختيارٍ على
+/// نوعٍ من الكتالوج**، ★ **وصار صفّاً يختار المستخدمُ نوعَه** — ⛔ **وجدولُ
+/// الحالات الثلاث كما هو حرفياً** (`FR-M7-13` · `E-08` · `E-09`).
 class _SackLineRow extends StatelessWidget {
   const _SackLineRow({
     required this.item,
-    required this.draft,
-    required this.onToggle,
+    required this.options,
+    required this.row,
+    required this.onSelected,
+    required this.onRemove,
     required this.onChanged,
+    super.key,
   });
 
-  final ItemCard item;
-  final _LineDraft? draft;
-  final void Function(bool) onToggle;
+  /// النوع المختار — و`null` تعني **صفّاً لم يُختَر نوعُه بعد**.
+  final ItemCard? item;
+
+  /// خيارات هذا الصفّ — ⛔ **بلا ما اختاره إخوتُه**.
+  final List<QtmsItemOption> options;
+
+  /// الصفّ ومسوّدتُه.
+  final _SackDraftRow row;
+
+  final ValueChanged<String> onSelected;
+  final VoidCallback onRemove;
   final VoidCallback onChanged;
 
   /// ★★ **الحالة الثالثة: عددي** — الحقل **مقفل وفارغ** والوزن الكلي يدوي.
-  bool get _isCounted => item.nature == ItemNature.countBased;
+  bool get _isCounted => item?.nature == ItemNature.countBased;
 
   @override
   Widget build(BuildContext context) {
-    final _LineDraft? current = draft;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Spacing.space12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Checkbox(
-                value: current != null,
-                onChanged: (bool? on) => onToggle(on ?? false),
-              ),
-              Expanded(child: Text(item.name, style: TypeScale.bodyMd)),
-              Text(
-                _isCounted ? 'عددي' : 'وزني',
-                style: TypeScale.label
-                    .copyWith(color: SemanticColors.textSecondary),
-              ),
-            ],
+    final ItemCard? current = item;
+    return QtmsItemLineRow(
+      options: options,
+      selectedId: row.itemId,
+      onSelected: onSelected,
+      onRemove: onRemove,
+      fields: <Widget>[
+        if (current != null)
+          TextField(
+            controller: row.draft.quantity,
+            keyboardType: const TextInputType.numberWithOptions(),
+            decoration: const InputDecoration(labelText: 'العدد'),
+            onChanged: (String _) => onChanged(),
           ),
-          if (current != null) ...<Widget>[
-            const SizedBox(height: Spacing.space8),
-            Row(
-              children: <Widget>[
-                Expanded(
+        if (current != null)
+          _isCounted
+              // ★ **الحالة ③** — الوزن الكلي **يُدخَل يدوياً**.
+              //
+              // ⛔★★★ **ولا حقل وزن حبة للعددي إطلاقاً** — `E-09`: «**الحقل
+              //    مقفل**»، ★ **والقفل هنا غيابُ الحقل لا تعطيلُه**:
+              //    ⟵ **حقلٌ معطَّل يُغري بالبحث عن طريقة لتعبئته.**
+              ? TextField(
+                  controller: row.draft.lineTotalWeight,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'الوزن الكلي (كجم)',
+                    helperText: 'وزن الحبة يُستنتَج',
+                  ),
+                  onChanged: (String _) => onChanged(),
+                )
+              // ★ **الحالتان ① و②** — وزن الحبة، والوزن الكلي محسوب.
+              : PermissionGate(
+                  permission: Permission.sackLinesEnter,
                   child: TextField(
-                    controller: current.quantity,
-                    keyboardType: const TextInputType.numberWithOptions(),
-                    decoration: const InputDecoration(labelText: 'العدد'),
+                    controller: row.draft.pieceWeight,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'وزن الحبة (جم)',
+                    ),
                     onChanged: (String _) => onChanged(),
                   ),
                 ),
-                const SizedBox(width: Spacing.space8),
-                Expanded(
-                  child: _isCounted
-                      // ★ **الحالة ③** — الوزن الكلي **يُدخَل يدوياً**.
-                      ? TextField(
-                          controller: current.lineTotalWeight,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            labelText: 'الوزن الكلي (كجم)',
-                          ),
-                          onChanged: (String _) => onChanged(),
-                        )
-                      // ★ **الحالتان ① و②** — وزن الحبة، والوزن الكلي محسوب.
-                      : PermissionGate(
-                          permission: Permission.sackLinesEnter,
-                          child: TextField(
-                            controller: current.pieceWeight,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'وزن الحبة (جم)',
-                            ),
-                            onChanged: (String _) => onChanged(),
-                          ),
-                        ),
-                ),
-              ],
-            ),
-            // ⛔★★★ **ولا حقل وزن حبة للعددي إطلاقاً** — `E-09`: «**الحقل
-            //    مقفل**»، ★ **والقفل هنا غيابُ الحقل لا تعطيلُه**: ⟵ **حقلٌ
-            //    معطَّل يُغري بالبحث عن طريقة لتعبئته.**
-            if (_isCounted)
-              Padding(
-                padding: const EdgeInsets.only(top: Spacing.space4),
-                child: Text(
-                  'وزن الحبة يُستنتَج من الوزن الكلي والعدد.',
-                  style: TypeScale.bodyMd
-                      .copyWith(color: SemanticColors.textSecondary),
-                ),
-              ),
-          ],
-        ],
-      ),
+      ],
     );
   }
+}
+
+/// ★★ صفُّ مسوّدةٍ واحد — **نوعٌ مختارٌ ومسوّدتُه.**
+///
+/// ⚠️ **و[seed] مفتاحُ الويدجت الثابت** — ⛔ **ولا الموضعُ مفتاحاً**:
+/// ⟵ **فحذفُ صفٍّ في الوسط كان يُزحزح مفاتيحَ من بعده** ⛔ **فتقفز الأرقام
+/// المكتوبة من صفٍّ إلى صفّ.**
+class _SackDraftRow {
+  _SackDraftRow({required this.itemId, required this.draft})
+      : seed = _nextSeed++;
+
+  /// ★ صفٌّ فارغ — **بمسوّدةٍ بلا نوع** ⟵ **تُستبدَل عند أول اختيار.**
+  factory _SackDraftRow.empty() => _SackDraftRow(
+        itemId: null,
+        draft: _LineDraft(
+          quantity: TextEditingController(),
+          pieceWeight: TextEditingController(),
+          lineTotalWeight: TextEditingController(),
+          configuredPieceWeightGrams: null,
+        ),
+      );
+
+  static int _nextSeed = 0;
+
+  /// النوع — و`null` تعني **صفّاً لم يُختَر نوعُه بعد**.
+  String? itemId;
+
+  /// المسوّدة — ★ **تُبنى من جديد عند تبديل النوع** (`FR-M7-15`).
+  _LineDraft draft;
+
+  /// مفتاحٌ ثابت للصفّ.
+  final int seed;
 }
 
 /// مسوّدة سطرٍ قيد التحرير.

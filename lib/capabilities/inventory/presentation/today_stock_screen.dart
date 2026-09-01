@@ -15,6 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/context_header.dart';
@@ -36,10 +38,7 @@ class TodayStockScreen extends ConsumerWidget {
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('مخزون اليوم', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'مخزون اليوم'),
       body: Column(
         children: <Widget>[
           // ★★★ **رأس السياق الموحّد** — `MASTER.md` §5b نمط `P3` (`ADR-0021`).
@@ -50,8 +49,11 @@ class TodayStockScreen extends ConsumerWidget {
           QtmsContextHeader(
             sources: sources,
             selectedSourceId: sourceId,
-            onSourceSelected: (String id) =>
-                ref.read(selectedSourceProvider.notifier).select(id),
+            // ⛔ **وشاشةُ عمليةٍ على مصدرٍ واحد** — ★ **بلا خيار «الكل»**
+            //   (`AM-009` ③ · `A-01`): ⟵ **و`null` لا تصل هنا أبداً.**
+            onSourceSelected: (String? id) {
+              if (id != null) ref.read(selectedSourceProvider.notifier).select(id);
+            },
             day: today,
           ),
           Expanded(
@@ -310,4 +312,8 @@ String _entityTypeOf(SourceDocumentType type) => switch (type) {
       // ★ **وكاتبٌ ثالث منذ `WU-006`** — ⟵ **والسجل السياقي للحركة يفتح
       //   التوزيعة بمعرّفها المركّب** (`FR-M18-10`).
       SourceDocumentType.distribution => distributionEntityType,
+      // ★ **وكاتبٌ رابع منذ `WU-012`** — ⟵ **والسجل السياقي للحركة يفتح
+      //   سندَ البيع النقدي برقمه** (`FR-M18-10`): ★ **ومعرّفُه رقمُه**
+      //   ⛔ **لا معرّفٌ مركّب** (`schema/cash-sales.md`).
+      SourceDocumentType.cashSale => cashSaleEntityType,
     };

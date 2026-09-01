@@ -9,6 +9,8 @@ import 'package:qtms/capabilities/identity_access/application/session_providers.
 import 'package:qtms/capabilities/identity_access/presentation/home_shell.dart';
 import 'package:qtms/capabilities/identity_access/presentation/users_screen.dart';
 import 'package:qtms/core/messages/error_messages.dart';
+import 'package:qtms/core/ui/avatar.dart';
+import 'package:qtms/core/ui/entity_tile.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
@@ -50,8 +52,23 @@ void main() {
 
     await pumpUsers(tester, directory);
 
-    expect(find.text('عبدالفتاح'), findsOneWidget);
-    expect(find.text('أحمد'), findsOneWidget);
+    // ★★ **والعنوان `الاسم : الدور` في سطرٍ واحد** — `AM-008` ④.
+    expect(find.text('عبدالفتاح : المالك'), findsOneWidget);
+    expect(find.text('أحمد : المالك'), findsOneWidget);
+    // ★★★ **وصورةٌ رمزية لكلٍّ بالحرف الأول** — `AM-008` ④.
+    //    ⚠️ **وتُقاس باسمها لا بعددها المجرَّد** — ★ **فالشريط العلوي يحمل
+    //    صورةَ صاحب الجلسة أيضاً** (`AM-008` ①)، ⟵ **وعدٌّ أعمى يخلط بينها.**
+    for (final String name in <String>['عبدالفتاح', 'أحمد']) {
+      expect(
+        find.descendant(
+          of: find.byType(EntityList),
+          matching: find.byWidgetPredicate(
+            (Widget widget) => widget is QtmsAvatar && widget.name == name,
+          ),
+        ),
+        findsOneWidget,
+      );
+    }
     directory.dispose();
   });
 
@@ -115,7 +132,7 @@ void main() {
 
       await pumpUsers(tester, directory);
 
-      expect(find.text('أحمد'), findsOneWidget);
+      expect(find.text('أحمد : المالك'), findsOneWidget);
       expect(find.text('معطَّل'), findsOneWidget);
       directory.dispose();
     },

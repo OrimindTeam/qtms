@@ -12,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/entity_tile.dart';
 import '../../../core/messages/error_messages.dart';
@@ -33,10 +35,7 @@ class SuppliersScreen extends ConsumerWidget {
         ref.watch(suppliersProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('الرعية', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'الرعية'),
       floatingActionButton: const PermissionGate(
         permission: Permission.supplierWrite,
         child: _NewSupplierButton(),
@@ -74,6 +73,8 @@ class _SupplierTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => MasterDataTile(
+        // ⛔⛔★★★ **الإجراء في صفّ الاسم نفسِه** — `AM-008` ⑥.
+        actionsPlacement: EntityActionsPlacement.inline,
         title: supplier.name,
         // ★★ **أيقونة 🕘 في أول الصفّ** — `FR-M18-10` · `FR-M18-11`.
         leading: auditTrailLeading(
@@ -82,18 +83,34 @@ class _SupplierTile extends ConsumerWidget {
           entityId: supplier.supplierId,
           title: supplier.name,
         ),
-        subtitle: '${supplier.phone} · ${supplier.sourceIds.length} مصدر',
+        // ⚠️★★ **والسطر الثانوي هاتفُه وحده** — `CR-006` (2026-08-31):
+        //    ⛔ **ولا «عددُ مصادر»**: ★ **الرعوي في كل المصادر**، ⟵ **ورقمٌ
+        //    ثابتٌ في كل بطاقةٍ معلومةٌ لا تُميّز أحداً عن أحد.**
+        subtitle: supplier.phone,
         badges: <Widget>[
           if (!supplier.isActive) const DisabledBadge(),
         ],
         actions: <Widget>[
           PermissionGate(
             permission: Permission.supplierWrite,
-            // ★★ **وإجراءٌ بأيقونةٍ ونصّ لا برمزٍ صامت** — `design-system.md` §6.ج.
-            child: TextButton.icon(
+            // ⛔⛔★★★ **وزرٌّ أيقونيٌّ في صفّ الاسم نفسِه** — `AM-008` ⑥:
+            //    ★ **بدل صفٍّ مستقلٍّ بفاصلٍ شعريٍّ لزرٍّ واحد**، ⟵ **وكان
+            //    يُطيل البطاقة نصفَ ارتفاعها بلا معلومة.**
+            //
+            // ⚠️★★ **والنصّ سقط من الزرّ لا من الواجهة:** ★ **يبقى في
+            //    `tooltip` لقارئ الشاشة وللضغط المطوّل** — ⛔ **وإبقاؤه
+            //    مرسوماً كان يعصر اسمَ الكيان عند تكبير الخط**، ★ **وهو
+            //    عطلُ `DEBT-48` بعينه** (`context_header.dart`).
+            //    ⛔ **وقاعدةُ «لا أيقونة صامتة» في §6.ج على الزرّ العائم**،
+            //    ★ **وبطاقاتُ المستخدمين على هذا النهج منذ `WU-001`.**
+            child: IconButton(
               onPressed: () => showSupplierForm(context, existing: supplier),
               icon: const Icon(Icons.edit_outlined, size: Sizes.iconMd),
-              label: const Text('تعديل'),
+              tooltip: 'تعديل',
+              constraints: const BoxConstraints(
+                minWidth: Sizes.minTouch,
+                minHeight: Sizes.minTouch,
+              ),
             ),
           ),
         ],
@@ -139,7 +156,6 @@ class _SupplierFormSheetState extends ConsumerState<SupplierFormSheet> {
   final TextEditingController _amendReason = TextEditingController();
   final TextEditingController _disableReason = TextEditingController();
 
-  late Set<String> _sources = <String>{...?widget.existing?.sourceIds};
   late bool _isActive = widget.existing?.isActive ?? true;
 
   CatalogMessage? _rejection;
@@ -194,12 +210,14 @@ class _SupplierFormSheetState extends ConsumerState<SupplierFormSheet> {
               label: 'رقم الهاتف',
               keyboardType: TextInputType.phone,
             ),
-            const SizedBox(height: Spacing.space16),
-            SourcesSelector(
-              available: ref.watch(activeSourcesProvider),
-              selected: _sources,
-              onChanged: (Set<String> next) => setState(() => _sources = next),
-            ),
+            // ⛔⛔★★★ **ولا مُنتقيَ مصادرَ هنا إطلاقاً** — `CR-006`
+            //    (2026-08-31): ★ **الرعوي يتبع كل المصادر الحالية
+            //    والمستقبلية تلقائياً** ⟵ **تماماً كنموذج المقوت**
+            //    (`FR-M4-04`). ★ **وحساباته تُنشأ في كل مصدرٍ أصلاً**
+            //    (`FR-M3-04`)، ⛔ **فالحقل كان يصف انتماءً لا يحكم شيئاً.**
+            //
+            // ⚠️⚠️ **ولا يعني ذلك جمعَ حساباته:** `FR-M3-05` قائمٌ بحرفه —
+            //    ★ **حسابُه في كل مصدرٍ مستقل** (`ADR-0005`).
             const SizedBox(height: Spacing.space12),
             MasterDataField(controller: _notes, label: 'ملاحظات (اختياري)'),
             if (_isEdit) ...<Widget>[
@@ -249,7 +267,6 @@ class _SupplierFormSheetState extends ConsumerState<SupplierFormSheet> {
   Future<void> _submit() async {
     final Outcome<ValidatedSupplier> validated = validateSupplier(
       SupplierInput(
-        sourceIds: _sources.toList(),
         name: _name.text,
         phone: _phone.text,
         notes: _notes.text,

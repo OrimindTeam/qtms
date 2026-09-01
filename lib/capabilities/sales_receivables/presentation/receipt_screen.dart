@@ -23,6 +23,8 @@ import 'package:flutter/services.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -60,10 +62,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     final String? dealerId = _dealerId;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('المقبوضات', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'المقبوضات'),
       body: Column(
         children: <Widget>[
           _ReceiptHeader(

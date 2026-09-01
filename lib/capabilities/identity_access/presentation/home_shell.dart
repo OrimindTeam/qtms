@@ -28,7 +28,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router.dart';
-import '../../../core/design/brand.dart';
+import '../../../app/top_bar.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/hub_section.dart';
 import '../../../core/ui/needs_action_row.dart';
@@ -48,60 +48,38 @@ class HomeShell extends ConsumerWidget {
     if (session == null) return const Scaffold(body: SizedBox.shrink());
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        // ★★ **شريطُ التطبيق: شعارُ العميل واسمُ المحل ثم اسمُ المستخدم**
-        //    (`ui-guidelines.md` نمط 1 ①) — ⛔ **ولا نصَّ اسمٍ محفورٌ هنا:**
-        //    ★ **`appDisplayName` و`BrandLogo` مصدرُ الحقيقة الواحد** (`AM-002`).
-        //    ⚠️★ **ولا مؤشّرَ اتصالٍ بعد** — ★ **لا مصدرَ حالةِ شبكةٍ حيٌّ في
-        //    التطبيق اليوم**، ⛔ **ووسمُ «متصل» بلا قياسٍ ادّعاءٌ لا معلومة**
-        //    ⟵ **وهو ضدُّ ما وُجد المؤشّرُ لأجله** (`ADR-0003`).
-        title: Row(
-          children: <Widget>[
-            const BrandLogo(size: Sizes.chipHeight),
-            const SizedBox(width: Spacing.space8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    appDisplayName,
-                    style: TypeScale.titleSm
-                        .copyWith(color: SemanticColors.textPrimary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    session.displayName,
-                    style: TypeScale.caption
-                        .copyWith(color: SemanticColors.textTertiary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: <Widget>[
-          IconButton(
-            onPressed: () => ref.read(authRepositoryProvider).signOut(),
-            icon: const Icon(Icons.logout),
-            tooltip: 'تسجيل الخروج',
-          ),
-        ],
-      ),
+      // ⛔⛔★★★ **الشريط العلوي الموحّد** — `ui-guidelines.md` §3-أ
+      //    (`AM-008` ①): ★ **مكوّنٌ مركزيٌّ واحد لكل شاشة**، ⛔ **ولا `AppBar`
+      //    مبنيٌّ هنا بعد اليوم.**
+      //
+      // ★★★ **وحالةُ الاتصال صارت مقيسةً فعلاً** — ⟵ **وكان التعليق هنا
+      //    يقول «لا مصدرَ حالةِ شبكةٍ حيٌّ في التطبيق اليوم»**: ★ **وصار
+      //    المصدرُ بثَّ Firestore نفسَه** (`firestore_connection_monitor.dart`)
+      //    ⛔ **لا وجودَ واجهةِ شبكةٍ على الجهاز** — ★ **فالمقياس بلوغُ
+      //    الخادم لا بلوغُ الراوتر** (`ADR-0003`).
+      //
+      // ⛔⛔★★★ **ولا أيقونةَ خروجٍ فيه بعد `AM-009` ①** — ★ **انتقلت إلى
+      //    قائمة الجلسة على الصورة الرمزية** (`showQtmsSessionSheet`):
+      //    ⟵ **فالشريطُ أربعةُ عناصرَ في كل شاشةٍ بلا استثناء** ⛔ **ولا
+      //    إجراءَ يخصّ شاشةً واحدة فيه.**
+      //
+      // ⚠️ **واسمُ المستخدم في الصورة الرمزية** — ★ **ودورُه ونطاقُه
+      //    يقرؤهما من `PermissionsScreen`** ⛔ **لا من بطاقةٍ في الطيّة
+      //    الأولى** (`AM-009` ②).
+      appBar: const QtmsTopBar(screenTitle: 'لوحة اليوم'),
       body: ListView(
         padding: const EdgeInsetsDirectional.all(Spacing.screenPadding),
         children: <Widget>[
-          // ② ★★ **شريطُ هويةٍ مضغوط** — §5b `P1`.
+          // ② ⛔⛔★★★ **ولا بطاقةَ هويةٍ هنا بعد `AM-009` ②** — ★ **كانت
+          //    تعرض اسمَ الدور ونطاقَ المصادر في صدر الشاشة**: ⟵ **وهما
+          //    وصفُ حالةٍ لا مدخلُ عمل**، ⛔ **فكانا يؤخّران أولَ إجراءٍ
+          //    يومي عن الطيّة الأولى.** ★ **والدورُ والنطاق يُقرآن في
+          //    `PermissionsScreen`** ⛔ **ولا تُكرَّر المعلومةُ في مدخلٍ
+          //    لا يفعل بها شيئاً.**
           //
-          // ⛔⛔ **وكان ثلاثَ بطاقاتٍ تحتلّ الطيّة الأولى كاملة** — ★ **ومنها
-          //    «عدد الصلاحيات» رقمٌ بلا فعل**: ⟵ **فصار سطرين، والمداخلُ
-          //    تبدأ قبل نهاية الطيّة.**
-          _IdentityStrip(session: session),
-          const SizedBox(height: Spacing.space12),
+          // ⚠️★★ **وسقط معها آخرُ مستهلكٍ لـ[session] في جسم الشاشة** —
+          //    ★ **والحارسُ عليها باقٍ أعلاه عمداً**: ⟵ **فالصدَفةُ لا
+          //    تُبنى بلا جلسة**، ⛔ **ولا مداخلَ تُعرَض قبل قراءة الصلاحيات.**
 
           // ⏳★★★ **العدّاد الحيّ للإدخالات المعلّقة** — `FR-SYS-03` الموضع
           //    الرابع («**لوحة التحكم: بطاقة ⏳ الإدخالات المعلّقة بالعدد
@@ -133,6 +111,20 @@ class HomeShell extends ConsumerWidget {
                     icon: Icons.local_shipping_outlined,
                     onPressed: () => context.go(distributionRoute),
                     isPrimary: true,
+                  ),
+                ),
+              ),
+              // ⛔⛔★★★ **ومدخلُ البيع النقدي `cashSaleCreate`** — ⛔ **ولا
+              //    مفتاح «عرض البيع النقدي» في الكتالوج §2.3**: ★ **المفاتيحُ
+              //    الأربعة مفاتيحُ فعلٍ لا عرض**، ⟵ **والقراءةُ يحكمها
+              //    النطاق وحده** ⛔ **ولا يُخترَع مفتاحٌ خامس** (`BR-M1-07`).
+              PermissionGate(
+                permission: Permission.cashSaleCreate,
+                child: QtmsHubButton(
+                  entry: QtmsHubEntry(
+                    label: 'البيع النقدي',
+                    icon: Icons.point_of_sale_outlined,
+                    onPressed: () => context.go(cashSaleRoute),
                   ),
                 ),
               ),
@@ -347,56 +339,3 @@ class _PendingEntriesRow extends ConsumerWidget {
     );
   }
 }
-
-/// ★★ شريطُ الهوية المضغوط — **الدور ونطاق المصادر في سطرين**.
-///
-/// ⛔⛔ **ولا «عدد الصلاحيات»** — ★ **رقمٌ بلا فعلٍ كان يحتلّ بطاقةً كاملة في
-/// الطيّة الأولى**، ⟵ **والمستخدمُ لا يفعل به شيئاً**؛ ★ **وتفصيلُ الصلاحيات
-/// شاشتُه هي `PermissionsScreen`.**
-class _IdentityStrip extends StatelessWidget {
-  const _IdentityStrip({required this.session});
-
-  final AuthSession session;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsetsDirectional.all(Spacing.cardPadding),
-        decoration: BoxDecoration(
-          // ★★ **وثلاثيةُ `primary` لا السطحُ المحايد** (`AM-007`): ⟵ **الدورُ
-          //    ونطاقُ المصادر هويةُ الجلسة**، ★ **وهي أولُ ما يجب أن يُقرأ.**
-          //    ⛔ **ولا لونٌ خارج الثلاثية** — §3.3.
-          color: SemanticTriads.primary.soft,
-          border: Border.all(
-            color: SemanticTriads.primary.border,
-            width: Sizes.borderWidth,
-          ),
-          borderRadius: BorderRadius.circular(Radii.card),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(
-              session.roleName ?? 'بلا دور',
-              style: TypeScale.titleSm
-                  .copyWith(color: SemanticTriads.primary.ink),
-            ),
-            const SizedBox(height: Spacing.space4),
-            Text(
-              _scopeLabel(session.sourceScope),
-              style: TypeScale.bodyMd
-                  .copyWith(color: SemanticColors.textSecondary),
-            ),
-          ],
-        ),
-      );
-}
-
-/// ★ وصف النطاق بالعربية — ⛔ **ولا يُعرَض `all` نصّاً تقنياً**
-/// (`ui-guidelines.md` §6: «لا مصطلح تقني في واجهة المستخدم»).
-String _scopeLabel(SourceScope? scope) => switch (scope) {
-      AllSources() => 'كل المصادر',
-      ScopedSources(sourceIds: final Set<String> ids) => '${ids.length} مصدر',
-      // ⚠️ لا نطاق في الرمز ⟵ **لا مصدر متاح** (`source_scope_claim.dart`).
-      null => 'لا مصدر متاح',
-    };

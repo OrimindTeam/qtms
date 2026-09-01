@@ -6,13 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/identity_access/presentation/home_shell.dart';
+import 'package:qtms/core/ui/avatar.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
 
 void main() {
   testWidgets(
-    '★ تعرض الاسم والدور ونطاق المصادر',
+    '★ تعرض الهوية في الشريط — ⛔ ولا بطاقةَ دورٍ ونطاق (AM-009 ②)',
     (WidgetTester tester) async {
       final FakeAuthRepository auth = FakeAuthRepository();
       final FakeUserCardRepository cards = FakeUserCardRepository();
@@ -36,9 +37,25 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 20));
 
-      expect(find.text('عبدالفتاح'), findsOneWidget);
-      expect(find.text('المالك'), findsOneWidget);
-      expect(find.text('كل المصادر'), findsOneWidget);
+      // ⚠️★★★ **واسمُ المستخدم انتقل إلى الصورة الرمزية بـ`AM-008` ①** —
+      //    ⟵ **فيُقاس بحرفه الأول لا بنصٍّ كامل**، ★ **ولا يسقط الفحص:
+      //    الهويةُ ما زالت معروضة** ⛔ **بشكلٍ آخر.**
+      expect(find.byType(QtmsAvatar), findsOneWidget);
+      expect(
+        tester.widget<QtmsAvatar>(find.byType(QtmsAvatar)).name,
+        'عبدالفتاح',
+      );
+      // ★★ **واسمُ الشاشة في الشريط العلوي** — `AM-008` ①.
+      expect(find.text('لوحة اليوم'), findsOneWidget);
+      // ⛔⛔★★★ **ولا بطاقةَ هويةٍ في جسم الشاشة** — `AM-009` ②: ★ **كانت
+      //    تعرض اسمَ الدور ونطاقَ المصادر في الطيّة الأولى**، ⟵ **وهما
+      //    وصفُ حالةٍ لا مدخلُ عمل** ⛔ **فأُزيلا بطلب المالك.**
+      //    ★ **والدورُ والنطاق يُقرآن في `PermissionsScreen`.**
+      expect(find.text('المالك'), findsNothing);
+      expect(find.text('كل المصادر'), findsNothing);
+      // ⛔⛔★★★ **ولا أيقونةَ خروجٍ في الشريط** — `AM-009` ①: ★ **انتقلت
+      //    إلى قائمة الجلسة على الصورة الرمزية.**
+      expect(find.byIcon(Icons.logout), findsNothing);
 
       auth.dispose();
       cards.dispose();

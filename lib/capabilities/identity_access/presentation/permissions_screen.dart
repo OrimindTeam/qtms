@@ -21,6 +21,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/inline_banner.dart';
 import '../../../core/ui/skeleton.dart';
@@ -43,10 +45,7 @@ class PermissionsScreen extends ConsumerWidget {
     final AuthSession? actor = ref.watch(currentSessionProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('تخصيص الصلاحيات', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'تخصيص الصلاحيات'),
       body: switch (users) {
         AsyncValue<List<UserCard>>(hasError: true) =>
           const _Notice(message: CatalogMessage.permissionMissing),

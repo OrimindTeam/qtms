@@ -342,42 +342,74 @@ void main() {
       expect(plan.entry.valuesAfter.containsKey('isActive'), isFalse);
     });
 
+    // ⚠️★★ **وانتقل هذا الاختبار من الرعوي إلى النوع بـ`CR-006`** —
+    //    ⟵ **لأن الرعوي لم يعد يحمل `sourceIds`**، ★ **والسلوك المُختبَر
+    //    (مقارنةُ القائمة عنصراً بعنصر لا مرجعاً) واحدٌ في المسارين**
+    //    ⛔ **فلا تسقط تغطيتُه.**
     test('★ والقائمة تُقارَن عنصراً بعنصر لا مرجعاً', () {
-      final ValidatedSupplier supplier = (validateSupplier(
-        const SupplierInput(
+      final ValidatedItem value = (validateItem(
+        const ItemInput(
           sourceIds: <String>['SRC-002', 'SRC-001'],
-          name: 'رعوي مثال',
-          phone: '777123456',
+          name: 'عود',
+          nature: ItemNature.countBased,
         ),
+      ) as Success<ValidatedItem>)
+          .value;
+      final MasterDataAccepted plan = planMasterData(
+        MasterDataRequest(
+          actor: account(),
+          entityId: 'ITM-0001',
+          requestId: 'REQ-MD-0002',
+          item: value,
+          amendReason: 'تعديل',
+          guard: guard(
+            collectionId: uniqueItemNamesCollection,
+            key: value.normalizedName,
+            owner: 'ITM-0001',
+          ),
+          stored: <String, Object?>{
+            'sourceIds': <String>['SRC-001', 'SRC-002'],
+            'name': 'عود',
+            'normalizedName': value.normalizedName,
+            'nature': value.nature.name,
+            'unit': value.unit.name,
+            'pieceWeightGrams': value.pieceWeightGrams,
+            'isSystemDefault': false,
+            'isActive': true,
+            'disableReason': null,
+          },
+        ),
+        MasterDataOperation.updateItem,
+      ) as MasterDataAccepted;
+      // ⛔ **لا تغيير** — والقائمتان متطابقتان محتوًى وترتيباً بعد الفرز.
+      expect(plan.entry.valuesAfter, isEmpty);
+    });
+
+    // ⛔⛔★★★ **وحارسٌ صريح لـ`CR-006`** — ★ **خطةُ كتابة الرعوي لا تحمل
+    //    `sourceIds`** ⛔ **لا فارغةً ولا محذوفةً بقناع.**
+    test('⛔★★★ وخطةُ الرعوي بلا حقل مصدرٍ إطلاقاً — CR-006', () {
+      final ValidatedSupplier value = (validateSupplier(
+        const SupplierInput(name: 'رعوي مثال', phone: '777123456'),
       ) as Success<ValidatedSupplier>)
           .value;
       final MasterDataAccepted plan = planMasterData(
         MasterDataRequest(
           actor: account(),
           entityId: 'SUP-0001',
-          requestId: 'REQ-MD-0002',
-          supplier: supplier,
-          amendReason: 'تعديل',
+          requestId: 'REQ-MD-0003',
+          supplier: value,
           guard: guard(
             collectionId: uniqueSupplierPhonesCollection,
-            key: supplier.normalizedPhone,
-            owner: 'SUP-0001',
+            key: value.normalizedPhone,
           ),
-          stored: <String, Object?>{
-            'sourceIds': <String>['SRC-001', 'SRC-002'],
-            'name': 'رعوي مثال',
-            'normalizedName': supplier.normalizedName,
-            'phone': '777123456',
-            'normalizedPhone': supplier.normalizedPhone,
-            'notes': null,
-            'isActive': true,
-            'disableReason': null,
-          },
         ),
-        MasterDataOperation.updateSupplier,
+        MasterDataOperation.createSupplier,
       ) as MasterDataAccepted;
-      // ⛔ **لا تغيير** — والقائمتان متطابقتان محتوًى وترتيباً بعد الفرز.
-      expect(plan.entry.valuesAfter, isEmpty);
+      for (final MasterDataWrite write in plan.writes) {
+        expect(write.fields.containsKey('sourceIds'), isFalse);
+        expect(write.updateMask.contains('sourceIds'), isFalse);
+      }
+      expect(plan.entry.valuesAfter.containsKey('sourceIds'), isFalse);
     });
 
     test('★ قيد المصدر يحمل معرّفه ليُفلتَر بالنطاق — FR-M18-14', () {

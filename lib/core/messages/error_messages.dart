@@ -175,6 +175,23 @@ enum CatalogMessageId {
   /// ★★ `ERR_DIST_008` — **ملاحظة الإيداع مفقودة** (`FR-M12-15` · `AT-36`).
   depositNoteMissing,
 
+  // ── البيع النقدي المباشر (`WU-012`) — الكتالوج §`PRICE` ──
+  //
+  // ⛔★★ **ولا نصّ مُخترَع واحد:** الثلاثة **رموزٌ ونصوصٌ قائمة في الكتالوج**
+  //    قبل هذه الزيادة — ★ **والزيادة تستهلكه ولا تُوسّعه** (§3 القاعدة 5).
+
+  /// ⛔⛔★★★ `ERR_PRICE_002` — **سعرٌ دون الحد الأدنى** (`FR-M11-05` · `GR-34`).
+  ///
+  /// ★★ **والصلاحيةُ وحدها هي الحارس** — ⛔ **و`ERR_PRICE_003` («سبب التجاوز
+  /// مفقود») لم يعد يُصدَر** بـ`ADR-0020`.
+  belowMinimumCashPrice,
+
+  /// ★★★ `ERR_PRICE_004` — **سعرٌ مفقود في بيعٍ نقدي** (`FR-M11-04`).
+  cashPriceMissing,
+
+  /// ⚠️ `ERR_PRICE_005` — **نوعٌ غير مسعَّر** (`FR-M11-06`) — ★ **تنبيهٌ لا منع**.
+  itemNotPricedYet,
+
   /// ★ `ERR_CALL_500` — **فشل عملية غير متوقَّع**، ⛔ **ومصير كل رمز مجهول**.
   operationFailed,
 }
@@ -308,6 +325,15 @@ sealed class CatalogMessage {
   );
   static const CatalogMessage settledDebtBlocksCancel = CatalogEntry(
     CatalogMessageId.settledDebtBlocksCancel,
+  );
+  static const CatalogMessage belowMinimumCashPrice = CatalogEntry(
+    CatalogMessageId.belowMinimumCashPrice,
+  );
+  static const CatalogMessage cashPriceMissing = CatalogEntry(
+    CatalogMessageId.cashPriceMissing,
+  );
+  static const CatalogMessage itemNotPricedYet = CatalogEntry(
+    CatalogMessageId.itemNotPricedYet,
   );
   static const CatalogMessage receiptExceedsDebt = CatalogEntry(
     CatalogMessageId.receiptExceedsDebt,
@@ -485,6 +511,14 @@ String _entryText(CatalogMessageId message) => switch (message) {
         '❌ ليس لديك صلاحية التسجيل بتاريخ سابق.',
       CatalogMessageId.depositNoteMissing =>
         '❌ تأكيد الإيداع البنكي يتطلب إدخال ملاحظة.',
+      // ★ **منقولةٌ حرفاً بحرف من `error-codes-catalog.md` §`PRICE`**
+      //   — ⚠️ **وقوالب `{الحد}` و`{النوع}` لا تُملأ هنا** (راجع أعلاه).
+      CatalogMessageId.belowMinimumCashPrice =>
+        '❌ السعر أقل من الحد الأدنى للبيع النقدي لهذا النوع.',
+      CatalogMessageId.cashPriceMissing =>
+        '❌ البيع النقدي يتطلب إدخال سعر لكل نوع.',
+      CatalogMessageId.itemNotPricedYet =>
+        '⚠️ هذا النوع غير مسعَّر بعد — لا يوجد له حد أدنى للبيع النقدي.',
       CatalogMessageId.operationFailed => '❌ تعذّر إتمام العملية. أعد المحاولة.',
     };
 
@@ -536,6 +570,10 @@ CatalogMessage callableErrorMessage(String code) => switch (code) {
       'ERR_DIST_006' => CatalogMessage.futureDateRejected,
       'ERR_DIST_007' => CatalogMessage.backdateDenied,
       'ERR_DIST_008' => CatalogMessage.depositNoteMissing,
+      // ── البيع النقدي المباشر (`WU-012`) ──
+      'ERR_PRICE_002' => CatalogMessage.belowMinimumCashPrice,
+      'ERR_PRICE_004' => CatalogMessage.cashPriceMissing,
+      'ERR_PRICE_005' => CatalogMessage.itemNotPricedYet,
       // ── التسعير اليومي (`WU-005`) ──
       'ERR_MONEY_001' => CatalogMessage.fractionalMoney,
       // ⛔⛔★★★ **والمجهول يصل بنصّه لا برسالةٍ عامة** — `DEBT-52`:

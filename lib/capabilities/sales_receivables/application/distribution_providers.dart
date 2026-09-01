@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../core/state/combine_async.dart';
 import '../../inventory/application/inventory_providers.dart';
 import '../../master_data/application/master_data_providers.dart';
 
@@ -63,6 +64,30 @@ final distributionsProvider =
             sourceId: query.sourceId,
             stockDate: query.stockDate,
           ),
+);
+
+/// ★★★ **توزيعاتُ اليوم — بمصدرٍ واحد أو بكل المصادر** (`AM-009` ③ · ⑦).
+///
+/// ⛔⛔★★★ **واستعلامٌ مقيَّدٌ لكل مصدرٍ ثم دمج** — راجع [combineAsyncLists]:
+/// ⟵ **فشرطُ `storedInScope()` يقرأ `resource.data.sourceId`**، ★ **والشرط
+/// يُقيَّم على قيود الاستعلام لا على كل مستند** ⛔ **فاستعلامٌ واحدٌ غيرُ
+/// مقيَّد يُرفَض كاملاً** (`IQ-024` · `WU-008`).
+final distributionListProvider =
+    Provider.family<AsyncValue<List<DistributionCard>>, SourceListQuery>(
+  (Ref ref, SourceListQuery query) => combineAsyncLists<DistributionCard>(
+    <AsyncValue<List<DistributionCard>>>[
+      for (final String sourceId in listedSourceIds(ref, query))
+        ref.watch(
+          distributionsProvider(
+            DistributionQuery(sourceId: sourceId, stockDate: query.stockDate),
+          ),
+        ),
+    ],
+    // ★ **وترتيبٌ ثابتٌ باسم المقوت** — ⟵ **فهو عنوانُ السجلّ**،
+    //   ⛔ **ولا ترتيبَ يتبع وصولَ التدفّقات.**
+    compare: (DistributionCard a, DistributionCard b) =>
+        a.dealerName.compareTo(b.dealerName),
+  ),
 );
 
 /// وسيط البحث عن توزيعة مقوتٍ في يوم — **المصدر والمقوت واليوم**.

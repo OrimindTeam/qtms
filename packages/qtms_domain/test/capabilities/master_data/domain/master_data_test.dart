@@ -63,11 +63,10 @@ void main() {
 
   group('validateSupplier — FR-M3', () {
     SupplierInput input({
-      List<String> sourceIds = const <String>['SRC-001'],
       String name = 'رعوي مثال',
       String phone = '0777123456',
     }) =>
-        SupplierInput(sourceIds: sourceIds, name: name, phone: phone);
+        SupplierInput(name: name, phone: phone);
 
     test('★ التفرد على الهاتف المُطبَّع — خمس صيغ مفتاحٌ واحد', () {
       const List<String> forms = <String>[
@@ -87,21 +86,25 @@ void main() {
       expect(keys.single, '777123456');
     });
 
-    test('يرفض رعوياً بلا مصادر — FR-M3-01', () {
+    // ⛔⛔★★★ **اختبارا المصادر سقطا بـ`CR-006`** (2026-08-31) — ★ **وحلّ
+    //    محلَّهما حارسٌ بنيويّ:** ⟵ **المُدخَل نفسُه لم يعد يحمل الحقل**،
+    //    ⛔ **فلا يُمرَّر سهواً ولا يُكتَب.**
+    //
+    // ★ **نصُّهما قبل:** «يرفض رعوياً بلا مصادر — `FR-M3-01`» ·
+    //    «★ المصادر مرتبة ومنزوعة التكرار».
+    test('⛔★★★ ولا حقلَ مصدرٍ في مُدخَل الرعوي إطلاقاً — CR-006', () {
+      // ★ **حارسٌ يفشل عند أول محاولةِ إعادةٍ للحقل** — ⟵ **فالقرار
+      //   محروسٌ بالبنية لا بالمراجعة.**
       expect(
-        validateSupplier(input(sourceIds: const <String>[])),
-        isA<Failure<ValidatedSupplier>>(),
+        const SupplierInput(name: 'رعوي مثال', phone: '0777123456'),
+        isA<SupplierInput>(),
       );
-    });
-
-    test('★ المصادر مرتبة ومنزوعة التكرار', () {
-      final Outcome<ValidatedSupplier> outcome = validateSupplier(
-        input(sourceIds: const <String>['SRC-003', 'SRC-001', 'SRC-003', ' ']),
-      );
-      expect(
-        (outcome as Success<ValidatedSupplier>).value.sourceIds,
-        <String>['SRC-001', 'SRC-003'],
-      );
+      final ValidatedSupplier supplier =
+          (validateSupplier(input()) as Success<ValidatedSupplier>).value;
+      // ⛔ **ولا خاصيّةَ `sourceIds` على النوع المُتحقَّق منه** — ★ **يفرضه
+      //   المحلّل الساكن**، ⟵ **والاختبار يؤكّد بقيّةَ الحقول كما هي.**
+      expect(supplier.name, 'رعوي مثال');
+      expect(supplier.normalizedPhone, '777123456');
     });
 
     test('يرفض اسماً أقصر من ثلاثة أحرف', () {

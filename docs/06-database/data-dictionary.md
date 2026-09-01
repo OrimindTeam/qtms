@@ -47,10 +47,11 @@
 | الحقل | النوع | إلزامي | ملاحظة |
 |---|---|:-:|---|
 | `supplierId` | string PK | ⚙️ | `SUP-0001` |
-| ★ `sourceIds` | array\<ref\> | ✅ | **مصادر متعددة** |
+| ~~`sourceIds`~~ | array\<ref\> | ⛔ | ⛔⛔★★★ **مهجورٌ بـ`CR-006`** (2026-08-31) — ★ **لا يُكتب في أي مستندٍ جديد ولا يُقرأ**، ⛔ **ولا يُحذَف من المستندات القائمة** (**لا حذف بيانات**) · ★ **والرعوي يتبع كل المصادر تلقائياً** |
 | `name` | string(3–80) | ✅ | — |
 | `phone` · ★ `normalizedPhone` | string | ✅ | **التفرد على المُطبَّع** |
 | `notes` · `isActive` | string · bool | — · ✅ | — |
+| `disableReason` | string | مشروط | ★ **إلزامي عند التعطيل** (`FR-M3-06`) |
 
 ### `dealers`
 | الحقل | النوع | إلزامي | ملاحظة |
@@ -60,7 +61,9 @@
 | `phone` · ★ `normalizedPhone` | string | ✅ | **فريد · ويُستخدَم لواتساب/SMS** |
 | `isActive` · `disableReason` | bool · string | ✅ · مشروط | **إلزامي عند التعطيل** |
 
-> ⚠️ **`dealers` و`suppliers` لا يحملان حقل مصدر** — حساباتهما سجلات مستقلة.
+> ⚠️★★ **`dealers` و`suppliers` لا يحملان حقل مصدر** — حساباتهما سجلات مستقلة.
+> ✅★★★ **وصار هذا صحيحاً حرفياً في الاثنين بـ`CR-006`** — ⟵ **وكان `suppliers`
+> يحمل `sourceIds` مخالفاً هذه الملاحظة نفسها**، ⛔ **والتناقضُ ارتفع.**
 
 ### `items`
 | الحقل | النوع | إلزامي | ملاحظة |
@@ -266,11 +269,22 @@
 > ⛔ **ولا حذف.**
 
 ### `cash_sales` — البيع النقدي
-`documentNumber` (`CSH-…`) · ★ `stockDate` · `entryDate` · `sourceId` ·
-`lines[]` (النوع · ★`sackId?` · ★`unit` · الكمية · **السعر إلزامي** ·
-★`belowMinReason?`) · الإجماليات **منفصلة** · `netCashReceived` · الحالة.
+`documentNumber` (`CSH-…`) — ★ **وهو معرّف المستند نفسُه** ⛔ **لا معرّفٌ مركّب**
+· ★ `stockDate` · `entryDate` · `sourceId` · `sourceName?` ·
+`lines[]` (`itemId` · `itemName` · ★`sackId?` · ★`unit` · الكمية ·
+**`unitPrice` إلزامي** · 🧮`lineTotal` · ★`belowMinReason?`) ·
+`totalPieces` · `totalWeight` **منفصلان** · 🧮 `netCashReceived` ·
+`status` · `amendCount` — ★★ **مكتوبةٌ في `WU-012`**.
 
 > **لا يوجد فيه حقل اسم مشترٍ ولا حقل خصم، ولا أي ارتباط بحساب مقوت.**
+
+> ⛔⛔★★★ **ولا مستندَ أسعارٍ فرعي** (بخلاف `distributions/{key}/pricing/current`)
+> — ★ **`ADR-0011` عزل أسعارَ التوزيعة لأجل `ت-12` وحده** (`FR-M10-07`)،
+> ⟵ **ولا مفتاح «عرض أسعار البيع النقدي» في الكتالوج §2.3**: ★ **فالسعر في
+> السطر نفسِه.**
+
+> **القراءة:** النطاق وحده · **الكتابة:** `cashSaleCreate` / `cashSaleAmend` /
+> `cashSaleCancel` **عبر الدوال المستدعاة** (`ADR-0013`) · ⛔ **ولا حذف.**
 
 ### `receipts` — سندات القبض
 | الحقل | ملاحظة |

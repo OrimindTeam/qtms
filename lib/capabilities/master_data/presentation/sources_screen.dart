@@ -12,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/entity_tile.dart';
 import '../../../core/messages/error_messages.dart';
@@ -31,10 +33,7 @@ class SourcesScreen extends ConsumerWidget {
     final AsyncValue<List<SourceCard>> sources = ref.watch(sourcesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('المصادر', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'المصادر'),
       floatingActionButton: const PermissionGate(
         permission: Permission.sourceWrite,
         child: _NewSourceButton(),
@@ -72,6 +71,8 @@ class _SourceTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => MasterDataTile(
+        // ⛔⛔★★★ **الإجراء في صفّ الاسم نفسِه** — `AM-008` ⑥.
+        actionsPlacement: EntityActionsPlacement.inline,
         title: source.name,
         // ★★ **أيقونة 🕘 في أول الصفّ** — `FR-M18-10` · `FR-M18-11`
         //   («**المصادر**» أولُ الشاشات المشمولة).
@@ -95,11 +96,24 @@ class _SourceTile extends ConsumerWidget {
         actions: <Widget>[
           PermissionGate(
             permission: Permission.sourceWrite,
-            // ★★ **وإجراءٌ بأيقونةٍ ونصّ لا برمزٍ صامت** — `design-system.md` §6.ج.
-            child: TextButton.icon(
+            // ⛔⛔★★★ **وزرٌّ أيقونيٌّ في صفّ الاسم نفسِه** — `AM-008` ⑥:
+            //    ★ **بدل صفٍّ مستقلٍّ بفاصلٍ شعريٍّ لزرٍّ واحد**، ⟵ **وكان
+            //    يُطيل البطاقة نصفَ ارتفاعها بلا معلومة.**
+            //
+            // ⚠️★★ **والنصّ سقط من الزرّ لا من الواجهة:** ★ **يبقى في
+            //    `tooltip` لقارئ الشاشة وللضغط المطوّل** — ⛔ **وإبقاؤه
+            //    مرسوماً كان يعصر اسمَ الكيان عند تكبير الخط**، ★ **وهو
+            //    عطلُ `DEBT-48` بعينه** (`context_header.dart`).
+            //    ⛔ **وقاعدةُ «لا أيقونة صامتة» في §6.ج على الزرّ العائم**،
+            //    ★ **وبطاقاتُ المستخدمين على هذا النهج منذ `WU-001`.**
+            child: IconButton(
               onPressed: () => showSourceForm(context, existing: source),
               icon: const Icon(Icons.edit_outlined, size: Sizes.iconMd),
-              label: const Text('تعديل'),
+              tooltip: 'تعديل',
+              constraints: const BoxConstraints(
+                minWidth: Sizes.minTouch,
+                minHeight: Sizes.minTouch,
+              ),
             ),
           ),
         ],

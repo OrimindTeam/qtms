@@ -270,15 +270,20 @@ final class IdentityGateway {
 
   /// ★★ يُنشئ حساباً في خدمة المصادقة ويُرجِع معرّفه — `FR-M1-01`.
   ///
-  /// ⛔★★ **ولا كلمة مرور تُمرَّر ولا تُولَّد ولا تُعرَض** —
-  /// `authentication-policy.md` §5 يفرض ثلاثةً معاً: ⛔ لا كلمة افتراضية
-  /// مشتركة · «تغييرها من صاحبها — **والإدارة تُعيد التعيين لا تقرأ**» ·
-  /// وآلية استرجاع آمنة. ⟵ ★ **فالحساب يُنشأ بلا بيان اعتماد**، ويضبطه
-  /// صاحبُه عبر [sendPasswordSetupLink]. ⛔ **وكلمةٌ عشوائية تُعرَض للمدير
-  /// تخالف الثانية**، **وثابتةٌ مشتركة تخالف الأولى نصّاً.**
+  /// ⚠️★★★ **وبكلمةٍ أوليةٍ يضبطها المدير** — `CR-005` (2026-08-31):
+  /// ⟵ **ويغيّرها صاحبُها متى شاء** ⛔ **بلا إجبارٍ عند أول دخول وبلا مهلة.**
+  ///
+  /// ⛔⛔★★★ **والقيمة لا تُسجَّل ولا تُرجَع ولا تدخل رسالةَ خطأ:** ★ **نوعُها
+  /// [InitialPassword] لا يكشف نفسه في `toString`** — ⟵ **فلا تتسرّب إلى
+  /// سجلٍّ ولا إلى `diagnostic`**، ⛔ **وهي قاعدة «لا كلمة مرور في أي مستند
+  /// ولا كود ولا رسالة» الباقيةُ بحرفها** (`authentication-policy.md` §5).
+  ///
+  /// ⚠️ **وكان المسارُ رابطَ استرجاعٍ عبر [sendPasswordSetupLink]** — ★ **وهو
+  /// باقٍ مساراً لتغييرها لاحقاً**، ⛔ **ولم يعد المسارَ الوحيد لضبطها.**
   Future<String> createAccount({
     required String email,
     required String displayName,
+    required InitialPassword password,
   }) async {
     final idtk.SignupNewUserResponse response;
     try {
@@ -286,7 +291,9 @@ final class IdentityGateway {
         idtk.IdentitytoolkitRelyingpartySignupNewUserRequest(
           email: email,
           displayName: displayName,
-          // ⛔ ولا `password` هنا إطلاقاً — راجع أعلاه.
+          // ★★ **والقيمة تعبر من هنا إلى الخدمة ولا تُخزَّن في أي دفتر** —
+          //    `FR-M1-02` قائم: **لا حقل كلمة مرور في سجل المستخدم.**
+          password: password.value,
         ),
       );
     } on idtk.DetailedApiRequestError catch (error) {

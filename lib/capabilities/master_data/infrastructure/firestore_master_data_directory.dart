@@ -38,7 +38,9 @@ final class FirestoreMasterDataDirectory implements MasterDataDirectory {
         suppliersCollection,
         (String id, Map<String, dynamic> d) => SupplierCard(
           supplierId: id,
-          sourceIds: _texts(d['sourceIds']),
+          // ⛔⛔★★★ **ولا يُقرأ `sourceIds`** — `CR-006` (2026-08-31):
+          //    ★ **مستنداتٌ قديمة تحمله وتُقرأ بلا الحقل**، ⛔ **ولا تُحذَف
+          //    منها قيمة** (**لا حذف بيانات**).
           name: _text(d['name']) ?? id,
           phone: _text(d['phone']) ?? '',
           isActive: d['isActive'] != false,

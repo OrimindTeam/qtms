@@ -13,6 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/entity_tile.dart';
 import '../../../core/messages/error_messages.dart';
@@ -33,10 +35,7 @@ class DealersScreen extends ConsumerWidget {
     final AsyncValue<List<DealerCard>> dealers = ref.watch(dealersProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('المقاوته', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'المقاوته'),
       floatingActionButton: const PermissionGate(
         permission: Permission.dealerWrite,
         child: _NewDealerButton(),
@@ -74,6 +73,8 @@ class _DealerTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => MasterDataTile(
+        // ⛔⛔★★★ **الإجراء في صفّ الاسم نفسِه** — `AM-008` ⑥.
+        actionsPlacement: EntityActionsPlacement.inline,
         title: dealer.name,
         // ★★ **أيقونة 🕘 في أول الصفّ** — `FR-M18-10` · `FR-M18-11`.
         leading: auditTrailLeading(
@@ -91,11 +92,24 @@ class _DealerTile extends ConsumerWidget {
         actions: <Widget>[
           PermissionGate(
             permission: Permission.dealerWrite,
-            // ★★ **وإجراءٌ بأيقونةٍ ونصّ لا برمزٍ صامت** — `design-system.md` §6.ج.
-            child: TextButton.icon(
+            // ⛔⛔★★★ **وزرٌّ أيقونيٌّ في صفّ الاسم نفسِه** — `AM-008` ⑥:
+            //    ★ **بدل صفٍّ مستقلٍّ بفاصلٍ شعريٍّ لزرٍّ واحد**، ⟵ **وكان
+            //    يُطيل البطاقة نصفَ ارتفاعها بلا معلومة.**
+            //
+            // ⚠️★★ **والنصّ سقط من الزرّ لا من الواجهة:** ★ **يبقى في
+            //    `tooltip` لقارئ الشاشة وللضغط المطوّل** — ⛔ **وإبقاؤه
+            //    مرسوماً كان يعصر اسمَ الكيان عند تكبير الخط**، ★ **وهو
+            //    عطلُ `DEBT-48` بعينه** (`context_header.dart`).
+            //    ⛔ **وقاعدةُ «لا أيقونة صامتة» في §6.ج على الزرّ العائم**،
+            //    ★ **وبطاقاتُ المستخدمين على هذا النهج منذ `WU-001`.**
+            child: IconButton(
               onPressed: () => showDealerForm(context, existing: dealer),
               icon: const Icon(Icons.edit_outlined, size: Sizes.iconMd),
-              label: const Text('تعديل'),
+              tooltip: 'تعديل',
+              constraints: const BoxConstraints(
+                minWidth: Sizes.minTouch,
+                minHeight: Sizes.minTouch,
+              ),
             ),
           ),
         ],

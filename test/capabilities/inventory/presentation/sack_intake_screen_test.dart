@@ -59,6 +59,20 @@ ItemCard countedItem() => testItem(
       nature: ItemNature.countBased,
     );
 
+/// ★★★ **يضيف سطرَ نوعٍ بالنمط الجديد** — `AM-009` ④.
+///
+/// ⛔⛔★★ **وحلّ محلَّ «مربّعِ اختيارٍ على صفٍّ من الكتالوج»:** ★ **كانت
+/// الورقة تعرض *كلَّ* أنواع المصدر صفوفاً**، ⟵ **وصارت صفّاً يُنشأ بالطلب**
+/// — **زرُّ `+` ثم منسدلٌ يُصفّي بالكتابة.**
+Future<void> pickLine(WidgetTester tester, String item) async {
+  await tester.tap(find.text('إضافة نوع'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byType(DropdownMenu<String>).last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(item).last);
+  await tester.pumpAndSettle();
+}
+
 Future<void> pumpScreen(
   WidgetTester tester, {
   required Widget screen,
@@ -120,7 +134,6 @@ void main() {
         name: 'عبدالفتاح',
         phone: '777111222',
         isActive: true,
-        sourceIds: const <String>['SRC-001'],
       ),
     ]);
     sacks.emitSacks(const <SackCard>[]);
@@ -290,14 +303,7 @@ void main() {
       );
 
       // ★ يُختار النوع العددي.
-      final Finder countedRow = find.ancestor(
-        of: find.text('عود'),
-        matching: find.byType(Row),
-      );
-      await tester.tap(
-        find.descendant(of: countedRow.first, matching: find.byType(Checkbox)),
-      );
-      await tester.pump();
+      await pickLine(tester, 'عود');
 
       // ⛔★★ **والقفل غيابُ الحقل لا تعطيلُه** — راجع الشاشة.
       expect(find.widgetWithText(TextField, 'وزن الحبة (جم)'), findsNothing);
@@ -305,10 +311,9 @@ void main() {
         find.widgetWithText(TextField, 'الوزن الكلي (كجم)'),
         findsOneWidget,
       );
-      expect(
-        find.text('وزن الحبة يُستنتَج من الوزن الكلي والعدد.'),
-        findsOneWidget,
-      );
+      // ★★ **والنصُّ صار إرشاداً على الحقل نفسِه** — `AM-009` ④:
+      //    ⟵ **فيُقرأ مع الحقل لا في سطرٍ منفصلٍ تحته.**
+      expect(find.text('وزن الحبة يُستنتَج'), findsOneWidget);
     });
 
     testWidgets('★ ① النوع الوزني يعرض وزن الحبة من التهيئة تلقائياً', (
@@ -322,14 +327,7 @@ void main() {
         masterData: masterData,
       );
 
-      final Finder weightedRow = find.ancestor(
-        of: find.text('بطوة'),
-        matching: find.byType(Row),
-      );
-      await tester.tap(
-        find.descendant(of: weightedRow.first, matching: find.byType(Checkbox)),
-      );
-      await tester.pump();
+      await pickLine(tester, 'بطوة');
 
       final TextField field = tester.widget<TextField>(
         find.widgetWithText(TextField, 'وزن الحبة (جم)'),
@@ -348,14 +346,7 @@ void main() {
         masterData: masterData,
       );
 
-      final Finder weightedRow = find.ancestor(
-        of: find.text('بطوة'),
-        matching: find.byType(Row),
-      );
-      await tester.tap(
-        find.descendant(of: weightedRow.first, matching: find.byType(Checkbox)),
-      );
-      await tester.pump();
+      await pickLine(tester, 'بطوة');
       await tester.enterText(
         find.widgetWithText(TextField, 'العدد'),
         '100',
@@ -379,14 +370,7 @@ void main() {
         masterData: masterData,
       );
 
-      final Finder row = find.ancestor(
-        of: find.text('معالم'),
-        matching: find.byType(Row),
-      );
-      await tester.tap(
-        find.descendant(of: row.first, matching: find.byType(Checkbox)),
-      );
-      await tester.pump();
+      await pickLine(tester, 'معالم');
       await tester.enterText(find.widgetWithText(TextField, 'العدد'), '50');
       await tester.pump();
 
@@ -420,14 +404,7 @@ void main() {
         masterData: masterData,
       );
 
-      final Finder weightedRow = find.ancestor(
-        of: find.text('بطوة'),
-        matching: find.byType(Row),
-      );
-      await tester.tap(
-        find.descendant(of: weightedRow.first, matching: find.byType(Checkbox)),
-      );
-      await tester.pump();
+      await pickLine(tester, 'بطوة');
       // ★ **والعدد وحده يُكتَب** — ⛔ **وحقل وزن الحبة لا يُمَسّ.**
       await tester.enterText(find.widgetWithText(TextField, 'العدد'), '100');
       await tester.pump();
@@ -467,14 +444,7 @@ void main() {
         masterData: masterData,
       );
 
-      final Finder countedRow = find.ancestor(
-        of: find.text('عود'),
-        matching: find.byType(Row),
-      );
-      await tester.tap(
-        find.descendant(of: countedRow.first, matching: find.byType(Checkbox)),
-      );
-      await tester.pump();
+      await pickLine(tester, 'عود');
       await tester.enterText(
         find.widgetWithText(TextField, 'الوزن الكلي (كجم)'),
         '5',
@@ -508,14 +478,7 @@ void main() {
         masterData: masterData,
       );
 
-      final Finder weightedRow = find.ancestor(
-        of: find.text('بطوة'),
-        matching: find.byType(Row),
-      );
-      await tester.tap(
-        find.descendant(of: weightedRow.first, matching: find.byType(Checkbox)),
-      );
-      await tester.pump();
+      await pickLine(tester, 'بطوة');
       await tester.enterText(find.widgetWithText(TextField, 'العدد'), '100');
       await tester.pump();
 
@@ -544,7 +507,12 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(find.byType(OutlinedButton));
+      // ⛔⛔★★ **ويُقصَد بنصّه لا بنوعه** — `AM-009` ④: ★ **صار في الورقة
+      //    زرٌّ محاطٌ ثانٍ («إضافة نوع»)**، ⟵ **و«أولُ `OutlinedButton`»
+      //    كان سيُصيب الخطأ** ⛔ **فيمرّ الاختبار على فعلٍ آخر.**
+      await tester.tap(
+        find.widgetWithText(OutlinedButton, 'تأكيد الوزن الضائع (37.300 كجم)'),
+      );
       await tester.pump();
 
       expect(admin.lostWeightConfirmations, 1);
@@ -579,7 +547,10 @@ void main() {
         masterData: masterData,
       );
 
-      expect(find.byType(OutlinedButton), findsNothing);
+      // ⛔⛔★★ **ويُقاس غيابُه بنصّه لا بنوعه** — `AM-009` ④: ★ **زرُّ
+      //    «إضافة نوع» محاطٌ كذلك**، ⟵ **و«لا `OutlinedButton` البتة»
+      //    كان سيقيس اختفاءَ زرِّ الإضافة** ⛔ **لا اختفاءَ التأكيد.**
+      expect(find.textContaining('تأكيد الوزن الضائع'), findsNothing);
     });
   });
 

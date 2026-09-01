@@ -182,9 +182,17 @@ final class FakeUserAdmin implements UserAdminRepository {
   /// آخر سبب تعطيل وصل.
   String? lastDisableReason;
 
+  /// ★★ آخر كلمة مرور أولية وصلت — ⛔ **قيمتُها لا تُطبَع ولا تُقارَن نصّاً**،
+  /// ★ **والاختبار يسأل «هل وصلت» لا «ما هي»** (`CR-005`).
+  InitialPassword? lastPassword;
+
   @override
-  Future<Outcome<String>> create(ValidatedUserProfile profile) async {
+  Future<Outcome<String>> create(
+    ValidatedUserProfile profile, {
+    required InitialPassword password,
+  }) async {
     createdProfile = profile;
+    lastPassword = password;
     return switch (result) {
       Failure<void>(:final AppError error) => Failure<String>(error),
       Success<void>() => const Success<String>('U-NEW'),

@@ -14,10 +14,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../app/router.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/design/theme_extensions.dart';
 import '../../../core/ui/async_state_view.dart';
+import '../../../core/ui/avatar.dart';
 import '../../../core/ui/entity_tile.dart';
 import '../../../core/ui/skeleton.dart';
 import '../../../core/ui/status_pill.dart';
@@ -39,10 +42,7 @@ class UsersScreen extends ConsumerWidget {
     final AsyncValue<List<UserCard>> users = ref.watch(usersProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('المستخدمون', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'المستخدمون'),
       // ★★ **زر الإنشاء خلف `userCreate`** — «الصلاحيات تُخفي لا تُعطِّل».
       //   ⚠️⚠️ **وهذا إخفاء لا حماية:** `createUser` تفحص المفتاح **في
       //   الكود** (`ADR-0013` القاعدة 3)، ⛔ **و`users` مغلقة للكتابة.**
@@ -157,23 +157,33 @@ class _UserTile extends ConsumerWidget {
   final UserCard user;
   final bool isSelf;
 
+  /// ★★ **العنوان `الاسم : الدور`** — `AM-008` ④ حرفياً.
+  ///
+  /// ⚠️ **وبلا دورٍ لا نقطتان معلَّقتان** — ⟵ **«فلانٌ :» سطرٌ ناقصٌ يُقرأ
+  /// عطلاً**، ★ **و«بلا دور» تقول الحقيقة** (`FR-M1-04`: الدور اختياري).
+  String get _titleLine => switch (user.roleName) {
+        final String role when role.trim().isNotEmpty => '${user.name} : $role',
+        _ => '${user.name} : بلا دور',
+      };
+
   @override
   Widget build(BuildContext context, WidgetRef ref) => EntityTile(
-        title: user.name,
-        // ★ الدور أوضح للمدير من البريد، ⛔ والبريد بديلٌ لا زينة.
-        subtitle: user.roleName ?? user.email ?? 'بلا دور',
-        // ★★ **أيقونة 🕘 مقدّمةً** — `FR-M18-10` · `FR-M18-11`
-        //   («**المستخدمون**» آخرُ الشاشات المشمولة).
+        title: _titleLine,
+        // ★★ **والبريدُ سطراً ثانياً** — `AM-008` ④: ⛔ **لا بديلاً عن الدور.**
+        //   ⚠️ **وحسابٌ بلا بريدٍ حالةٌ لا تقع عملياً** (`FR-M1-01` يفرضه)،
+        //   ★ **ويُصرَّح بها بدل سطرٍ خاوٍ.**
+        subtitle: user.email ?? 'بلا بريد',
+        // ★★★ **الصورة الرمزية مقدّمةً** — `AM-008` ④: **دائريةٌ بالحرف الأول.**
         //
-        // ★★ **وكانت تُوضَع يدوياً أولَ صفٍّ مبنيٍّ في هذه الشاشة** —
-        //   ⛔ **و[EntityTile.leading] تحمل الحالتين معاً**، ⟵ **فسقط
-        //   المبررُ الذي كان يُبقي البطاقة خارج المكوّن.**
-        leading: auditTrailLeading(
-          ref,
-          entityType: userEntityType,
-          entityId: user.userId,
-          title: user.name,
-        ),
+        // ⛔⛔★★ **وأيقونة 🕘 انتقلت إلى صفّ الإجراءات ولم تسقط** —
+        //   `FR-M18-10` و`FR-M18-11` («**المستخدمون**» من الشاشات المشمولة):
+        //   ⟵ **والمقدّمةُ موضعٌ واحد لا يسع الاثنين**، ★ **وكلاهما مدخلٌ
+        //   لا زينة** ⛔ **فلا يُسقَط أحدهما لتوسعة الآخر.**
+        leading: QtmsAvatar(name: user.name),
+        // ★★★ **والإجراءات على سطر البريد عند طرفه الآخر** — `AM-008` ④:
+        //   ⟵ **فالاسمُ والدورُ يبقيان بعرضٍ كامل**، ⛔ **ولا صفَّ إجراءاتٍ
+        //   مستقلٌّ بفاصلٍ شعري.**
+        actionsPlacement: EntityActionsPlacement.subtitleRow,
         badges: <Widget>[
           // ★★ **«أنت» حالةٌ لا قيمة** — ⟵ **فموضعُها سطرُ الحالات**،
           //   ⛔ **لا [EntityTile.trailing]** الذي يرسم **أرقاماً جدولية.**
@@ -190,6 +200,14 @@ class _UserTile extends ConsumerWidget {
             const StatusPill(label: 'معطَّل', triad: SemanticTriads.danger),
         ],
         actions: <Widget>[
+          // ★★ **أيقونة 🕘 أولَ الصفّ** — ⛔ **و`null` عند غياب الصلاحية
+          //   فلا فراغَ يزيح البريد** (`auditTrailLeading`).
+          ?auditTrailLeading(
+            ref,
+            entityType: userEntityType,
+            entityId: user.userId,
+            title: user.name,
+          ),
           PermissionGate(
             permission: Permission.userAmend,
             child: IconButton(

@@ -21,6 +21,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -89,10 +91,9 @@ class _ReportViewScreenState extends ConsumerState<ReportViewScreen> {
         ref.watch(hasPermissionProvider(Permission.documentExport));
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: Text(widget.report.title, style: TypeScale.titleSm),
-      ),
+      // ★★ **اسمُ الشاشة هو عنوان التقرير نفسُه** — ⟵ **ديناميكيٌّ فعلاً**
+      //    (`ui-guidelines.md` §3-أ العنصر ②)، ⛔ **لا «التقارير» لكلٍّ منها.**
+      appBar: QtmsTopBar(screenTitle: widget.report.title),
       floatingActionButton: canExport && table != null
           ? FloatingActionButton.extended(
               onPressed: _busy ? null : () => _export(table),

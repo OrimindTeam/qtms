@@ -85,7 +85,6 @@ void main() {
         name: 'رعوي مثال',
         phone: '777111222',
         isActive: true,
-        sourceIds: const <String>['SRC-001'],
       ),
     ]);
   });
@@ -293,7 +292,9 @@ void main() {
         masterData: masterData,
       );
       expect(find.text('INC-20260825-0001'), findsOneWidget);
-      expect(find.text('1 نوع · 120 حبة'), findsOneWidget);
+      // ★★ **واسمُ المصدر في السطر الثاني** — `AM-009` ③: ⟵ **فالمرشِّح
+      //    يبدأ على «كل المصادر»**، ⛔ **وصفٌّ بلا مصدرٍ لا يُقرأ.**
+      expect(find.text('مصدر رداع · 1 نوع · 120 حبة'), findsOneWidget);
     });
 
     testWidgets('★★★ FR-M6-14 · GR-07: ⛔ ولا زر حذف إطلاقاً',
@@ -363,6 +364,26 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════
 
   group('★★ نموذج الوارد — FR-M6-02 · FR-M6-10', () {
+    /// ★★★ **يضيف سطرَ نوعٍ بالنمط الجديد** — `AM-009` ④: **زرُّ `+` ثم
+    /// منسدلٌ يُصفّي ثم العدد** ⛔ **لا صفوفَ كتالوجٍ جاهزة.**
+    Future<void> addLine(
+      WidgetTester t, {
+      String item = 'عود',
+      required String quantity,
+    }) async {
+      await t.tap(find.text('إضافة نوع'));
+      await t.pumpAndSettle();
+      await t.tap(find.byType(DropdownMenu<String>).last);
+      await t.pumpAndSettle();
+      await t.tap(find.text(item).last);
+      await t.pumpAndSettle();
+      await t.enterText(
+        find.widgetWithText(TextField, 'العدد').last,
+        quantity,
+      );
+      await t.pump();
+    }
+
     Future<void> openForm(WidgetTester t, {bool requiresSupplier = true}) async {
       // ★ **إلزامية الرعوي من سجل المصدر** — `FR-M6-03` · `FR-M2-02`.
       masterData.emitSources(<SourceCard>[
@@ -416,8 +437,11 @@ void main() {
       //    ولا يُخزَّن أصلاً**، ⟵ **وهذا هو الشطر الثاني من القاعدة.**
       await openForm(t, requiresSupplier: false);
       expect(find.text('الرعوي'), findsNothing);
-      await t.enterText(find.byType(TextFormField).first, '120');
-      await t.pump();
+      await addLine(t, quantity: '120');
+      // ★ **والنموذجُ صار أطول بحقل المصدر** — ⟵ **فيُمرَّر إلى الزرّ**:
+      //   ⛔ **ولا يُنقَر ما هو خارج الشاشة.**
+      await t.ensureVisible(find.text('اعتماد'));
+      await t.pumpAndSettle();
       await t.tap(find.text('اعتماد'));
       await t.pumpAndSettle();
 
@@ -435,8 +459,11 @@ void main() {
       await openForm(t);
       await t.tap(find.text('رعوي مثال'));
       await t.pump();
-      await t.enterText(find.byType(TextFormField).first, '50');
-      await t.pump();
+      await addLine(t, quantity: '50');
+      // ★ **والنموذجُ صار أطول بحقل المصدر** — ⟵ **فيُمرَّر إلى الزرّ**:
+      //   ⛔ **ولا يُنقَر ما هو خارج الشاشة.**
+      await t.ensureVisible(find.text('اعتماد'));
+      await t.pumpAndSettle();
       await t.tap(find.text('اعتماد'));
       await t.pumpAndSettle();
 
@@ -446,8 +473,11 @@ void main() {
     testWidgets('★★★ FR-M6-03: ويُرفض الاعتماد بلا رعوي حين يشترطه المصدر',
         (WidgetTester t) async {
       await openForm(t);
-      await t.enterText(find.byType(TextFormField).first, '50');
-      await t.pump();
+      await addLine(t, quantity: '50');
+      // ★ **والنموذجُ صار أطول بحقل المصدر** — ⟵ **فيُمرَّر إلى الزرّ**:
+      //   ⛔ **ولا يُنقَر ما هو خارج الشاشة.**
+      await t.ensureVisible(find.text('اعتماد'));
+      await t.pumpAndSettle();
       await t.tap(find.text('اعتماد'));
       await t.pumpAndSettle();
 
@@ -464,8 +494,11 @@ void main() {
       await openForm(t);
       await t.tap(find.text('رعوي مثال'));
       await t.pump();
-      await t.enterText(find.byType(TextFormField).first, '50');
-      await t.pump();
+      await addLine(t, quantity: '50');
+      // ★ **والنموذجُ صار أطول بحقل المصدر** — ⟵ **فيُمرَّر إلى الزرّ**:
+      //   ⛔ **ولا يُنقَر ما هو خارج الشاشة.**
+      await t.ensureVisible(find.text('اعتماد'));
+      await t.pumpAndSettle();
       await t.tap(find.text('اعتماد'));
       await t.pumpAndSettle();
 

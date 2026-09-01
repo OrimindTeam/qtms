@@ -16,6 +16,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/audit_labels.dart';
 import '../../../core/ui/filter_bar.dart';
@@ -33,10 +35,7 @@ class AuditLogScreen extends ConsumerWidget {
         ref.watch(centralAuditLogProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('سجل التدقيق', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'سجل التدقيق'),
       body: Column(
         children: <Widget>[
           const _FilterBar(),

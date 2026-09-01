@@ -92,6 +92,7 @@ class MasterDataTile extends StatelessWidget {
     this.leading,
     this.badges = const <Widget>[],
     this.actions = const <Widget>[],
+    this.actionsPlacement = EntityActionsPlacement.stacked,
     super.key,
   });
 
@@ -113,6 +114,9 @@ class MasterDataTile extends StatelessWidget {
   /// أزرار الإجراءات.
   final List<Widget> actions;
 
+  /// ★ موضع الإجراءات — `AM-008` ⑥. راجع [EntityActionsPlacement].
+  final EntityActionsPlacement actionsPlacement;
+
   @override
   Widget build(BuildContext context) => EntityTile(
         title: title,
@@ -120,6 +124,7 @@ class MasterDataTile extends StatelessWidget {
         leading: leading,
         badges: badges,
         actions: actions,
+        actionsPlacement: actionsPlacement,
       );
 }
 

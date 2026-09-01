@@ -11,14 +11,22 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
 
+/// ★★ **والأدوار تُحقَن كذلك بعد `AM-008` ③** — ⟵ **فالقائمة المنسدلة
+/// تقرأ `rolesProvider`**، ⛔ **ولا تُترَك بلا مستودعٍ فتُقرأ خطأً.**
 Future<void> pumpForm(
   WidgetTester tester,
   FakeUserAdmin admin, {
   UserCard? existing,
+  List<RoleCard> roles = const <RoleCard>[],
 }) async {
+  final FakeRoleAdmin roleAdmin = FakeRoleAdmin()..emit(roles);
+  addTearDown(roleAdmin.dispose);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [userAdminProvider.overrideWithValue(admin)],
+      overrides: [
+        userAdminProvider.overrideWithValue(admin),
+        roleAdminProvider.overrideWithValue(roleAdmin),
+      ],
       child: MaterialApp(
         locale: const Locale('ar'),
         home: Scaffold(body: UserFormSheet(existing: existing)),
@@ -28,25 +36,99 @@ Future<void> pumpForm(
   await tester.pump();
 }
 
-/// يملأ الحقول الثلاثة الأولى بقيم صحيحة.
-Future<void> fillValid(WidgetTester tester) async {
+/// يملأ الحقول الإلزامية بقيم صحيحة.
+///
+/// ⚠️★★★ **وكلمة المرور الأولية صارت منها في الإنشاء** — `CR-005`
+/// (2026-08-31): ⟵ **فبدونها يُرفَض الطلب محلياً ولا يصل المستودع.**
+/// ⛔⛔ **والقيمة هنا قيمةُ اختبارٍ لا سرَّ حقيقي** — ★ **ولا نظير لها في أي
+/// بيئة** (`secrets-management-policy.md`).
+Future<void> fillValid(WidgetTester tester, {bool isCreate = true}) async {
   final Finder fields = find.byType(TextField);
   await tester.enterText(fields.at(0), 'أحمد المقوت');
   await tester.enterText(fields.at(1), 'ahmed@example.com');
+  if (isCreate) {
+    await tester.enterText(fields.at(3), 'ThisIsNotARealSecret');
+    await tester.enterText(fields.at(4), 'ThisIsNotARealSecret');
+  }
   await tester.pump();
 }
 
 void main() {
   group('★ الإنشاء', () {
-    testWidgets('⛔★★ FR-M1-02: لا حقل كلمة مرور في النموذج إطلاقاً',
+    // ⚠️★★★ **واستُبدل اختبار «لا حقل كلمة مرور» بـ`CR-005`** (2026-08-31)
+    //    — ★ **ونقيضُه هو المطلوب الآن.** ⛔⛔ **و`FR-M1-02` قائمٌ بلا مساس:**
+    //    ★ **حارسُه في طبقة النطاق** (`forbiddenUserFields`) **وفي الدالة
+    //    السحابية** ⟵ **لا في غياب الحقل من الشاشة.**
+    testWidgets('⚠️★★★ CR-005: حقلا كلمة المرور الأولية في الإنشاء وحده',
         (WidgetTester tester) async {
-      // ★ **«لا يوجد حقل كلمة مرور في سجل المستخدم»** — ⟵ **ولا في شاشته**،
-      //   ★ **ويضبطها صاحبُها برابط استرجاع** (`authentication-policy.md` §5).
       await pumpForm(tester, FakeUserAdmin());
 
-      expect(find.byType(TextField), findsNWidgets(3));
-      expect(find.textContaining('كلمة المرور'), findsNothing);
-      expect(find.textContaining('كلمة مرور'), findsOneWidget); // نصّ الإرشاد
+      // ★ **خمسةُ حقول: الاسم · البريد · الهاتف · الكلمة · تأكيدها.**
+      expect(find.byType(TextField), findsNWidgets(5));
+      expect(find.text('كلمة المرور الأولية'), findsOneWidget);
+      expect(find.text('تأكيد كلمة المرور'), findsOneWidget);
+      // ⛔⛔ **والمُدخَل مخفيٌّ افتراضياً** — ★ **ولا يُعرَض نصّاً ظاهراً.**
+      expect(
+        tester
+            .widgetList<TextField>(find.byType(TextField))
+            .where((TextField field) => field.obscureText)
+            .length,
+        2,
+      );
+    });
+
+    testWidgets('⛔★★★ CR-005: ولا حقلَ كلمةِ مرورٍ في التعديل إطلاقاً',
+        (WidgetTester tester) async {
+      // ★★ **«الإدارة لا تقرأ كلمةً قائمة»** — `authentication-policy.md` §5
+      //    (**الشطر الباقي بحرفه**): ⟵ **وحقلٌ هنا كان يُوهم بمسارٍ لا وجود له.**
+      await pumpForm(tester, FakeUserAdmin(), existing: testCard());
+      expect(find.text('كلمة المرور الأولية'), findsNothing);
+      expect(find.text('تأكيد كلمة المرور'), findsNothing);
+    });
+
+    testWidgets('⛔★★★ CR-005: وكلمةٌ لا تطابق تأكيدَها تُرفَض محلياً',
+        (WidgetTester tester) async {
+      final FakeUserAdmin admin = FakeUserAdmin();
+      await pumpForm(tester, admin);
+      final Finder fields = find.byType(TextField);
+      await tester.enterText(fields.at(0), 'أحمد المقوت');
+      await tester.enterText(fields.at(1), 'ahmed@example.com');
+      await tester.enterText(fields.at(3), 'ThisIsNotARealSecret');
+      await tester.enterText(fields.at(4), 'ThisIsNotARealSecretX');
+      await tester.pump();
+
+      await tester.tap(find.byType(FilledButton));
+      await tester.pump();
+
+      // ⛔ **ولا رحلةَ شبكةٍ أصلاً** — `ADR-0012`.
+      expect(admin.createdProfile, isNull);
+      expect(
+        find.text(catalogText(CatalogMessage.operationFailed)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('★★★ AM-008 ③: الدور يُختار من قائمة منسدلة ويصل المستودع',
+        (WidgetTester tester) async {
+      final FakeUserAdmin admin = FakeUserAdmin();
+      await pumpForm(
+        tester,
+        admin,
+        roles: <RoleCard>[testRole(roleId: 'ROLE-9', name: 'محاسب')],
+      );
+      // ⛔ **ولا حقلَ نصٍّ للدور** — ★ **قائمةٌ منسدلة** (`AM-008` ③).
+      expect(find.byType(DropdownButtonFormField<String?>), findsOneWidget);
+
+      await fillValid(tester);
+      await tester.tap(find.byType(DropdownButtonFormField<String?>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('محاسب').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(FilledButton));
+      await tester.pump();
+
+      expect(admin.createdProfile?.roleId, 'ROLE-9');
     });
 
     testWidgets('⛔ ولا حقل سبب تعديل في الإنشاء — لا «قبل» قبل الإنشاء',
@@ -105,7 +187,7 @@ void main() {
       //    الآن على الوصول لا على الوجود.**
       final FakeUserAdmin admin = FakeUserAdmin();
       await pumpForm(tester, admin, existing: testCard());
-      await fillValid(tester);
+      await fillValid(tester, isCreate: false);
       await tester.enterText(find.byType(TextField).at(3), 'تصحيح الاسم');
       await tester.pump();
 

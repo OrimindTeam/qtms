@@ -75,8 +75,8 @@
 | الكيان | الحقول الحاكمة | قيد التفرد |
 |---|---|---|
 | `Source` | `name` · `normalizedName` · **`requiresSupplierOnIntake`** · `isActive` | **الاسم المُطبَّع** |
-| `Supplier` | **`sourceIds: List`** · `name` · `phone` · `normalizedPhone` · `isActive` | **الرقم المُطبَّع** |
-| `Dealer` | `name` · `phone` · `normalizedPhone` · `isActive` · `disableReason` | **الرقم المُطبَّع** · **ولا يحمل مصدراً** |
+| `Supplier` | ⚠️★★★ `name` · `phone` · `normalizedPhone` · `notes` · `isActive` — ⛔⛔ **ولا يحمل مصدراً بعد `CR-006`** (2026-08-31) | **الرقم المُطبَّع** · ★ **ويتبع كل المصادر الحالية والمستقبلية تلقائياً** — ★ **تماماً كـ`Dealer`** |
+| `Dealer` | `name` · `phone` · `normalizedPhone` · `isActive` · `disableReason` | **الرقم المُطبَّع** · **ولا يحمل مصدراً** — ★★ **وهو السابقةُ التي قِيسَ عليها `Supplier` في `CR-006`** |
 | `Item` | **`sourceIds: List`** · `name` · `normalizedName` · `nature` · `pieceWeightGrams?` · **`unit`** · **`isSystemDefault`** · `isActive` | **الاسم المُطبَّع على مستوى النظام** |
 | `AppSettings` | بيانات المنشأة · العملة والأرقام | **بندان فقط · كتابة واحدة** |
 

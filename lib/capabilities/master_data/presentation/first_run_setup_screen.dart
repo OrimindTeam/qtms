@@ -20,6 +20,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/inline_banner.dart';
@@ -67,13 +69,10 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          backgroundColor: SemanticColors.surface,
-          title: const Text('الإعداد التأسيسي', style: TypeScale.titleSm),
-          // ⛔★★ **ولا زر رجوع ولا تخطٍّ** — `FR-M21-04`: «شاشة إلزامية لا
-          //    يمكن تخطّيها».
-          automaticallyImplyLeading: false,
-        ),
+        // ⛔★★ **ولا زر رجوع ولا تخطٍّ** — `FR-M21-04`: «شاشة إلزامية لا
+        //    يمكن تخطّيها». ★ **والشاشة خارج الصدَفة أصلاً فلا مسارَ يُرجَع
+        //    إليه**، ⟵ **فلا `leading` يُبنى لها.**
+        appBar: const QtmsTopBar(screenTitle: 'الإعداد التأسيسي'),
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(Spacing.space16),

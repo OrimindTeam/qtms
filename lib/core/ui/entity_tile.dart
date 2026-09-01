@@ -20,6 +20,38 @@ import 'package:flutter/material.dart';
 
 import '../design/design_tokens.dart';
 
+/// ⛔⛔★★★ **موضعُ إجراءات بطاقة الكيان** — `AM-008` ⑥.
+///
+/// ★★ **وكان الوضعُ واحداً لا اثنين:** ⟵ **صفٌّ مستقلٌّ بفاصلٍ شعري لكل
+/// بطاقة** — ★ **فبطاقةُ مصدرٍ بزرّ «تعديل» واحد كانت ثلاثةَ مستويات:**
+/// **اسمٌ وسطرٌ ثانوي ⟵ فاصل ⟵ صفُّ إجراءٍ يتيم.** ⛔ **وارتفاعُها يقارب
+/// ضعفَ ما تحمله من معلومة.**
+enum EntityActionsPlacement {
+  /// ★ **في صفّ المعلومات نفسِه عند نهايته** — ⛔ **بلا فاصلٍ وبلا صفٍّ ثانٍ.**
+  ///
+  /// ★ **للأزرار الأيقونية وحدها وحتى ثلاثةٍ منها** — ⛔ **ولا زرَّ نصّياً.**
+  inline,
+
+  /// ★ **صفٌّ مستقلٌّ بفاصلٍ شعري قبله** — §6.د · ★ **وهو الافتراض.**
+  ///
+  /// ★ **لإجراءٍ نصّيٍّ عريض أو لأكثر من ثلاثة** — ⟵ **فإدماجُها يعصر
+  /// عمودَ النصّ.**
+  stacked,
+
+  /// ★★ **عند نهاية سطر النصّ الثانوي** — `AM-008` ④.
+  ///
+  /// ★★ **وهو تخطيط بطاقة المستخدم حرفياً:** **مقدّمةٌ وعنوانٌ في السطر
+  /// الأول، والسطرُ الثاني نصُّه الثانوي ثم إجراءاتُه عند طرفه الآخر.**
+  ///
+  /// ⛔⛔★★ **ولماذا ليس [inline] هناك:** ★ **أربعةُ أزرارٍ أيقونية تشغل
+  /// `4 × minTouch`** — ⟵ **وإدماجُها في صفّ العنوان كان يترك للاسم والدور
+  /// معاً أقلَّ من ربع العرض على شاشة 360**، ⛔ **فيُقتطَع الاسمُ نفسُه.**
+  /// ★ **ووضعُها على سطر النصّ الثانوي يُبقي العنوانَ بعرضٍ كامل** —
+  /// ⟵ **والمقتطَعُ عند الضيق هو البريدُ لا الاسم**، ★ **وترتيبُ الإسقاط
+  /// مقصود.**
+  subtitleRow,
+}
+
 /// بطاقة كيانٍ في قائمة.
 class EntityTile extends StatelessWidget {
   /// ينشئ البطاقة.
@@ -30,6 +62,7 @@ class EntityTile extends StatelessWidget {
     this.trailing,
     this.badges = const <Widget>[],
     this.actions = const <Widget>[],
+    this.actionsPlacement = EntityActionsPlacement.stacked,
     this.rejection,
     this.onTap,
     this.semanticLabel,
@@ -51,8 +84,17 @@ class EntityTile extends StatelessWidget {
   /// حبّات الحالة.
   final List<Widget> badges;
 
-  /// ★ صفّ الإجراءات — **يُفصَل بخطٍّ شعري إن وُجد** (§6.د).
+  /// ★ الإجراءات — **موضعُها يحكمه [actionsPlacement]** (§6.د).
   final List<Widget> actions;
+
+  /// ⛔⛔★★★ **موضعُ الإجراءات** — `AM-008` ⑥ · `design-system.md` §6.د.
+  ///
+  /// ⚠️★★ **والافتراض [EntityActionsPlacement.stacked] — وهو تحفّظٌ مقصود:**
+  /// ★ **الإدماج يصلح للأزرار الأيقونية وحدها**، ⟵ **وزرٌّ نصّيٌّ مُدمَجٌ
+  /// ينمو بمقياس الخط فيعصر اسمَ الكيان** — ★ **وهو عطلُ `DEBT-48` بعينه.**
+  /// ⛔ **فلا يُقلَب الافتراضُ لتصير كلُّ بطاقةٍ في التطبيق مُدمَجةً بضربة
+  /// واحدة**، ★ **بل يُطلَب الإدماجُ حيث قِيسَ أنه يصلح.**
+  final EntityActionsPlacement actionsPlacement;
 
   /// ★★★ **سببُ رفضٍ من السحابة** — ⛔ **يُعرَض داخل البطاقة لا خارجها.**
   ///
@@ -75,6 +117,14 @@ class EntityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ★ **وإجراءٌ واحدٌ على الأقل شرطُ الإدماج** — ⟵ **فالقائمة الفارغة
+    //   لا تُنتج مسافةً ولا فاصلاً في أيٍّ من الوضعين.**
+    final bool hasActions = actions.isNotEmpty;
+    final bool isInline =
+        hasActions && actionsPlacement == EntityActionsPlacement.inline;
+    final bool onSubtitleRow =
+        hasActions && actionsPlacement == EntityActionsPlacement.subtitleRow;
+
     final Widget info = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
@@ -89,11 +139,30 @@ class EntityTile extends StatelessWidget {
             children: <Widget>[
               Text(title, style: TypeScale.titleSm),
               const SizedBox(height: Spacing.space4),
-              Text(
-                subtitle,
-                style: TypeScale.bodyMd
-                    .copyWith(color: SemanticColors.textSecondary),
-              ),
+              // ★★ **والنصّ الثانوي يتقاسم سطرَه مع الإجراءات عند الطلب**
+              //    (`AM-008` ④) — ⟵ **فالعنوان يبقى بعرضٍ كامل.**
+              if (onSubtitleRow)
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        subtitle,
+                        style: TypeScale.bodyMd
+                            .copyWith(color: SemanticColors.textSecondary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: Spacing.space8),
+                    ...actions,
+                  ],
+                )
+              else
+                Text(
+                  subtitle,
+                  style: TypeScale.bodyMd
+                      .copyWith(color: SemanticColors.textSecondary),
+                ),
             ],
           ),
         ),
@@ -102,6 +171,17 @@ class EntityTile extends StatelessWidget {
           // ★★ **أرقامٌ جدولية** — §6.د: ⟵ **فعمودُ القيم لا يهتزّ بين
           //    بطاقةٍ وأخرى**، ★ **وهي المقارنة البصرية التي يعتمدها المالك.**
           Text(value, style: TypeScale.numeric),
+        ],
+        // ⛔⛔★★★ **والإجراءات في صفّ المعلومات نفسِه** — `AM-008` ⑥:
+        //    ★ **عند نهاية الصفّ (يسارُه في RTL)**، ⟵ **فلا صفَّ ثانياً
+        //    ولا فاصلَ شعرياً لأيقونةٍ واحدة.**
+        //
+        // ⚠️ **وعمودُ النصّ `Expanded` فلا تُزاحمه:** ★ **الأيقوناتُ بعرضٍ
+        //    ثابت**، ⛔ **ولا نصَّ فيها ينمو بمقياس الخط فيعصر الاسم**
+        //    (`DEBT-48` — العطلُ نفسُه في رأس السياق).
+        if (isInline) ...<Widget>[
+          const SizedBox(width: Spacing.space8),
+          ...actions,
         ],
       ],
     );
@@ -162,7 +242,7 @@ class EntityTile extends StatelessWidget {
               ),
             ),
           ],
-          if (actions.isNotEmpty) ...<Widget>[
+          if (hasActions && !isInline && !onSubtitleRow) ...<Widget>[
             const Padding(
               // ★ **إيقاعٌ غير متماثل عمداً** — ⟵ **الفاصلُ أقربُ لصفّ
               //   الإجراءات منه للنصّ**، ★ **فينتمي بصرياً لما يفصله عنه.**

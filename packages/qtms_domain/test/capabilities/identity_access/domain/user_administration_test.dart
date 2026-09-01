@@ -324,4 +324,81 @@ void main() {
       expect(ruleOf(validateRole(name: 'م' * 51)), 'FR-M1-03');
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ⚠️★★★ CR-005 — كلمة المرور الأولية (2026-08-31)
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('⚠️★★★ CR-005 — كلمة المرور الأولية', () {
+    // ⛔⛔ **وكلُّ قيمةٍ هنا قيمةُ اختبارٍ لا سرَّ حقيقي** — ★ **ولا نظير لها
+    //    في أي بيئة** (`secrets-management-policy.md`).
+    const String valid = 'ThisIsNotARealSecret';
+
+    test('✅ كلمةٌ بطول الحدّ فأكثر مع تأكيدٍ مطابق تمرّ', () {
+      expect(
+        ruleOf(
+          validateInitialPassword(password: valid, confirmation: valid),
+        ),
+        isNull,
+      );
+    });
+
+    test('⛔★★ وأقصرُ من الحدّ تُرفَض — والحدُّ ثمانيةٌ من المستند', () {
+      // ★ **الرقمُ مقروءٌ من الثابت لا مكتوبٌ في الاختبار** — ⟵ **فتغييرُه
+      //   في موضعٍ واحد** (`authentication-policy.md` §5).
+      expect(initialPasswordMinLength, 8);
+      final String short = 'a' * (initialPasswordMinLength - 1);
+      expect(
+        ruleOf(validateInitialPassword(password: short, confirmation: short)),
+        'CR-005',
+      );
+    });
+
+    test('⛔★★ وتأكيدٌ لا يطابق يُرفَض — ⟵ فلا يُنشأ حسابٌ لا يُدخَل إليه', () {
+      expect(
+        ruleOf(
+          validateInitialPassword(password: valid, confirmation: '${valid}X'),
+        ),
+        'CR-005',
+      );
+    });
+
+    test('⛔⛔★★★ ولا تُقصّ الأطراف — الفراغ محرفٌ صالح', () {
+      // ★★ **وقصُّه يجعل ما يُخزَّن غيرَ ما كتبه المدير** ⛔ **فيفشل الدخول.**
+      const String spaced = ' $valid ';
+      final Outcome<InitialPassword> outcome =
+          validateInitialPassword(password: spaced, confirmation: spaced);
+      expect((outcome as Success<InitialPassword>).value.value, spaced);
+    });
+
+    test('⛔⛔★★★ و`toString` لا تكشف القيمة أبداً', () {
+      // ★★★ **حارسٌ لا زينة:** ★ **رسائلُ الأخطاء وسجلاتُ التشخيص تستدعيها
+      //    ضمناً** — ⟵ **فسلسلةٌ عارية كانت تتسرّب بلا أن يقصد أحد**،
+      //    ⛔ **وهو ما تمنعه قاعدة «لا كلمة مرور في أي كود ولا رسالة».**
+      final InitialPassword password =
+          (validateInitialPassword(password: valid, confirmation: valid)
+                  as Success<InitialPassword>)
+              .value;
+      expect(password.toString(), isNot(contains(valid)));
+      expect('$password', isNot(contains(valid)));
+    });
+
+    test('⛔★★★ و`password` يبقى حقلاً ممنوعاً في سجل المستخدم — FR-M1-02', () {
+      // ⚠️⚠️ **و`CR-005` لم يمسّ هذا الحارس بحرف** — ★ **الكلمة تعبر إلى
+      //    خدمة المصادقة**، ⛔ **ولا تُخزَّن في `users/{userId}`.**
+      expect(forbiddenUserFields, contains('password'));
+      expect(
+        ruleOf(
+          validateUserProfile(
+            const UserProfileInput(
+              name: 'أحمد',
+              email: 'a@b.com',
+              extraFields: <String>{'password'},
+            ),
+          ),
+        ),
+        'FR-M1-02',
+      );
+    });
+  });
 }

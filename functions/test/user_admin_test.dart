@@ -4,6 +4,7 @@ import 'package:qtms_functions/src/identity_claims.dart';
 import 'package:qtms_functions/src/identity_gateway.dart';
 import 'package:qtms_functions/src/permission_sync.dart';
 import 'package:qtms_functions/src/user_admin.dart';
+import 'package:qtms_functions/src/user_admin_handler.dart';
 import 'package:test/test.dart';
 
 const String ownerUid = 'uid-owner';
@@ -613,6 +614,48 @@ void main() {
       expect(first.updateMask, second.updateMask);
       // ★ ومعرّف القيد هو معرّف الطلب — فإعادة الإرسال تكتب فوقه ولا تُنشئ.
       expect(first.entry.id, second.entry.id);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ⚠️★★★ CR-005 — كلمة المرور الأولية (2026-08-31)
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('⚠️★★★ CR-005 — كلمة المرور الأولية لا تتسرّب', () {
+    test('⛔⛔★★★ ولا مفتاحَ ممنوعٍ في قيد التدقيق — لا «قبل» ولا «بعد»', () {
+      // ★★★ **والقيد يقول «أُنشئ حساب» لا «بأي كلمة»** — §2.2 من `CR-005`.
+      final UserAdminAccepted plan = acceptedOf(planUserAdmin(
+        request(userProfile: profile()),
+        UserAdminOperation.createUser,
+      ));
+      for (final String forbidden in <String>[
+        'password',
+        'passwordHash',
+        'deviceId',
+        'initialPassword',
+        'initialPasswordConfirm',
+      ]) {
+        expect(plan.entry.valuesAfter.containsKey(forbidden), isFalse,
+            reason: forbidden);
+        expect(plan.entry.valuesBefore.containsKey(forbidden), isFalse,
+            reason: forbidden);
+        expect(plan.fields.containsKey(forbidden), isFalse, reason: forbidden);
+        expect(plan.updateMask.contains(forbidden), isFalse, reason: forbidden);
+      }
+    });
+
+    test('⛔⛔★★★ و`password` يبقى مفتاحاً ممنوعاً — ⛔ لم يُخفَّف الحارس', () {
+      // ⚠️⚠️ **وهذا جوهرُ الفصل:** ★ **`forbiddenUserFields` تحرس *سجلَّ
+      //    المستخدم*** — ⟵ **والمفتاح الجديد قناةُ نقلٍ تُستثنى صراحةً**،
+      //    ⛔ **لا بتخفيف القائمة.** ★ **وتقاطعُ المجموعتين يجب أن يبقى خاوياً.**
+      expect(forbiddenUserFields, contains('password'));
+      expect(
+        forbiddenUserFields.intersection(
+          transportOnlyUserFields.map((String key) => key.toLowerCase()).toSet(),
+        ),
+        isEmpty,
+      );
+      expect(transportOnlyUserFields, hasLength(2));
     });
   });
 }

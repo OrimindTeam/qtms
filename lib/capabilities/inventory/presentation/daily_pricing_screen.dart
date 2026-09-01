@@ -21,6 +21,8 @@ import 'package:flutter/services.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -46,10 +48,7 @@ class DailyPricingScreen extends ConsumerWidget {
     final PricingStatusFilter filter = ref.watch(pricingFilterProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('التسعير اليومي', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'التسعير اليومي'),
       body: Column(
         children: <Widget>[
           // ★★★ **رأس السياق الموحّد** — §5b نمط `P3` (`ADR-0021`).
@@ -60,8 +59,11 @@ class DailyPricingScreen extends ConsumerWidget {
           QtmsContextHeader(
             sources: sources,
             selectedSourceId: sourceId,
-            onSourceSelected: (String id) =>
-                ref.read(selectedSourceProvider.notifier).select(id),
+            // ⛔ **وشاشةُ عمليةٍ على مصدرٍ واحد** — ★ **بلا خيار «الكل»**
+            //   (`AM-009` ③ · `A-01`): ⟵ **و`null` لا تصل هنا أبداً.**
+            onSourceSelected: (String? id) {
+              if (id != null) ref.read(selectedSourceProvider.notifier).select(id);
+            },
             day: today,
             filters: const _PricingFilterBar(),
             // ★ **«الكل» ليس مرشِّحاً نشطاً** — ⟵ **فلا يُعَدّ.**

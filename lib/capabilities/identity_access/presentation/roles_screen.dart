@@ -15,6 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/design/theme_extensions.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -37,10 +39,7 @@ class RolesScreen extends ConsumerWidget {
     final AsyncValue<List<RoleCard>> roles = ref.watch(rolesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('الأدوار', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'الأدوار'),
       // ★★ **زر الإنشاء خلف `roleWrite`** — «الصلاحيات تُخفي لا تُعطِّل»
       //   (`ui-guidelines.md` §2). ⚠️⚠️ **وهذا إخفاء لا حماية**: الكتابة
       //   المباشرة على `roles` مغلقة بـ`allow write: if false`، **والفحص

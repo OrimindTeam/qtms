@@ -385,7 +385,9 @@ final class MasterDataHandler {
   static _Payload? _supplierPayload(CallableRequest call) {
     final Outcome<ValidatedSupplier> outcome = validateSupplier(
       SupplierInput(
-        sourceIds: call.readStringList('sourceIds') ?? const <String>[],
+        // ⛔⛔★★★ **ولا `sourceIds` تُقرأ من الحمولة** — `CR-006`:
+        //    ★ **عميلٌ قديمٌ يرسلها تُتجاهَل ولا تُكتَب**، ⟵ **ولا يُرفَض
+        //    طلبُه**: ⛔ **فالحقل لم يصر ممنوعاً بل صار بلا معنى.**
         name: call.readString('name') ?? '',
         phone: call.readString('phone') ?? '',
         notes: call.readString('notes'),

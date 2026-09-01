@@ -87,7 +87,7 @@ final class FunctionsMasterDataRepository implements MasterDataAdminRepository {
   Map<String, Object?> _supplierFields(ValidatedSupplier supplier) =>
       <String, Object?>{
         'requestId': _newRequestId(),
-        'sourceIds': supplier.sourceIds,
+        // ⛔⛔★★★ **ولا `sourceIds` تُرسَل** — `CR-006` (2026-08-31).
         'name': supplier.name,
         'phone': supplier.phone,
         if (supplier.notes != null) 'notes': supplier.notes,

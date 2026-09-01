@@ -16,6 +16,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/entity_tile.dart';
 import '../../../core/messages/error_messages.dart';
@@ -35,10 +37,7 @@ class ItemsScreen extends ConsumerWidget {
     final AsyncValue<List<ItemCard>> items = ref.watch(itemsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('الأنواع', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'الأنواع'),
       floatingActionButton: const PermissionGate(
         permission: Permission.itemWrite,
         child: _NewItemButton(),

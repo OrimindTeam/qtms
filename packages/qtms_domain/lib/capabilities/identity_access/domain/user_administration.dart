@@ -138,6 +138,59 @@ Outcome<ValidatedUserProfile> validateUserProfile(UserProfileInput input) {
   );
 }
 
+/// ★★ الحد الأدنى لطول كلمة المرور الأولية — `authentication-policy.md` §5.
+///
+/// ⚠️★★ **وكان البند 🔶 «حد أدنى معقول» بلا رقم** — ⟵ **ورُقِّم صراحةً في
+/// المستند نفسِه عند اعتماد `CR-005`** (2026-08-31): ⛔ **ولا رقمَ يُخترَع
+/// في الكود بلا مستندٍ يحمله.**
+const int initialPasswordMinLength = 8;
+
+/// ⛔⛔★★★ **كلمة مرور أولية مُتحقَّق منها** — `CR-005`.
+///
+/// ★★★ **ولماذا نوعٌ مستقل لا `String` عارٍ — وهو حارسٌ لا زينة:**
+///
+/// ① ★ **لا تُبنى إلا من [validateInitialPassword]** — ⟵ **فلا تصل خدمةَ
+///    المصادقة قيمةٌ لم تمرّ بالفحص**، ⛔ **ولا يكفي أن يتذكّر كلُّ مُستدعٍ
+///    أن يفحص.**
+/// ② ⛔⛔★★★ **و[toString] لا تكشف القيمة أبداً** — ★ **ورسائلُ الأخطاء
+///    وسجلاتُ التشخيص تستدعيها ضمناً**: ⟵ **فسلسلةٌ عارية كانت تتسرّب إلى
+///    سجلٍّ أو إلى `diagnostic` بلا أن يقصد أحد**، ⛔ **وهو ما تمنعه قاعدة
+///    «لا كلمة مرور في أي مستند ولا كود ولا رسالة» نصّاً.**
+///
+/// ⛔⛔ **ولا تُخزَّن في أي دفتر ولا قيدِ تدقيق ولا تُرجَع في ردّ عملية** —
+/// `FR-M1-02` قائمٌ بلا مساس: **لا حقل كلمة مرور في سجل المستخدم.**
+final class InitialPassword {
+  const InitialPassword._(this.value);
+
+  /// ★ القيمة كما تُمرَّر لخدمة المصادقة — ⛔ **ولا تُقرأ لغير ذلك.**
+  final String value;
+
+  /// ⛔⛔★★★ **ولا تكشف القيمة** — راجع البند ② أعلاه.
+  @override
+  String toString() => 'InitialPassword(***)';
+}
+
+/// يفحص كلمة المرور الأولية وتأكيدَها — `CR-005` · `authentication-policy.md` §5.
+///
+/// ★ **والتأكيد جزءٌ من الفحص لا من الواجهة:** ⟵ **خطأٌ مطبعيٌّ في كلمةٍ
+/// لا يقرؤها أحدٌ بعدها يُنشئ حساباً لا يستطيع صاحبُه دخولَه**، ⛔ **ولا
+/// مسارَ لاكتشافه إلا شكوى المستخدم.**
+///
+/// ⚠️ **ولا تُقصّ الأطراف:** ★ **الفراغ محرفٌ صالح في كلمة المرور**،
+/// ⟵ **وقصُّه يجعل ما يُخزَّن غيرَ ما كتبه المدير** ⛔ **فيفشل الدخول.**
+Outcome<InitialPassword> validateInitialPassword({
+  required String password,
+  required String confirmation,
+}) {
+  if (password.length < initialPasswordMinLength) {
+    return const Failure<InitialPassword>(ValidationError('CR-005'));
+  }
+  if (password != confirmation) {
+    return const Failure<InitialPassword>(ValidationError('CR-005'));
+  }
+  return Success<InitialPassword>(InitialPassword._(password));
+}
+
 /// ★★ يفحص أن المُنفِّذ يملك حقّ المساس بحساب المستهدَف — `BR-M1-02`.
 ///
 /// `FR-M1-11`: «**لا يُعدَّل حساب المالك ولا يُعطَّل إلا بواسطته**».

@@ -37,6 +37,28 @@ const String disableReasonField = 'reason';
 /// **تعديل** يعيش في قيد التدقيق وحده. ⟵ **ودمجُهما يخلط سياقين.**
 const String amendReasonField = 'amendReason';
 
+/// ⚠️★★★ **حقل كلمة المرور الأولية في الحمولة** — `CR-005` (2026-08-31).
+///
+/// ⛔⛔★★★ **ولماذا اسمٌ صريحٌ غيرُ `password` — وهو حارسٌ لا تسمية:**
+/// ★ **`forbiddenUserFields` ترفض `password` وترفض الطلبَ كلَّه به**
+/// (`FR-M1-02`) — ⟵ **وذلك الحارس يحرس *سجلَّ المستخدم* لا قناةَ النقل**،
+/// ★ **ويبقى قائماً بحرفه**: ⛔ **فعميلٌ يرسل `password` يُرفَض كما كان.**
+/// ⟵ ★ **والمفتاح الجديد يُستثنى صراحةً من `extraFields` في موضعٍ واحد**
+/// ⛔ **لا بتخفيف قائمة الممنوعات.**
+const String initialPasswordField = 'initialPassword';
+
+/// ★ حقل تأكيد كلمة المرور الأولية — `CR-005`.
+///
+/// ★★ **ويُفحَص في السحابة أيضاً لا في الجهاز وحده** — `ADR-0013` القاعدة 3:
+/// **«القاعدة نفسها في الطرفين»**، ⟵ **فما ترفضه الواجهة ترفضه الدالة.**
+const String initialPasswordConfirmField = 'initialPasswordConfirm';
+
+/// ★ المفاتيح التي **تعبر ولا تُخزَّن** — ⛔ **فلا تدخل فحص الحقول الممنوعة.**
+const Set<String> transportOnlyUserFields = <String>{
+  initialPasswordField,
+  initialPasswordConfirmField,
+};
+
 /// منفّذ عمليات الإدارة.
 final class UserAdminHandler {
   /// ينشئ المنفّذ بتبعياته — ★ **تُحقَن، فيُختبَر بلا سحابة**.
@@ -115,6 +137,22 @@ final class UserAdminHandler {
     final ValidatedUserProfile profile =
         (validated as Success<ValidatedUserProfile>).value;
 
+    // ⚠️★★★ **وكلمةُ المرور الأولية تُفحَص قبل أي أثر** — `CR-005`:
+    //    ★ **بنفس دالة النطاق التي تفحصها الواجهة** (`ADR-0012`)، ⟵ **فلا
+    //    تسمح الشاشةُ بما ترفضه الدالة ولا العكس.**
+    //    ⛔⛔ **ولا قيمةَ افتراضية ولا مولَّدة عند غيابها** — ★ **الغياب
+    //    رفضٌ صريح**: ⟵ **وحسابٌ بكلمةٍ يخترعها النظام كلمةٌ لا يعرفها أحد.**
+    final Outcome<InitialPassword> secret = validateInitialPassword(
+      password: call.readString(initialPasswordField) ?? '',
+      confirmation: call.readString(initialPasswordConfirmField) ?? '',
+    );
+    if (secret is Failure<InitialPassword>) {
+      // ⛔⛔★★ **ولا يُذكَر سببُ الرفض بتفصيلٍ يصف القيمة** — ★ **رمزٌ عام**:
+      //    ⟵ **ورسالةٌ تقول «أقصرُ من ثمانية» تصف السرَّ ولو جزئياً.**
+      return callableFailure(CallableError.invalidArgument);
+    }
+    final InitialPassword password = (secret as Success<InitialPassword>).value;
+
     // ★★ **التفويض يُفحَص قبل إنشاء الحساب** — ⛔ ولا يُنشأ حسابٌ ثم يُرفَض
     //    الطلب، وإلا تراكمت حسابات يتيمة في خدمة المصادقة يُنشئها من لا
     //    يملك `userCreate` أصلاً. ⟵ **ولذلك يُخطَّط بمعرّف مؤقت أولاً.**
@@ -136,6 +174,7 @@ final class UserAdminHandler {
     final String userId = await _identity.createAccount(
       email: profile.email,
       displayName: profile.name,
+      password: password,
     );
 
     final UserAdminPlan plan = planUserAdmin(
@@ -153,18 +192,19 @@ final class UserAdminHandler {
 
     await _commit(plan as UserAdminAccepted);
 
-    // ★ **ثم يضبط صاحبُه كلمتَه** — `authentication-policy.md` §5.
-    //   ⛔ **ولا يُرجَع الرابط للمُستدعي:** «الإدارة تُعيد التعيين لا تقرأ».
-    //   ⚠️ **وفشل الإرسال لا يُبطل الإنشاء:** الحساب والبطاقة قائمان فعلاً،
-    //      ⟵ **وإعادة الإرسال إجراء مستقل** — أما التراجع فيحذف حساباً،
-    //      **والحذف ممنوع** (`FR-M1-12`).
-    await _identity.sendPasswordSetupLink(email: profile.email);
+    // ⚠️★★★ **ولا رابطَ ضبطٍ يُرسَل بعد اليوم** — `CR-005`: ★ **الكلمةُ
+    //    مضبوطةٌ فعلاً بيد المدير**، ⟵ **ورابطٌ يصل المستخدمَ عقب إنشاءٍ
+    //    ناجح يُقرأ دعوةً إلى فعلٍ لا يلزمه** ⛔ **وقد يُقرأ محاولةَ اختراق.**
+    //    ★ **ومسارُ الاسترجاع باقٍ في [IdentityGateway.sendPasswordSetupLink]**
+    //    ⟵ **يستدعيه صاحبُ الحساب متى شاء تغييرها** (§2.1 الحكم ②).
 
     return callableSuccess(<String, Object?>{
       'userId': userId,
       // ★ **ولا صلاحية له بعد** — المنح مسارُه `grantPermissions` بقواعده.
       'permissionsGranted': false,
-      'passwordSetupLinkSent': true,
+      // ⛔⛔★★★ **ولا صدىً لكلمة المرور في الردّ** — ★ **عَلَمٌ فقط**:
+      //    ⟵ **والمدير يعرفها لأنه كتبها**، ⛔ **ولا يُعيدها النظام إليه.**
+      'passwordSet': true,
     });
   }
 
@@ -523,7 +563,11 @@ final class UserAdminHandler {
           email: call.readString('email') ?? '',
           phone: call.readString('phone'),
           roleId: call.readString('roleId'),
-          extraFields: call.data.keys.toSet(),
+          // ⛔⛔★★★ **ومفاتيحُ النقل وحدها تُستثنى** — راجع
+          //    [transportOnlyUserFields]: ★ **`password` و`deviceId` يبقيان
+          //    مرفوضين بحرفهما** (`FR-M1-02`).
+          extraFields:
+              call.data.keys.toSet().difference(transportOnlyUserFields),
         ),
       );
 }

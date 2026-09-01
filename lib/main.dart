@@ -46,13 +46,18 @@ import 'capabilities/oversight/infrastructure/firestore_report_directory.dart';
 import 'capabilities/oversight/infrastructure/functions_export_log_repository.dart';
 import 'capabilities/oversight/infrastructure/message_channel_launcher.dart';
 import 'capabilities/oversight/infrastructure/pdf_document_renderer.dart';
+import 'capabilities/sales_receivables/application/cash_sale_providers.dart';
 import 'capabilities/sales_receivables/application/distribution_providers.dart';
+import 'capabilities/sales_receivables/infrastructure/firestore_cash_sale_directory.dart';
 import 'capabilities/sales_receivables/infrastructure/firestore_distribution_directory.dart';
+import 'capabilities/sales_receivables/infrastructure/functions_cash_sale_repository.dart';
 import 'capabilities/sales_receivables/infrastructure/functions_distribution_repository.dart';
 import 'capabilities/sales_receivables/application/receipt_providers.dart';
 import 'capabilities/sales_receivables/infrastructure/firestore_receipt_directory.dart';
 import 'capabilities/sales_receivables/infrastructure/functions_receipt_repository.dart';
 import 'core/callable/callable_client.dart';
+import 'core/connectivity/connection_providers.dart';
+import 'core/connectivity/firestore_connection_monitor.dart';
 import 'core/design/app_theme.dart';
 import 'core/design/brand.dart';
 import 'core/design/design_tokens.dart';
@@ -78,6 +83,18 @@ Future<void> main() async {
               ),
               userCardRepositoryProvider.overrideWithValue(
                 FirestoreUserCardRepository(FirebaseFirestore.instance),
+              ),
+              // ★★★ `AM-008` ① — **حالة الاتصال مقيسةً من بثّ القاعدة نفسِه.**
+              //   ⛔ **ولا حزمةَ فحصِ شبكةٍ تُضاف:** ★ **وجودُ واجهة شبكةٍ لا
+              //   يعني بلوغَ الخادم**، ⟵ **والسؤال الذي يهمّ المستخدم «هل
+              //   ستنجح كتابتي؟»** (`ADR-0003`).
+              connectionMonitorProvider.overrideWithValue(
+                FirestoreConnectionMonitor(
+                  firestore: FirebaseFirestore.instance,
+                  userIds: FirebaseAuth.instance
+                      .authStateChanges()
+                      .map((User? user) => user?.uid),
+                ),
               ),
               // ★★ `IQ-015` — دليل المستخدمين وإدارتهم.
               userDirectoryProvider.overrideWithValue(
@@ -157,6 +174,20 @@ Future<void> main() async {
               ),
               distributionAdminProvider.overrideWithValue(
                 FunctionsDistributionRepository(
+                  client: _callableClient(),
+                  newRequestId: _newRequestId,
+                ),
+              ),
+              // ★★ `WU-012` — البيع النقدي: **القراءة مباشرة والكتابة عبر
+              //   العمليات المستدعاة الثلاث** (`ADR-0013` القاعدتان 2 و4).
+              //   ⛔⛔★★★ **ولا مستودعَ ذمّةٍ هنا إطلاقاً** — `FR-M11-03`:
+              //   ★ **البيعُ النقدي لا يمسّ دفتر المقاوته ولا أرصدته**،
+              //   ⟵ **فلا مزوّدَ لهما في هذه الوحدة أصلاً.**
+              cashSaleDirectoryProvider.overrideWithValue(
+                FirestoreCashSaleDirectory(FirebaseFirestore.instance),
+              ),
+              cashSaleAdminProvider.overrideWithValue(
+                FunctionsCashSaleRepository(
                   client: _callableClient(),
                   newRequestId: _newRequestId,
                 ),

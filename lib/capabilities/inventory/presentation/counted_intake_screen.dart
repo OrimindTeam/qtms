@@ -9,6 +9,15 @@
 /// ★★ **والرعوي يظهر ويصير إلزامياً فقط إن اشترطه المصدر** (`FR-M6-03`) —
 /// ⛔ **وإلا لا يُعرَض ولا يُخزَّن أصلاً**.
 ///
+/// ★★★ **و`AM-009` غيّر ثلاثة أشياء هنا** (2026-08-31):
+/// ③ ★★ **مرشِّحُ المصدر يحمل «كل المصادر»** — ⟵ **فالقائمةُ تعرض يومَ
+///    المستخدم كلَّه**، ⛔ **ولا يُجبَر على اختيار مصدرٍ ليرى شيئاً.**
+/// ⑤ ★★ **والمصدرُ صار حقلاً في النموذج** — ⟵ **فالإضافةُ لا تعتمد على
+///    مرشِّح الشاشة**، ⛔ **ولا يُكتَب مستندٌ على مصدرٍ اختاره مرشِّحُ عرض.**
+/// ④ ⛔⛔★★★ **والأنواعُ صفٌّ واحدٌ يُنشأ بالطلب** — ★ **كانت *كلُّ* أنواع
+///    المصدر تُعرَض صفوفَ إدخالٍ دفعةً واحدة**: ⟵ **فبأربعين نوعاً يمرّ
+///    المستخدم أربعين صفّاً ليملأ ثلاثة** ([QtmsItemLineRow]).
+///
 /// ⚠️⚠️ **وكل بوابة صلاحية هنا إخفاءٌ لا حماية** — ★ **والرفض في السحابة**
 /// (`ADR-0013` القاعدة 3 · `RISK-02`).
 library;
@@ -17,12 +26,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/context_header.dart';
 import '../../../core/ui/destructive_sheet.dart';
 import '../../../core/ui/inline_banner.dart';
+import '../../../core/ui/item_line_editor.dart';
 import '../../identity_access/presentation/permission_gate.dart';
 import '../../master_data/application/master_data_providers.dart';
 import '../../oversight/presentation/audit_trail_view.dart';
@@ -38,19 +50,22 @@ class CountedIntakeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final CalendarDay today = ref.watch(todayProvider);
-    final String? sourceId = ref.watch(selectedSourceProvider);
+    // ★★ **مرشِّحُ عرضٍ لا سياقُ عملية** — `AM-009` ③ (راجع
+    //    [sourceListFilterProvider]): ⟵ **و`null` تعني «كل المصادر».**
+    final String? filterId = ref.watch(sourceListFilterProvider);
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('الوارد عدداً', style: TypeScale.titleSm),
-      ),
-      floatingActionButton: sourceId == null
+      appBar: QtmsTopBar(screenTitle: 'الوارد عدداً'),
+      // ⛔⛔★★ **والزرُّ لا يشترط مرشِّحاً بعد اليوم** — `AM-009` ⑤: ★ **المصدرُ
+      //    حقلٌ في النموذج**، ⟵ **فزرُّ الإضافة يعمل و«كل المصادر» معروضة.**
+      //    ⛔ **ويبقى محجوباً عمّن لا مصدرَ في نطاقه أصلاً** — ★ **فنموذجٌ
+      //    بحقلِ مصدرٍ خاوٍ لا يُنتج شيئاً** (`E-35`).
+      floatingActionButton: sources.isEmpty
           ? null
           : PermissionGate(
               permission: Permission.incomingCountWrite,
-              child: _NewIntakeButton(sourceId: sourceId),
+              child: _NewIntakeButton(sourceId: filterId ?? sources.first.sourceId),
             ),
       body: Column(
         children: <Widget>[
@@ -64,21 +79,26 @@ class CountedIntakeScreen extends ConsumerWidget {
           //    (`FR-M6-02` · `E-40`)، ⛔ **لا رأسُ سياقٍ للشاشة.**
           QtmsContextHeader(
             sources: sources,
-            selectedSourceId: sourceId,
-            onSourceSelected: (String id) =>
-                ref.read(selectedSourceProvider.notifier).select(id),
+            selectedSourceId: filterId,
+            // ★★★ **وخيارُ «كل المصادر» هنا** — `AM-009` ③.
+            allowAllSources: true,
+            onSourceSelected: (String? id) =>
+                ref.read(sourceListFilterProvider.notifier).select(id),
             day: today,
           ),
           Expanded(
             // ⛔⛔★★★ **ولا `SizedBox.shrink` حالةً لغياب المصدر** — §5b نمط
             //    `P3` قاعدةُ الفراغ الصامت (`design-system.md` §هـ).
-            child: sourceId == null
-                ? QtmsEmptyState(
-                    spec: sources.isEmpty
-                        ? noSourceInScopeEmpty
-                        : chooseSourceEmpty(),
-                  )
-                : _IntakeList(sourceId: sourceId, day: today),
+            //
+            // ⚠️★★ **و«اختر مصدراً» سقطت حالةً** — ★ **فالافتراض «الكل»**:
+            //    ⟵ **ولم يبقَ إلا نطاقٌ فارغ** (`E-35`).
+            child: sources.isEmpty
+                ? const QtmsEmptyState(spec: noSourceInScopeEmpty)
+                : _IntakeList(
+                    sourceId: filterId,
+                    day: today,
+                    showSource: filterId == null,
+                  ),
           ),
         ],
       ),
@@ -100,15 +120,26 @@ class _NewIntakeButton extends StatelessWidget {
 }
 
 class _IntakeList extends ConsumerWidget {
-  const _IntakeList({required this.sourceId, required this.day});
+  const _IntakeList({
+    required this.sourceId,
+    required this.day,
+    required this.showSource,
+  });
 
-  final String sourceId;
+  /// المصدر — و`null` تعني **كل المصادر** (`AM-009` ③).
+  final String? sourceId;
   final CalendarDay day;
+
+  /// ★ هل يُسمّى المصدر في كل بطاقة؟ — ⛔⛔ **وإلزاميٌّ في وضع «الكل»**:
+  /// ⟵ **فصفٌّ بلا مصدرٍ في قائمةٍ تجمع مصادرَ لا يُقرأ** (`A-01`).
+  final bool showSource;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<List<CountedIntakeCard>> intakes = ref.watch(
-      countedIntakesProvider(StockQuery(sourceId: sourceId, stockDate: day)),
+      countedIntakeListProvider(
+        SourceListQuery(sourceId: sourceId, stockDate: day),
+      ),
     );
 
     return InventoryAsyncView<CountedIntakeCard>(
@@ -122,16 +153,19 @@ class _IntakeList extends ConsumerWidget {
         separatorBuilder: (BuildContext _, int _) =>
             const SizedBox(height: Spacing.space8),
         itemBuilder: (BuildContext context, int index) =>
-            _IntakeTile(intake: list[index]),
+            _IntakeTile(intake: list[index], showSource: showSource),
       ),
     );
   }
 }
 
 class _IntakeTile extends ConsumerWidget {
-  const _IntakeTile({required this.intake});
+  const _IntakeTile({required this.intake, this.showSource = false});
 
   final CountedIntakeCard intake;
+
+  /// ★ يُسمّي المصدر في وضع «كل المصادر» — `AM-009` ③.
+  final bool showSource;
 
   bool get _isCancelled => intake.status == CountedIntakeStatus.cancelled;
 
@@ -147,8 +181,15 @@ class _IntakeTile extends ConsumerWidget {
           title: intake.documentNumber,
           sourceId: intake.sourceId,
         ),
-        subtitle: '${intake.lines.length} نوع · '
-            '${quantityLabel(PieceQuantity(intake.totalQuantity))}',
+        // ★★ **واسمُ المصدر في السطر الثاني في وضع «الكل»** — `AM-009` ③:
+        //    ⛔⛔ **وصفٌّ بلا مصدرٍ في قائمةٍ تجمع مصادرَ لا يُقرأ** (`A-01`).
+        //    ★ **وموضعُه السطرُ الثاني لا العنوان** — ⟵ **فالعنوانُ رقمُ
+        //    المستند وهو ما يبحث عنه المستخدم.**
+        subtitle: <String>[
+          if (showSource) ref.watch(sourceDisplayNameProvider(intake.sourceId)),
+          '${intake.lines.length} نوع',
+          quantityLabel(PieceQuantity(intake.totalQuantity)),
+        ].join(' · '),
         badges: <Widget>[
           if (_isCancelled) const CancelledBadge(),
           if (intake.amendCount > 0) const AmendedBadge(),
@@ -225,13 +266,27 @@ class _CountedIntakeFormSheetState
   final TextEditingController _notes = TextEditingController();
   final TextEditingController _amendReason = TextEditingController();
 
-  /// السطور بمعرّف النوع — ★ **ومفتاح الخريطة يفرض «لا سطران لنفس النوع»**
-  /// بنيوياً (`FR-M6-07`).
-  late final Map<String, int> _lines = <String, int>{
+  /// ★★★ **السطورُ قائمةٌ مرتَّبة لا خريطةُ كتالوج** — `AM-009` ④.
+  ///
+  /// ⛔⛔★★★ **وكانت `Map<String,int>` مبنيّةً على *كل* أنواع المصدر:**
+  /// ⟵ **فالنموذجُ يطول بطول الكتالوج لا بحجم العملية.** ★ **وصارت سطوراً
+  /// يُنشئها المستخدم** — ⟵ **وترتيبُها ترتيبُ إدخاله** ⛔ **لا ترتيبُ
+  /// الكتالوج.**
+  ///
+  /// ⛔⛔★★ **و«لا سطران لنفس النوع» بنيويٌّ في [optionsForRow]** —
+  /// `FR-M6-07`: ⟵ **فالنوعُ المختار يسقط من خيارات إخوته**، ★ **والفحصُ
+  /// في طبقة النطاق باقٍ حارساً ثانياً** (`BR-M6-05`).
+  late final List<_IntakeLine> _lines = <_IntakeLine>[
     for (final ValidatedCountedIntakeLine line
         in widget.existing?.lines ?? const <ValidatedCountedIntakeLine>[])
-      line.itemId: line.quantity.pieces,
-  };
+      _IntakeLine(itemId: line.itemId, quantity: '${line.quantity.pieces}'),
+  ];
+
+  /// ★★ **المصدرُ حالةٌ في النموذج لا مُدخَلٌ ثابت** — `AM-009` ⑤.
+  ///
+  /// ⛔ **ولا يُغيَّر في التعديل** — ★ **`sourceUnchanged()` في القاعدة**:
+  /// ⟵ **ونقلُ مستندٍ بين مصدرين نقلٌ خارجَ النطاق** (`ADR-0005`).
+  late String _sourceId = widget.existing?.sourceId ?? widget.sourceId;
 
   late String? _supplierId = widget.existing?.supplierId;
   CatalogMessage? _rejection;
@@ -243,16 +298,33 @@ class _CountedIntakeFormSheetState
   void dispose() {
     _notes.dispose();
     _amendReason.dispose();
+    for (final _IntakeLine line in _lines) {
+      line.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final CalendarDay today = ref.watch(todayProvider);
-    final List<ItemCard> items = ref.watch(intakeItemsProvider(widget.sourceId));
+    final List<SourceCard> sources = ref.watch(activeSourcesProvider);
+    final List<ItemCard> items = ref.watch(intakeItemsProvider(_sourceId));
     final List<SupplierCard> suppliers =
-        ref.watch(intakeSuppliersProvider(widget.sourceId));
-    final bool requiresSupplier = _requiresSupplier(ref, widget.sourceId);
+        ref.watch(intakeSuppliersProvider(_sourceId));
+    final bool requiresSupplier = _requiresSupplier(ref, _sourceId);
+    // ★★ **والمتبقّي يظهر في نصّ الخيار** — `FR-M10-06` · `AM-009` ⑥.
+    final Map<String, StockQuantity> remaining = ref.watch(
+      remainingStockProvider(
+        StockQuery(sourceId: _sourceId, stockDate: today),
+      ),
+    );
+    final List<QtmsItemOption> options = <QtmsItemOption>[
+      for (final ItemCard item in items)
+        QtmsItemOption(
+          id: item.itemId,
+          label: itemOptionLabel(item.name, remaining[item.itemId]),
+        ),
+    ];
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -268,6 +340,26 @@ class _CountedIntakeFormSheetState
             const SizedBox(height: Spacing.space12),
             // ⛔★★ **ولا منتقي تاريخ** — راجع ترويسة الملف.
             LockedDayBanner(day: widget.existing?.stockDate ?? today),
+            const SizedBox(height: Spacing.space16),
+            // ⑤ ★★★ **حقلُ المصدر داخل النموذج** — `AM-009` ⑤.
+            //
+            // ⛔ **ومقفلٌ في التعديل** — راجع [_sourceId].
+            DropdownButtonFormField<String>(
+              initialValue:
+                  sources.any((SourceCard s) => s.sourceId == _sourceId)
+                      ? _sourceId
+                      : null,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'المصدر'),
+              items: <DropdownMenuItem<String>>[
+                for (final SourceCard source in sources)
+                  DropdownMenuItem<String>(
+                    value: source.sourceId,
+                    child: Text(source.name, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: _isEdit ? null : _onSourceChanged,
+            ),
             const SizedBox(height: Spacing.space16),
             // ★★ **الرعوي مشروطٌ بالمصدر** — `FR-M6-03`.
             if (requiresSupplier) ...<Widget>[
@@ -299,17 +391,31 @@ class _CountedIntakeFormSheetState
                   TypeScale.label.copyWith(color: SemanticColors.textSecondary),
             ),
             const SizedBox(height: Spacing.space8),
-            for (final ItemCard item in items)
-              _LineRow(
-                item: item,
-                quantity: _lines[item.itemId],
-                onChanged: (int? value) => setState(() {
-                  if (value == null || value <= 0) {
-                    _lines.remove(item.itemId);
-                  } else {
-                    _lines[item.itemId] = value;
-                  }
+            // ④ ★★★ **صفٌّ لكل نوعٍ أدخله المستخدم** — `AM-009` ④.
+            for (final (int index, _IntakeLine line) in _lines.indexed)
+              QtmsItemLineRow(
+                key: ValueKey<int>(line.seed),
+                options: optionsForRow(
+                  all: options,
+                  takenIds: <String?>[
+                    for (final _IntakeLine other in _lines) other.itemId,
+                  ],
+                  ownId: line.itemId,
+                ),
+                selectedId: line.itemId,
+                onSelected: (String id) => setState(() => line.itemId = id),
+                onRemove: () => setState(() {
+                  _lines.removeAt(index).dispose();
                 }),
+                fields: <Widget>[
+                  TextField(
+                    controller: line.quantity,
+                    // ★★ **لوحة أرقام بلا كسور** — `BR-M6-06`: ⛔ **والكسر
+                    //    مرفوض في النوع نفسه** (`PieceCount.tryParseInput`).
+                    keyboardType: const TextInputType.numberWithOptions(),
+                    decoration: const InputDecoration(labelText: 'العدد'),
+                  ),
+                ],
               ),
             if (items.isEmpty)
               Text(
@@ -317,6 +423,12 @@ class _CountedIntakeFormSheetState
                 'لا توجد أنواع مرتبطة بهذا المصدر.',
                 style: TypeScale.bodyMd
                     .copyWith(color: SemanticColors.textSecondary),
+              ),
+            if (items.isNotEmpty)
+              QtmsAddLineButton(
+                onPressed: _lines.length >= items.length
+                    ? null
+                    : () => setState(() => _lines.add(_IntakeLine())),
               ),
             const SizedBox(height: Spacing.space16),
             TextField(
@@ -327,7 +439,8 @@ class _CountedIntakeFormSheetState
               const SizedBox(height: Spacing.space12),
               TextField(
                 controller: _amendReason,
-                decoration: const InputDecoration(labelText: 'سبب التعديل (اختياري)'),
+                decoration:
+                    const InputDecoration(labelText: 'سبب التعديل (اختياري)'),
               ),
             ],
             if (_rejection case final CatalogMessage message) ...<Widget>[
@@ -345,6 +458,23 @@ class _CountedIntakeFormSheetState
     );
   }
 
+  /// ★★★ **وتبديلُ المصدر يُفرِغ السطور والرعوي** — ⛔ **ولا يبقى مُدخَلٌ
+  /// يخصّ مصدراً آخر:** ★ **الأنواع والرعية مفلترون بالمصدر** (`FR-M6-05`)،
+  /// ⟵ **وسطرٌ لنوعٍ لا ينتمي للمصدر الجديد يُرفَض في السحابة** ⛔ **بعد أن
+  /// يكون المستخدم كتبه.**
+  void _onSourceChanged(String? id) {
+    if (id == null || id == _sourceId) return;
+    setState(() {
+      _sourceId = id;
+      _supplierId = null;
+      for (final _IntakeLine line in _lines) {
+        line.dispose();
+      }
+      _lines.clear();
+      _rejection = null;
+    });
+  }
+
   /// ★ **إلزامية الرعوي من سجل المصدر** — ⛔ **ولا تُخمَّن في الشاشة**.
   static bool _requiresSupplier(WidgetRef ref, String sourceId) {
     for (final SourceCard source in ref.watch(activeSourcesProvider)) {
@@ -356,20 +486,15 @@ class _CountedIntakeFormSheetState
   Future<void> _submit(bool requiresSupplier) async {
     final Outcome<ValidatedCountedIntake> validated = validateCountedIntake(
       CountedIntakeInput(
-        sourceId: widget.sourceId,
+        sourceId: _sourceId,
         sourceRequiresSupplier: requiresSupplier,
         supplierId: requiresSupplier ? _supplierId : null,
         notes: _notes.text,
         lines: <CountedIntakeLineInput>[
-          for (final MapEntry<String, int> line in _lines.entries)
-            CountedIntakeLineInput(
-              itemId: line.key,
-              // ⚠️ **الاسم للعرض وحده** — ★ **والسحابة تكتب الاسم المخزَّن**
-              //    من سجل النوع (`functions_inventory_repository.dart`).
-              itemName: line.key,
-              unit: ItemUnit.piece,
-              quantity: line.value,
-            ),
+          // ⛔ **والصفُّ بلا نوعٍ أو بلا عددٍ ليس سطراً** — ★ **صفٌّ فارغٌ
+          //   حالةُ إدخالٍ لا قيمة**: ⟵ **ولا يُرسَل صفر.**
+          for (final _IntakeLine line in _lines)
+            if (line.toInput() case final CountedIntakeLineInput input) input,
         ],
       ),
     );
@@ -423,39 +548,43 @@ class _CountedIntakeFormSheetState
   }
 }
 
-class _LineRow extends StatelessWidget {
-  const _LineRow({
-    required this.item,
-    required this.quantity,
-    required this.onChanged,
-  });
+/// ★★ سطرُ إدخالٍ واحد — **نوعٌ مختارٌ وعددٌ مكتوب.**
+///
+/// ⚠️ **و[seed] مفتاحُ الويدجت الثابت** — ⛔ **ولا يُستعمَل الموضعُ مفتاحاً**:
+/// ⟵ **فحذفُ صفٍّ في الوسط كان يُزحزح مفاتيحَ من بعده** ⛔ **فيقفز النصُّ
+/// المكتوب من صفٍّ إلى صفّ.**
+class _IntakeLine {
+  _IntakeLine({this.itemId, String quantity = ''})
+      : quantity = TextEditingController(text: quantity),
+        seed = _nextSeed++;
 
-  final ItemCard item;
-  final int? quantity;
-  final void Function(int?) onChanged;
+  static int _nextSeed = 0;
 
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: Spacing.space8),
-        child: Row(
-          children: <Widget>[
-            Expanded(child: Text(item.name, style: TypeScale.bodyMd)),
-            const SizedBox(width: Spacing.space8),
-            SizedBox(
-              width: 120,
-              child: TextFormField(
-                initialValue: quantity?.toString() ?? '',
-                // ★★ **لوحة أرقام بلا كسور** — `BR-M6-06`: ⛔ **والكسر
-                //    مرفوض في النوع نفسه** (`PieceCount.tryParseInput`).
-                keyboardType: const TextInputType.numberWithOptions(),
-                decoration: InputDecoration(labelText: unitName(item.unit)),
-                onChanged: (String value) =>
-                    onChanged(PieceCount.tryParseInput(value)?.pieces),
-              ),
-            ),
-          ],
-        ),
-      );
+  /// النوع — و`null` تعني **صفّاً لم يُختَر نوعُه بعد**.
+  String? itemId;
+
+  /// العدد المكتوب.
+  final TextEditingController quantity;
+
+  /// مفتاحٌ ثابت للصفّ.
+  final int seed;
+
+  /// ★ يُحوِّل الصفَّ مُدخَلاً — و`null` **لصفٍّ ناقص**.
+  CountedIntakeLineInput? toInput() {
+    final String? id = itemId;
+    final int? pieces = PieceCount.tryParseInput(quantity.text)?.pieces;
+    if (id == null || pieces == null || pieces <= 0) return null;
+    return CountedIntakeLineInput(
+      itemId: id,
+      // ⚠️ **الاسم للعرض وحده** — ★ **والسحابة تكتب الاسم المخزَّن**
+      //    من سجل النوع (`functions_inventory_repository.dart`).
+      itemName: id,
+      unit: ItemUnit.piece,
+      quantity: pieces,
+    );
+  }
+
+  void dispose() => quantity.dispose();
 }
 
 /// يفتح ورقة إلغاء الوارد — ★ **والسببُ اختياريٌّ** (`ADR-0020`).

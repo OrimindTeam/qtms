@@ -1,7 +1,6 @@
 /// شاشة **التوزيع والضمار** (`M10`) — **أكثر العمليات تكراراً في اليوم**.
 ///
-/// ★ **هدف الأداء: توزيعة معتادة في أقل من 30 ثانية** (`FR-M10`) — ⟵ **ولهذا
-/// المقوت والمصدر في الأعلى، والسطور صفٌّ واحد لكل نوع**، ⛔ **ولا خطوات.**
+/// ★ **هدف الأداء: توزيعة معتادة في أقل من 30 ثانية** (`FR-M10`).
 ///
 /// ═══════════════════════════════════════════════════════════════════════
 /// ⛔⛔★★★ **وأخطر ما يُساء فهمه في هذه الشاشة — `ت-12` (`FR-M10-07`):**
@@ -15,6 +14,24 @@
 /// بصفر لمقوتٍ استلم بضاعة.**
 /// ═══════════════════════════════════════════════════════════════════════
 ///
+/// ★★★ **و`AM-009` أعاد بناء الشاشة كلَّها** (2026-08-31) — **من «نموذجٍ
+/// دائم» إلى «سجلاتٍ وزرٍّ عائم»:**
+///
+/// ⛔⛔★★★ **العطلُ الذي عالجه — الشاشةُ كانت نموذجاً لا قائمة:** ★ **تفتح
+/// على منتقي مقوتٍ ثم *نموذجِ إدخالٍ مفتوح*** ⟵ **فلا يرى المستخدم توزيعات
+/// يومه أبداً**: ⛔ **ولا كم مقوتاً وُزِّع له، ولا أيُّهم بقي**، ★ **ولا
+/// مدخلَ لإرسالِ توزيعةٍ إلا بأن يختار صاحبَها فيدخل نموذجَ تعديلها.**
+///
+/// ✅ **والبنيةُ اليوم:** ① **مرشِّحُ مصدرٍ بـ«الكل»** ② **بحثٌ بالمقوت**
+/// ③ **سجلاتٌ باسم المقوت لكلٍّ أربعةُ إجراءات** ④ **وزرٌّ عائمٌ للإضافة.**
+///
+/// ⛔⛔★★★ **و«الحذف» في الطلب نُفِّذ إلغاءً — وهو حدُّ حَوْكمةٍ لا اختيارَ
+/// أسلوب:** ★ **`GR-07` و`ADR-0004` و`CLAUDE.md`: «لا حذف بيانات … لأي
+/// مستخدم بمن فيهم المالك»** — ⟵ **والإلغاءُ هو المكافئُ المعتمَد**
+/// (`FR-M10-18`): **يَسِم المستند وحركاته فتُستبعَد من كل الأرصدة والتقارير
+/// بلا حركاتٍ عكسية**، ★ **وأثرُه على المستخدم هو أثرُ الحذف نفسُه**،
+/// ⛔ **والفارقُ أن الأثر يبقى مقروءاً في سجل التدقيق.**
+///
 /// ⚠️⚠️ **وكل ما هنا عرضٌ لا حماية** — ★ **والرفض الحقيقي في السحابة**
 /// (`ADR-0013` القاعدة 3 · `RISK-02`): `distributions` **مغلقة للكتابة**،
 /// **والصلاحية والنطاق والرصيد و`GR-18` وحارس السعر كلها في
@@ -27,12 +44,19 @@ import 'package:flutter/services.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/context_header.dart';
+import '../../../core/ui/destructive_sheet.dart';
+import '../../../core/ui/item_line_editor.dart';
+import '../../../core/ui/optional_reason.dart';
+import '../../../core/ui/key_value_row.dart';
 import '../../../core/ui/live_summary.dart';
-import '../../../core/ui/skeleton.dart';
+import '../../../core/ui/search_field.dart';
+import '../../../core/ui/status_pill.dart';
 import '../../../core/ui/sticky_action_bar.dart';
 import '../../master_data/application/master_data_providers.dart';
 import '../../identity_access/application/session_providers.dart';
@@ -44,52 +68,118 @@ import '../../oversight/application/messaging_providers.dart';
 import '../../oversight/presentation/audit_trail_view.dart';
 import '../../oversight/presentation/send_document_sheet.dart';
 import '../application/distribution_providers.dart';
-import '../../../core/ui/optional_reason.dart';
 
-/// شاشة التوزيع.
-class DistributionScreen extends ConsumerWidget {
+/// شاشة التوزيع — ★ **سجلاتٌ ومرشِّحان وزرٌّ عائم** (`AM-009` ⑦).
+class DistributionScreen extends ConsumerStatefulWidget {
   /// ينشئ الشاشة.
   const DistributionScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DistributionScreen> createState() => _DistributionScreenState();
+}
+
+class _DistributionScreenState extends ConsumerState<DistributionScreen> {
+  /// ★★ **بحثُ المقوت** — `AM-009` ⑦: ⛔ **ولا قائمةٌ منسدلة بمئة مقوت.**
+  final TextEditingController _dealerSearch = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // ⏳★★★ **وجهةُ زر [ إدخال ] من المركز المعلّق** — `FR-SYS-04`.
+    //
+    // ⛔⛔★★★ **والاستهلاك بعد أول إطار لا داخل [initState] — عطلٌ مقيسٌ لا
+    //    احتياط** (`DEBT-68` · 2026-08-30): ★ **[PendingFocusState.take]
+    //    *تكتب* حالةً، وRiverpod يمنع الكتابة في دورة حياة الويدجت.**
+    //
+    // ★★ **وأثرُه اليوم بحثٌ مضبوطٌ باسم المقوت** — ⛔ **لا نموذجٌ يُفتَح**
+    //    (`pending-entries-design.md` §6): ⟵ **فالسجلُّ يظهر مفلتراً
+    //    والمستخدم يقرّر.**
+    WidgetsBinding.instance.addPostFrameCallback((Duration _) {
+      if (!mounted) return;
+      final PendingFocus? focus = ref.read(pendingFocusProvider);
+      if (focus == null || focus.kind != PendingDocumentKind.distribution) {
+        return;
+      }
+      ref.read(pendingFocusProvider.notifier).take();
+      final String? dealerId = focus.dealerId;
+      if (dealerId == null) return;
+      final String name = ref
+          .read(distributionDealersProvider)
+          .where((DealerCard dealer) => dealer.dealerId == dealerId)
+          .map((DealerCard dealer) => dealer.name)
+          .firstOrNull ??
+          '';
+      // ⛔ **ومقوتٌ لا يقابله سجلٌّ في القائمة يُهمَل** — ★ **فالشاشة تُفتَح
+      //   بلا مرشِّح** ⛔ **ولا تُفتَح على بحثٍ لا يطابق شيئاً.**
+      if (name.isEmpty) return;
+      setState(() {
+        _dealerSearch.text = name;
+        ref.read(sourceListFilterProvider.notifier).select(focus.sourceId);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _dealerSearch.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final CalendarDay today = ref.watch(todayProvider);
-    final String? sourceId = ref.watch(selectedSourceProvider);
+    final String? filterId = ref.watch(sourceListFilterProvider);
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('التوزيع', style: TypeScale.titleSm),
-      ),
+      appBar: const QtmsTopBar(screenTitle: 'التوزيع'),
+      // ④ ★★★ **زرٌّ عائمٌ للإضافة** — `AM-009` ⑦: ⛔ **ولا نموذجٌ مفتوحٌ
+      //    يشغل الشاشة قبل أن يطلبه المستخدم.**
+      floatingActionButton: sources.isEmpty
+          ? null
+          : PermissionGate(
+              permission: Permission.distributionCreate,
+              child: FloatingActionButton.extended(
+                onPressed: () => showDistributionForm(
+                  context,
+                  sourceId: filterId ?? sources.first.sourceId,
+                ),
+                icon: const Icon(Icons.local_shipping_outlined),
+                label: const Text('توزيعة جديدة'),
+              ),
+            ),
       body: Column(
         children: <Widget>[
-          // ★★★ **رأس السياق الموحّد** — §5b نمط `P3` (`ADR-0021`).
-          //
-          // ⛔⛔★★ **وكان رأسُ هذه الشاشة أربعةَ مستويات** (منتقي مصدر +
-          //    لافتةُ يوم + منتقي مقوت + فاصل) — ★ **على شاشةٍ هدفُها
-          //    توزيعةٌ في أقل من 30 ثانية** (`FR-M10`): ⟵ **فصار مستويين.**
+          // ① ★★★ **رأس السياق بمرشِّح «كل المصادر»** — `AM-009` ⑦.
           QtmsContextHeader(
             sources: sources,
-            selectedSourceId: sourceId,
-            onSourceSelected: (String id) =>
-                ref.read(selectedSourceProvider.notifier).select(id),
+            selectedSourceId: filterId,
+            allowAllSources: true,
+            onSourceSelected: (String? id) =>
+                ref.read(sourceListFilterProvider.notifier).select(id),
             day: today,
           ),
+          // ② ★★★ **بحثُ المقوت لاصقٌ فوق القائمة** — `MASTER.md` §5:
+          //    ⛔ **ولا يمرّ مع النتائج** ⟵ **فلا يخرج من الشاشة عند
+          //    النتيجة العاشرة.**
+          Padding(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Spacing.screenPadding,
+              vertical: Spacing.space8,
+            ),
+            child: QtmsSearchField(
+              controller: _dealerSearch,
+              label: 'بحث بالمقوت',
+            ),
+          ),
           Expanded(
-            // ⛔⛔★★★ **ولا `SizedBox.shrink` حالةً لغياب المصدر** — §5b `P3`.
-            child: sourceId == null
-                ? QtmsEmptyState(
-                    spec: sources.isEmpty
-                        ? noSourceInScopeEmpty
-                        : chooseSourceEmpty(),
-                  )
-                : _DistributionBody(
-                    key: ValueKey<String>('$sourceId-$today'),
-                    query: DistributionQuery(
-                      sourceId: sourceId,
-                      stockDate: today,
-                    ),
+            child: sources.isEmpty
+                ? const QtmsEmptyState(spec: noSourceInScopeEmpty)
+                : _DistributionRecords(
+                    sourceId: filterId,
+                    day: today,
+                    search: _dealerSearch,
+                    showSource: filterId == null,
                   ),
           ),
         ],
@@ -98,351 +188,685 @@ class DistributionScreen extends ConsumerWidget {
   }
 }
 
-class _DistributionBody extends ConsumerStatefulWidget {
-  const _DistributionBody({required this.query, super.key});
+/// ★★★ سجلاتُ اليوم — **باسم المقوت** (`AM-009` ⑦).
+class _DistributionRecords extends ConsumerWidget {
+  const _DistributionRecords({
+    required this.sourceId,
+    required this.day,
+    required this.search,
+    required this.showSource,
+  });
 
-  final DistributionQuery query;
-
-  @override
-  ConsumerState<_DistributionBody> createState() => _DistributionBodyState();
-}
-
-class _DistributionBodyState extends ConsumerState<_DistributionBody> {
-  String? _dealerId;
-
-  /// ⏳★★★ **وجهةُ زر [ إدخال ] من المركز المعلّق** — `FR-SYS-04`.
-  ///
-  /// ⚠️⚠️ **وتُستهلَك مرةً واحدة** ([PendingFocusState.take]) — ⟵ **فلا
-  /// تُعيد فتح المقوت نفسه في كل زيارةٍ لاحقة**، ⛔ **ولا يعلق المستخدم في
-  /// سياقٍ لم يطلبه.**
-  ///
-  /// ═════════════════════════════════════════════════════════════════════
-  /// ⛔⛔★★★ **والاستهلاك بعد أول إطار لا داخل [initState] — عطلٌ مقيسٌ لا
-  /// احتياط:** ★ **كُتب أولاً في [initState] مباشرةً، فسقطت الشاشة حيّاً
-  /// على `Pixel_6_API_36`** بـ**«Tried to modify a provider while the
-  /// widget tree was building»** (2026-08-30 · `DEBT-68`) — ⟵ **لأن
-  /// [PendingFocusState.take] *تكتب* حالةً، وRiverpod يمنع الكتابة في
-  /// دورة حياة الويدجت.**
-  ///
-  /// ⛔⛔ **ولم يكشفه أيٌّ من 1594 اختباراً آلياً** — ★ **لأن اختبار الشاشة
-  /// لا يصلها ووجهةٌ مضبوطة**: ⟹ **وهو الوجهُ الخامس لدرس `DEBT-37`**
-  /// (**اختبارُ الطبقة لا يُغني عن اختبار ما يعبر بينها**).
-  ///
-  /// ⛔ **ولا نموذجَ إدخالٍ يُفتَح هنا** (`pending-entries-design.md` §6) —
-  /// ★ **يُضبَط المقوت وحده**، ⟵ **والتوزيعةُ تُعرَض بسطورها غير المسعَّرة
-  /// كما تُعرَض دائماً.**
-  /// ═════════════════════════════════════════════════════════════════════
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((Duration _) {
-      if (!mounted) return;
-      final PendingFocus? focus = ref.read(pendingFocusProvider);
-      if (focus == null ||
-          focus.kind != PendingDocumentKind.distribution ||
-          focus.sourceId != widget.query.sourceId) {
-        return;
-      }
-      ref.read(pendingFocusProvider.notifier).take();
-      // ⛔ **ومعرّفٌ لا يطابق شكل المفتاح المركّب يُهمَل** — ★ **فالشاشة
-      //   تُفتَح بلا مقوت** ⛔ **ولا تُفتَح على مقوتٍ مُخمَّن.**
-      setState(() => _dealerId = focus.dealerId);
-    });
-  }
+  final String? sourceId;
+  final CalendarDay day;
+  final TextEditingController search;
+  final bool showSource;
 
   @override
-  Widget build(BuildContext context) {
-    final List<DealerCard> dealers = ref.watch(distributionDealersProvider);
-    final String? dealerId = _dealerId;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<List<DistributionCard>> records = ref.watch(
+      distributionListProvider(
+        SourceListQuery(sourceId: sourceId, stockDate: day),
+      ),
+    );
 
-    return Column(
-      children: <Widget>[
-        _DealerPicker(
-          dealers: dealers,
-          selected: dealerId,
-          onSelected: (String id) => setState(() => _dealerId = id),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: dealerId == null
-              ? const _EmptyHint('اختر المقوت لبدء التوزيع')
-              : _DistributionForm(
-                  key: ValueKey<String>(dealerId),
-                  query: widget.query,
-                  dealerId: dealerId,
-                  dealerName: dealers
-                      .firstWhere(
-                        (DealerCard d) => d.dealerId == dealerId,
-                        orElse: () => dealers.first,
-                      )
-                      .name,
-                ),
-        ),
-      ],
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: search,
+      builder: (BuildContext context, TextEditingValue value, Widget? _) {
+        // ⛔⛔★★ **والتطبيع من مصدره الواحد** (`IQ-013`) — ★ **`normalizeName`**:
+        //    ⟵ **فـ«الإدخال» تطابق «الادخال»**، ⛔ **ولا تطبيعٌ محليّ.**
+        final String needle = normalizeName(value.text);
+        return InventoryAsyncView<DistributionCard>(
+          value: records,
+          emptyIcon: Icons.local_shipping_outlined,
+          emptyTitle: 'لا توزيعات اليوم',
+          emptyLabel: 'ابدأ بتوزيعةٍ جديدة لتُقيَّد على المقوت فوراً.',
+          builder: (List<DistributionCard> list) {
+            final List<DistributionCard> shown = needle.isEmpty
+                ? list
+                : <DistributionCard>[
+                    for (final DistributionCard card in list)
+                      if (normalizeName(card.dealerName).contains(needle)) card,
+                  ];
+            if (shown.isEmpty) {
+              return QtmsNoMatch(message: 'لا مقوت بهذا الاسم في نتائج اليوم.');
+            }
+            return ListView.separated(
+              padding: const EdgeInsetsDirectional.all(Spacing.screenPadding),
+              itemCount: shown.length,
+              separatorBuilder: (BuildContext _, int _) =>
+                  const SizedBox(height: Spacing.space8),
+              itemBuilder: (BuildContext context, int index) =>
+                  _DistributionTile(card: shown[index], showSource: showSource),
+            );
+          },
+        );
+      },
     );
   }
 }
 
-/// ★ منتقي المقوت — ⛔ **ولا يظهر فيه معطَّل** (`FR-M10-12`).
-class _DealerPicker extends StatelessWidget {
-  const _DealerPicker({
-    required this.dealers,
-    required this.selected,
-    required this.onSelected,
-  });
+/// ★★★ سجلُّ توزيعةٍ واحدة — **الاسمُ ثم الإجراءات الأربعة.**
+class _DistributionTile extends ConsumerWidget {
+  const _DistributionTile({required this.card, required this.showSource});
 
-  final List<DealerCard> dealers;
-  final String? selected;
-  final ValueChanged<String> onSelected;
+  final DistributionCard card;
+  final bool showSource;
+
+  bool get _isCancelled => card.status == DistributionStatus.cancelled;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.space16,
-          vertical: Spacing.space8,
+  Widget build(BuildContext context, WidgetRef ref) => InventoryTile(
+        // ★★★ **العنوانُ اسمُ المقوت** — `AM-009` ⑦: ⛔ **لا رقمُ المستند**:
+        //    ⟵ **فالمستخدم يبحث عن «أحمد» لا عن `DST-20260831-0007`.**
+        title: card.dealerName,
+        leading: auditTrailLeading(
+          ref,
+          entityType: distributionEntityType,
+          entityId: card.distributionId,
+          title: card.documentNumber,
+          sourceId: card.sourceId,
         ),
-        child: DropdownButtonFormField<String>(
-          initialValue: selected,
-          decoration: const InputDecoration(labelText: 'المقوت'),
-          items: <DropdownMenuItem<String>>[
-            for (final DealerCard dealer in dealers)
-              DropdownMenuItem<String>(
-                value: dealer.dealerId,
-                child: Text(dealer.name),
+        subtitle: <String>[
+          card.documentNumber,
+          if (showSource) ref.watch(sourceDisplayNameProvider(card.sourceId)),
+          '${card.lines.length} نوع',
+        ].join(' · '),
+        badges: <Widget>[
+          if (_isCancelled) const CancelledBadge(),
+          if (card.amendCount > 0) const AmendedBadge(),
+          // ⏳ **وسمُ السعر غير النهائي يراه الجميع** — ★ **عددٌ لا مبلغ**
+          //    (`ADR-0011`).
+          if (card.unpricedLineCount > 0)
+            const StatusPill(
+              label: 'سعر غير نهائي',
+              triad: SemanticTriads.warning,
+              icon: Icons.hourglass_bottom_outlined,
+            ),
+        ],
+        actions: <Widget>[
+          // ★ **عرض** — ⛔ **بلا صلاحية**: ★ **القراءة يحكمها النطاق وحده**
+          //   في `firestore.rules` (`isSignedIn() && storedInScope()`).
+          IconButton(
+            onPressed: () => showDistributionDetails(context, card: card),
+            icon: const Icon(Icons.visibility_outlined),
+            tooltip: 'عرض التوزيعة',
+          ),
+          // ★ **إرسال أو تصدير** — `FR-M20-04`.
+          _SendAction(card: card),
+          if (!_isCancelled)
+            PermissionGate(
+              permission: Permission.distributionAmend,
+              child: IconButton(
+                onPressed: () => showDistributionForm(
+                  context,
+                  sourceId: card.sourceId,
+                  dealerId: card.dealerId,
+                ),
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'تعديل التوزيعة',
               ),
-          ],
-          onChanged: (String? value) {
-            if (value != null) onSelected(value);
-          },
-        ),
+            ),
+          // ⛔⛔★★★ **ولا زرَّ حذفٍ إطلاقاً** — راجع ترويسة الملف: ★ **الإلغاء
+          //    هو المكافئُ المعتمَد** (`GR-07` · `FR-M10-18`).
+          if (!_isCancelled)
+            PermissionGate(
+              permission: Permission.distributionCancel,
+              child: IconButton(
+                onPressed: () => showCancelDistributionSheet(context, card: card),
+                icon: const Icon(Icons.block_outlined),
+                tooltip: 'إلغاء التوزيعة',
+                color: SemanticTriads.danger.ink,
+              ),
+            ),
+        ],
       );
 }
 
-/// نموذج التوزيعة — ★ **حالةٌ محلية حتى الحفظ**.
+// ═════════════════════════════════════════════════════════════════════════
+// ورقة العرض
+// ═════════════════════════════════════════════════════════════════════════
+
+/// ★★ يفتح ورقة عرض التوزيعة — **قراءةٌ محضة**.
+Future<void> showDistributionDetails(
+  BuildContext context, {
+  required DistributionCard card,
+}) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: SemanticColors.surface,
+      builder: (BuildContext context) => DistributionDetailsSheet(card: card),
+    );
+
+/// ورقة عرض التوزيعة.
 ///
-/// ⚠️⚠️ **ويفتح الموجود للتعديل تلقائياً** — `FR-M10-01` (`E-04`):
-/// «**عند المحاولة يُفتح المستند الموجود للتعديل ولا يُنشأ مستند ثانٍ**».
-/// ⟵ ★ **والشاشة تعرف ذلك قبل الحفظ** بمراقبة المعرّف المركّب،
-/// ⛔ **فلا تُرسل إنشاءً يُرفَض.**
-class _DistributionForm extends ConsumerStatefulWidget {
-  const _DistributionForm({
-    required this.query,
-    required this.dealerId,
-    required this.dealerName,
+/// ⛔⛔★★ **وقيمةُ الضمار لمن يملك رؤيتها وحده** (`ت-12`) — ★ **ومصدرُها
+/// `pricing/current`** ⛔ **لا حسابٌ محليّ.**
+class DistributionDetailsSheet extends ConsumerWidget {
+  /// ينشئ الورقة.
+  const DistributionDetailsSheet({required this.card, super.key});
+
+  /// التوزيعة المعروضة.
+  final DistributionCard card;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bool canSeePrices =
+        ref.watch(hasPermissionProvider(Permission.distributionPriceView));
+    final DistributionPricingCard? pricing =
+        ref.watch(distributionPricingProvider(card.distributionId)).value;
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsetsDirectional.all(Spacing.space16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(card.dealerName, style: TypeScale.titleLg),
+            const SizedBox(height: Spacing.space12),
+            QtmsKeyValueRow(label: 'المستند', value: card.documentNumber),
+            QtmsKeyValueRow(
+              label: 'المصدر',
+              value: ref.watch(sourceDisplayNameProvider(card.sourceId)),
+            ),
+            const SizedBox(height: Spacing.space16),
+            for (final ValidatedDistributionLine line in card.lines)
+              QtmsKeyValueRow(
+                label: line.itemName,
+                value: quantityLabel(line.quantity),
+              ),
+            const SizedBox(height: Spacing.space16),
+            // ⛔⛔★★ **والإجماليان منفصلان دائماً** (`GR-19` · `FR-M10-15`).
+            QtmsKeyValueRow(
+              label: 'إجمالي الحبات',
+              value: '${card.totalPieces.pieces} حبة',
+            ),
+            QtmsKeyValueRow(
+              label: 'إجمالي الأوزان',
+              value: '${card.totalWeight.formatted()} كجم',
+            ),
+            if (canSeePrices && pricing != null)
+              QtmsKeyValueRow(
+                label: 'قيمة الضمار',
+                value: '${pricing.debtValue.riyals} ريال',
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// ورقة الإلغاء
+// ═════════════════════════════════════════════════════════════════════════
+
+/// يفتح ورقة إلغاء التوزيعة — ★ **والسببُ اختياريٌّ** (`ADR-0020`).
+Future<void> showCancelDistributionSheet(
+  BuildContext context, {
+  required DistributionCard card,
+}) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: SemanticColors.surface,
+      builder: (BuildContext context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: CancelDistributionSheet(card: card),
+      ),
+    );
+
+/// ورقة إلغاء التوزيعة.
+class CancelDistributionSheet extends ConsumerWidget {
+  /// ينشئ الورقة.
+  const CancelDistributionSheet({required this.card, super.key});
+
+  /// التوزيعة الملغاة.
+  final DistributionCard card;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => QtmsDestructiveSheet(
+        title: 'إلغاء توزيعة ${card.dealerName}',
+        // ★ **الإلغاء وسمٌ لا حذف** — `GR-06` · `GR-07` · `FR-M10-18`.
+        impact: 'الإلغاء يَسِم التوزيعة وحركاتها ولا يحذف شيئاً، فتُستبعَد من '
+            'كل الأرصدة والتقارير. ويُرفَض إن كان الضمار قد سُدِّد كلياً أو '
+            'جزئياً.',
+        confirmLabel: 'تأكيد الإلغاء',
+        reasonLabel: 'سبب الإلغاء (اختياري)',
+        onConfirm: (DestructiveConfirmation confirmation) async {
+          // ⛔⛔★★★ **ولا حارسَ على السبب** — `ADR-0020`.
+          final Outcome<void> result =
+              await ref.read(distributionAdminProvider).cancelDistribution(
+                    documentNumber: card.documentNumber,
+                    sourceId: card.sourceId,
+                    dealerId: card.dealerId,
+                    cancelReason: blankToNull(confirmation.reason),
+                  );
+          return switch (result) {
+            Failure<void>(:final AppError error) =>
+              catalogText(appErrorMessage(error)),
+            Success<void>() => null,
+          };
+        },
+      );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// نموذج التوزيعة
+// ═════════════════════════════════════════════════════════════════════════
+
+/// ★★★ يفتح نموذج التوزيعة — **إنشاءً أو تعديلاً** (`AM-009` ⑦).
+Future<void> showDistributionForm(
+  BuildContext context, {
+  required String sourceId,
+  String? dealerId,
+}) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: SemanticColors.surface,
+      builder: (BuildContext context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: DistributionFormSheet(sourceId: sourceId, dealerId: dealerId),
+      ),
+    );
+
+/// ورقة نموذج التوزيعة.
+///
+/// ⚠️⚠️ **وتفتح الموجود للتعديل تلقائياً** — `FR-M10-01` (`E-04`): «**عند
+/// المحاولة يُفتح المستند الموجود للتعديل ولا يُنشأ مستند ثانٍ**».
+/// ⟵ ★ **والورقة تعرف ذلك قبل الحفظ** بمراقبة توزيعة (المقوت × المصدر ×
+/// اليوم)، ⛔ **فلا تُرسل إنشاءً يُرفَض.**
+class DistributionFormSheet extends ConsumerStatefulWidget {
+  /// ينشئ الورقة.
+  const DistributionFormSheet({
+    required this.sourceId,
+    this.dealerId,
     super.key,
   });
 
-  final DistributionQuery query;
-  final String dealerId;
-  final String dealerName;
+  /// المصدر الابتدائي.
+  final String sourceId;
+
+  /// المقوت الابتدائي — و`null` تعني **إنشاءً بلا اختيارٍ بعد**.
+  final String? dealerId;
 
   @override
-  ConsumerState<_DistributionForm> createState() => _DistributionFormState();
+  ConsumerState<DistributionFormSheet> createState() =>
+      _DistributionFormSheetState();
 }
 
-class _DistributionFormState extends ConsumerState<_DistributionForm> {
-  final Map<String, _LineEdit> _edits = <String, _LineEdit>{};
+class _DistributionFormSheetState
+    extends ConsumerState<DistributionFormSheet> {
   final TextEditingController _reason = TextEditingController();
+  late String _sourceId = widget.sourceId;
+  late String? _dealerId = widget.dealerId;
+
+  /// ★★★ **سطورٌ يُنشئها المستخدم** — `AM-009` ④ (راجع [QtmsItemLineRow]).
+  final List<_DistLine> _lines = <_DistLine>[];
+
+  /// ★ معرّفُ ما بُذر منه — ⛔ **ولا يُعاد الملء عند كل بناء**: ⟵ **وإلا مسح
+  /// ما يكتبه المستخدم كلما وصل تحديثٌ من جهازٍ آخر.**
+  String? _seededId;
+
   bool _submitting = false;
   bool _saved = false;
   CatalogMessage? _rejection;
 
-  /// ★ المعرّف المركّب — **وهو ما يُفتَح به الموجود** (`GR-18`).
-  String get _compositeId => distributionId(
-        dealerId: widget.dealerId,
-        sourceId: widget.query.sourceId,
-        stockDate: widget.query.stockDate,
-      );
-
   @override
   void dispose() {
     _reason.dispose();
-    for (final _LineEdit edit in _edits.values) {
-      edit.dispose();
+    for (final _DistLine line in _lines) {
+      line.dispose();
     }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // ⛔⛔★★★ **ومن قائمة اليوم لا بقراءةٍ بالمعرّف** — راجع
-    //    [dealerDistributionProvider]: **القراءة بالمعرّف تُرفَض على المستند
-    //    الغائب**، ⟵ **وهو أشيعُ حالات `E-04`.**
-    final AsyncValue<DistributionCard?> existing = ref.watch(
-      dealerDistributionProvider(
-        DealerDistributionQuery(
-          sourceId: widget.query.sourceId,
-          dealerId: widget.dealerId,
-          stockDate: widget.query.stockDate,
-        ),
-      ),
-    );
-    final List<ItemCard> items =
-        ref.watch(distributionItemsProvider(widget.query.sourceId));
+    final CalendarDay today = ref.watch(todayProvider);
+    final List<SourceCard> sources = ref.watch(activeSourcesProvider);
+    // ⛔★★ **ولا يظهر مقوتٌ معطَّل** — `FR-M10-12`.
+    final List<DealerCard> dealers = ref.watch(distributionDealersProvider);
+    final List<ItemCard> items = ref.watch(distributionItemsProvider(_sourceId));
+    final DistributionQuery query =
+        DistributionQuery(sourceId: _sourceId, stockDate: today);
     // ⛔⛔★★★ **ويُراقَب لا يُقرأ لحظة الحفظ** — ⟵ **فالقراءة المتأخرة كانت
     //   تجد التدفّق لم يُشترَك بعد فتعود فارغة**، ★ **فيُرسَل السطر بلا سعر
     //   وينشأ ضمارٌ بصفر لمقوتٍ استلم بضاعة** (`FR-M10-07`).
     final Map<String, Money> suggested =
-        ref.watch(suggestedDistributionPricesProvider(widget.query));
-
-    // ★ **تدفّقٌ لمستندٍ واحد لا لقائمة** — ⟵ **فلا يُستعمَل عارضُ القوائم**،
-    //   ⛔ **والغياب حالةٌ طبيعية لا «فراغ» يُعرَض بلوحة.**
-    return existing.when(
-      // ⛔★★ **والهيكل العظمي وحده حالةً للتحميل** — `ui-guidelines.md` §هـ
-      //    (بوابة الحِرفية البصرية): ⟵ **ولا مؤشّر دوّار خارج استثنائَيه.**
-      loading: () => const SkeletonList(),
-      error: (Object _, StackTrace _) => const _EmptyHint(
-        'تحقق من صلاحيتك ونطاق مصادرك، ثم أعد المحاولة.',
+        ref.watch(suggestedDistributionPricesProvider(query));
+    final Map<String, StockQuantity> remaining = ref.watch(
+      remainingStockProvider(
+        StockQuery(sourceId: _sourceId, stockDate: today),
       ),
-      data: (DistributionCard? card) {
-        _seedFrom(card, items);
-        return _content(card, items, suggested);
-      },
     );
-  }
 
-  /// ★★ يملأ الحقول من التوزيعة القائمة **مرةً واحدة** — `E-04`.
-  ///
-  /// ⛔ **ولا يُعيد الملء عند كل بناء** — ⟵ **وإلا مسح ما يكتبه المستخدم
-  /// كلما وصل تحديثٌ من جهازٍ آخر.**
-  void _seedFrom(DistributionCard? card, List<ItemCard> items) {
-    if (card == null || _edits.isNotEmpty) return;
-    for (final ValidatedDistributionLine line in card.lines) {
-      _edits[line.itemKey] = _LineEdit(
-        quantity: switch (line.quantity) {
-          PieceQuantity(:final PieceCount count) => '${count.pieces}',
-          WeightQuantity(:final WeightKg weight) => weight.formatted(),
-        },
-      );
-    }
-  }
-
-  Widget _content(
-    DistributionCard? card,
-    List<ItemCard> items,
-    Map<String, Money> suggested,
-  ) {
-    final bool isAmend = card != null;
-    final bool isCancelled = card?.isCancelled ?? false;
-    final AsyncValue<DistributionPricingCard?> pricing =
-        ref.watch(distributionPricingProvider(_compositeId));
     final bool canSeePrices =
         ref.watch(hasPermissionProvider(Permission.distributionPriceView));
+    final bool canAmendPrice =
+        ref.watch(hasPermissionProvider(Permission.distributionPriceAmend));
+    final bool canClearPrice =
+        ref.watch(hasPermissionProvider(Permission.distributionPriceClear));
 
-    // ★★★ **نمط `P8`** (`MASTER.md` §5b · `ADR-0021`): **الملخّصُ المالي
-    //    والزرُّ الأساسي ثابتان أسفل الشاشة، والمدمّرُ في ذيل المحتوى.**
-    if (isCancelled) {
-      return const _EmptyHint('هذه التوزيعة ملغاة — لا يمكن تعديلها');
-    }
-
-    return Column(
-      children: <Widget>[
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsetsDirectional.all(Spacing.screenPadding),
-            children: <Widget>[
-              if (isAmend)
-                _ExistingBanner(card: card, sourceId: widget.query.sourceId),
-              for (final ItemCard item in items)
-                _LineRow(
-                  item: item,
-                  edit: _editFor(item.itemId),
-                  onChanged: () => setState(() {}),
-                ),
-              if (isAmend) ...<Widget>[
-                const SizedBox(height: Spacing.space16),
-                // ⛔⛔★★★ **ولا يُعبَّأ آلياً أبداً** — `CLAUDE.md`: **ما لم
-                //    يكتبه إنسانٌ لا يُرسَل** (`ADR-0020` القيد ①).
-                TextField(
-                  controller: _reason,
-                  decoration: const InputDecoration(
-                    labelText: 'سبب التعديل (اختياري)',
-                  ),
-                ),
-              ],
-              // ⑧-أ ★★ **الإرسال والتصدير** — `FR-M20-04` (`WU-010`).
-              //
-              // ⛔ **ولا يظهر قبل الحفظ** — ★ **ولا يُرسَل ما لم يُقيَّد بعد**:
-              //    ⟵ **ورسالةٌ بتوزيعةٍ لم تُحفظ تَعِد المقوتَ بما قد لا يقع.**
-              if (isAmend) ...<Widget>[
-                const SizedBox(height: Spacing.space16),
-                _SendActions(
-                  card: card,
-                  sourceId: widget.query.sourceId,
-                  dealerId: widget.dealerId,
-                  dealerName: widget.dealerName,
-                ),
-              ],
-              // ⑨ ⛔⛔★★★ **والمدمّر في ذيل المحتوى الممرَّر** — §5b `P8`:
-              //    ★ **كان ملاصقاً لزرّ الحفظ بنفس العرض** ⟵ **وإصبعٌ
-              //    مستعجلة تُخطئ بمقدار 8dp** ⛔ **على مستندٍ لا يُحذَف ولا
-              //    يُتراجَع عن إلغائه.** ★ **وبلون `danger` واللفظُ صريح.**
-              if (isAmend) ...<Widget>[
-                const SizedBox(height: Spacing.space24),
-                // ⛔★★ **ولا زر حذف إطلاقاً** — `GR-07`.
-                PermissionGate(
-                  permission: Permission.distributionCancel,
-                  child: OutlinedButton.icon(
-                    onPressed: _submitting ? null : () => _cancel(card),
-                    icon: const Icon(Icons.block_outlined),
-                    label: const Text('إلغاء التوزيعة'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: SemanticTriads.danger.ink,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        // ⑦⑧ ⛔⛔★★★ **والملخّصُ المالي ثابتٌ فوق الزرّ** — §5b `P8`:
-        //    ★ **كان بعد كل الصفوف في محتوىً ممرَّر** ⟵ **فلا يُرى أثناء
-        //    الإدخال أصلاً**، ⛔ **فيكتب المستخدم كمياتٍ وهو لا يرى قيمة
-        //    الضمار التي يُقيّدها على المقوت** (`ت-12`).
-        QtmsStickyActionBar(
-          summary: _totals(
-            _linesFor(items, suggested),
-            // ⛔⛔★★ **والإجمالي المالي لمن يملك رؤيته وحده** (`ت-12`) —
-            //    ★ **والمصدر مستند الأسعار لا حسابٌ محليّ**: ⟵ **فما يراه
-            //    المستخدم هو ما كُتب فعلاً.**
-            canSeePrices ? pricing.value?.debtValue : null,
-          ),
-          status: switch ((_rejection, _saved)) {
-            (final CatalogMessage message, _) =>
-              QtmsActionStatus.rejection(catalogText(message)),
-            (null, true) => QtmsActionStatus.success('تم الحفظ.'),
-            _ => null,
-          },
-          primary: PermissionGate(
-            permission: isAmend
-                ? Permission.distributionAmend
-                : Permission.distributionCreate,
-            child: FilledButton.icon(
-              onPressed:
-                  _submitting ? null : () => _submit(card, items, suggested),
-              icon: const Icon(Icons.save_outlined),
-              label: Text(isAmend ? 'حفظ التعديل' : 'حفظ التوزيعة'),
+    // ⛔⛔★★★ **ومن قائمة اليوم لا بقراءةٍ بالمعرّف** — `DEBT-40`: **القراءة
+    //    بالمعرّف تُرفَض على المستند الغائب** لأن `storedInScope()` يقرأ
+    //    `resource.data.sourceId`، ⟵ **وهو أشيعُ حالات `E-04`.**
+    final DistributionCard? existing = switch (_dealerId) {
+      final String dealerId => ref
+          .watch(
+            dealerDistributionProvider(
+              DealerDistributionQuery(
+                sourceId: _sourceId,
+                dealerId: dealerId,
+                stockDate: today,
+              ),
             ),
-          ),
+          )
+          .value,
+      null => null,
+    };
+    _seedFrom(existing);
+
+    final bool isAmend = existing != null;
+    final bool isCancelled = existing?.status == DistributionStatus.cancelled;
+
+    final List<QtmsItemOption> options = <QtmsItemOption>[
+      for (final ItemCard item in items)
+        QtmsItemOption(
+          id: item.itemId,
+          // ⑥ ★★★ **«اسم النوع (المتبقّي منه)»** — `FR-M10-06` حرفياً.
+          label: itemOptionLabel(item.name, remaining[item.itemId]),
         ),
-      ],
+    ];
+    final Map<String, ItemCard> itemsById = <String, ItemCard>{
+      for (final ItemCard item in items) item.itemId: item,
+    };
+
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * _sheetHeightRatio,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsetsDirectional.all(Spacing.space16),
+              child: Text(
+                isAmend ? 'تعديل التوزيعة' : 'توزيعة جديدة',
+                style: TypeScale.titleLg,
+              ),
+            ),
+            Flexible(
+              child: ListView(
+                padding: const EdgeInsetsDirectional.only(
+                  start: Spacing.screenPadding,
+                  end: Spacing.screenPadding,
+                  bottom: Spacing.screenPadding,
+                ),
+                children: <Widget>[
+                  // ★★ **المقوت والمصدر حقلان في النموذج** — `AM-009` ⑦.
+                  //
+                  // ⛔ **والمقوتُ مقفلٌ متى فُتح مستندٌ قائم** — `GR-18`:
+                  //    ⟵ **فتبديلُه يعني توزيعةً أخرى لا تعديلَ هذه.**
+                  _DealerField(
+                    dealers: dealers,
+                    selected: _dealerId,
+                    onSelected: _onDealerChanged,
+                  ),
+                  const SizedBox(height: Spacing.space12),
+                  DropdownButtonFormField<String>(
+                    initialValue:
+                        sources.any((SourceCard s) => s.sourceId == _sourceId)
+                            ? _sourceId
+                            : null,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'المصدر'),
+                    items: <DropdownMenuItem<String>>[
+                      for (final SourceCard source in sources)
+                        DropdownMenuItem<String>(
+                          value: source.sourceId,
+                          child:
+                              Text(source.name, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: isAmend ? null : _onSourceChanged,
+                  ),
+                  const SizedBox(height: Spacing.space16),
+                  if (isAmend) _ExistingBanner(card: existing),
+                  if (isCancelled)
+                    Text(
+                      'هذه التوزيعة ملغاة — لا يمكن تعديلها.',
+                      style: TypeScale.bodyMd
+                          .copyWith(color: SemanticTriads.danger.ink),
+                    )
+                  else ...<Widget>[
+                    Text(
+                      'الأنواع',
+                      style: TypeScale.label
+                          .copyWith(color: SemanticColors.textSecondary),
+                    ),
+                    const SizedBox(height: Spacing.space8),
+                    for (final (int index, _DistLine line) in _lines.indexed)
+                      QtmsItemLineRow(
+                        key: ValueKey<int>(line.seed),
+                        options: optionsForRow(
+                          all: options,
+                          takenIds: <String?>[
+                            for (final _DistLine other in _lines) other.itemId,
+                          ],
+                          ownId: line.itemId,
+                        ),
+                        selectedId: line.itemId,
+                        onSelected: (String id) => setState(() {
+                          line.itemId = id;
+                          // ★★ **والسعرُ المقترَح يُملأ عند الاختيار** —
+                          //    `FR-M10-09`: ⟵ **فالمعتادُ لا يُكتَب**،
+                          //    ⛔ **وما يُملأ هنا هو ما يراه المستخدم فعلاً.**
+                          if (canSeePrices && line.price.text.isEmpty) {
+                            line.price.text =
+                                suggested[id]?.riyals.toString() ?? '';
+                          }
+                        }),
+                        onRemove: () =>
+                            setState(() => _lines.removeAt(index).dispose()),
+                        fields: <Widget>[
+                          _quantityField(line, itemsById[line.itemId]),
+                          if (canSeePrices)
+                            _priceField(
+                              line,
+                              canEdit: canAmendPrice || canClearPrice,
+                              canClear: canClearPrice,
+                            ),
+                        ],
+                      ),
+                    if (items.isEmpty)
+                      Text(
+                        'لا توجد أنواع مرتبطة بهذا المصدر.',
+                        style: TypeScale.bodyMd
+                            .copyWith(color: SemanticColors.textSecondary),
+                      ),
+                    if (items.isNotEmpty)
+                      QtmsAddLineButton(
+                        onPressed: _dealerId == null ||
+                                _lines.length >= items.length
+                            ? null
+                            : () => setState(() => _lines.add(_DistLine())),
+                      ),
+                    if (canSeePrices && canClearPrice) ...<Widget>[
+                      const SizedBox(height: Spacing.space8),
+                      Text(
+                        // ★★ **«تسعير لاحق» فعلٌ صريحٌ مُسمّى** — `FR-M10-08`:
+                        //    ⟵ **والسطرُ يدخل مركز الإدخالات المعلّقة.**
+                        'اترك السعر فارغاً للتسعير لاحقاً — يدخل السطر مركز '
+                        'الإدخالات المعلّقة.',
+                        style: TypeScale.caption
+                            .copyWith(color: SemanticColors.textSecondary),
+                      ),
+                    ],
+                    if (isAmend) ...<Widget>[
+                      const SizedBox(height: Spacing.space16),
+                      // ⛔⛔★★★ **ولا يُعبَّأ آلياً أبداً** — `ADR-0020` القيد ①.
+                      TextField(
+                        controller: _reason,
+                        decoration: const InputDecoration(
+                          labelText: 'سبب التعديل (اختياري)',
+                        ),
+                      ),
+                    ],
+                  ],
+                ],
+              ),
+            ),
+            // ⑦⑧ ★★★ **الملخّصُ المالي ثابتٌ فوق الزرّ** — §5b `P8`.
+            if (!isCancelled)
+              QtmsStickyActionBar(
+                summary:
+                    _totals(_linesFor(itemsById, suggested, canSeePrices)),
+                status: switch ((_rejection, _saved)) {
+                  (final CatalogMessage message, _) =>
+                    QtmsActionStatus.rejection(catalogText(message)),
+                  (null, true) => QtmsActionStatus.success('تم الحفظ.'),
+                  _ => null,
+                },
+                primary: PermissionGate(
+                  permission: isAmend
+                      ? Permission.distributionAmend
+                      : Permission.distributionCreate,
+                  child: FilledButton.icon(
+                    onPressed: _submitting || _dealerId == null
+                        ? null
+                        : () => _submit(existing, itemsById, suggested,
+                            canSeePrices),
+                    icon: const Icon(Icons.save_outlined),
+                    label: Text(isAmend ? 'حفظ التعديل' : 'حفظ التوزيعة'),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
-  _LineEdit _editFor(String itemId) =>
-      _edits.putIfAbsent(itemId, _LineEdit.new);
+  /// ★ نسبةُ ارتفاع الورقة — ⛔ **ولا رقمَ عارٍ في التخطيط**.
+  static const double _sheetHeightRatio = 0.9;
+
+  Widget _quantityField(_DistLine line, ItemCard? item) => TextField(
+        controller: line.quantity,
+        keyboardType: TextInputType.numberWithOptions(
+          decimal: item?.unit == ItemUnit.kilogram,
+        ),
+        // ⛔★★ **والكسر مرفوض في المعدود من المُدخِل نفسه**
+        //    (`BR-M6-06` · `ERR_STOCK_002`).
+        inputFormatters: <TextInputFormatter>[
+          if (item?.unit == ItemUnit.kilogram)
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
+          else
+            FilteringTextInputFormatter.digitsOnly,
+        ],
+        decoration: InputDecoration(
+          labelText: 'الكمية',
+          suffixText: item == null ? null : unitName(item.unit),
+        ),
+        onChanged: (String _) => setState(() {}),
+      );
+
+  /// ★★ حقلُ السعر — **يظهر لمن يراه، ويُحرَّر لمن يملك تغييره.**
+  ///
+  /// ⛔⛔★★★ **وإخفاؤه تسهيلُ واجهةٍ لا حماية** — `FR-M10-10`: ★ **القاعدة
+  /// والدالة ترفضان سعراً من مُرسِلٍ لا يملك المفتاح** ⛔ **حتى من خارج
+  /// التطبيق**، ⟵ **فما هنا عرضٌ محض.**
+  Widget _priceField(
+    _DistLine line, {
+    required bool canEdit,
+    required bool canClear,
+  }) =>
+      TextField(
+        controller: line.price,
+        readOnly: !canEdit,
+        keyboardType: const TextInputType.numberWithOptions(),
+        // ⛔★★ **ولا كسرَ في مبلغ** — `ADR-0015`.
+        inputFormatters: <TextInputFormatter>[
+          FilteringTextInputFormatter.digitsOnly,
+        ],
+        decoration: InputDecoration(
+          labelText: canClear ? 'السعر (أو اتركه لاحقاً)' : 'السعر',
+          suffixText: 'ريال',
+        ),
+        onChanged: (String _) => setState(() {}),
+      );
+
+  /// ★★ يملأ الحقول من التوزيعة القائمة **مرةً واحدة لكل مستند** — `E-04`.
+  void _seedFrom(DistributionCard? card) {
+    if (card == null || _seededId == card.distributionId) return;
+    _seededId = card.distributionId;
+    for (final _DistLine line in _lines) {
+      line.dispose();
+    }
+    _lines
+      ..clear()
+      ..addAll(<_DistLine>[
+        for (final ValidatedDistributionLine line in card.lines)
+          _DistLine(
+            itemId: line.itemKey,
+            quantity: switch (line.quantity) {
+              PieceQuantity(:final PieceCount count) => '${count.pieces}',
+              WeightQuantity(:final WeightKg weight) => weight.formatted(),
+            },
+          ),
+      ]);
+  }
+
+  void _onDealerChanged(String id) {
+    if (id == _dealerId) return;
+    setState(() {
+      _dealerId = id;
+      _resetLines();
+    });
+  }
+
+  void _onSourceChanged(String? id) {
+    if (id == null || id == _sourceId) return;
+    setState(() {
+      _sourceId = id;
+      _resetLines();
+    });
+  }
+
+  /// ⛔ **وتبديلُ المقوت أو المصدر يُفرِغ السطور** — ★ **فالأنواع والأسعار
+  /// والمتبقّي كلُّها مشتقّةٌ من المصدر** (`A-01`)، ⟵ **والمستندُ المفتوح
+  /// يتبع (المقوت × المصدر × اليوم)** (`GR-18`).
+  void _resetLines() {
+    for (final _DistLine line in _lines) {
+      line.dispose();
+    }
+    _lines.clear();
+    _seededId = null;
+    _rejection = null;
+    _saved = false;
+  }
 
   /// ★ السطور المكتوبة فعلاً — ⛔ **والفارغ ليس سطراً**.
   List<DistributionLineInput> _linesFor(
-    List<ItemCard> items,
+    Map<String, ItemCard> itemsById,
     Map<String, Money> suggested,
+    bool canSeePrices,
   ) {
     final List<DistributionLineInput> lines = <DistributionLineInput>[];
-    for (final ItemCard item in items) {
-      final _LineEdit? edit = _edits[item.itemId];
-      final String text = edit?.quantity.text.trim() ?? '';
-      if (text.isEmpty) continue;
-      final StockQuantity? quantity = _quantityOf(item.unit, text);
+    for (final _DistLine line in _lines) {
+      final ItemCard? item = itemsById[line.itemId];
+      if (item == null) continue;
+      final StockQuantity? quantity =
+          _quantityOf(item.unit, line.quantity.text.trim());
       if (quantity == null) continue;
       lines.add(
         DistributionLineInput(
@@ -450,8 +874,12 @@ class _DistributionFormState extends ConsumerState<_DistributionForm> {
           itemName: item.name,
           unit: item.unit,
           quantity: quantity,
-          // ★★ **ويُرسَل حتى لمن لا يراه** — راجع ترويسة الملف (`ت-12`).
-          unitPrice: suggested[item.itemId],
+          // ★★★ **ويُرسَل حتى لمن لا يراه** — راجع ترويسة الملف (`ت-12`):
+          //    ⟵ **فمن لا يملك `distributionPriceView` يُرسَل عنه المقترَح
+          //    كاملاً**، ⛔ **ولا يُرسَل غياباً فيُنشأ ضمارٌ بصفر.**
+          unitPrice: canSeePrices
+              ? Money.tryParseInput(line.price.text.trim())
+              : suggested[item.itemId],
         ),
       );
     }
@@ -459,9 +887,8 @@ class _DistributionFormState extends ConsumerState<_DistributionForm> {
   }
 
   /// ★ الكمية بوحدة النوع — و`null` لمُدخَلٍ لا يصلح لتلك الوحدة.
-  ///
-  /// ⛔★★ **والكسر يُرفَض للمعدود في النوع نفسه** (`BR-M6-06`).
   static StockQuantity? _quantityOf(ItemUnit unit, String text) {
+    if (text.isEmpty) return null;
     switch (unit) {
       case ItemUnit.piece:
         final PieceCount? count = PieceCount.tryParseInput(text);
@@ -474,14 +901,18 @@ class _DistributionFormState extends ConsumerState<_DistributionForm> {
 
   Future<void> _submit(
     DistributionCard? card,
-    List<ItemCard> items,
+    Map<String, ItemCard> itemsById,
     Map<String, Money> suggested,
+    bool canSeePrices,
   ) async {
+    final String? dealerId = _dealerId;
+    if (dealerId == null) return;
+
     final Outcome<ValidatedDistribution> validated = validateDistribution(
       DistributionInput(
-        sourceId: widget.query.sourceId,
-        dealerId: widget.dealerId,
-        lines: _linesFor(items, suggested),
+        sourceId: _sourceId,
+        dealerId: dealerId,
+        lines: _linesFor(itemsById, suggested, canSeePrices),
       ),
     );
     if (validated is Failure<ValidatedDistribution>) {
@@ -510,80 +941,48 @@ class _DistributionFormState extends ConsumerState<_DistributionForm> {
     setState(() {
       _submitting = false;
       _saved = outcome is Success<void>;
-      _rejection = outcome is Failure<void>
-          ? appErrorMessage(outcome.error)
-          : null;
+      _rejection =
+          outcome is Failure<void> ? appErrorMessage(outcome.error) : null;
     });
-  }
-
-  Future<void> _cancel(DistributionCard card) async {
-    setState(() {
-      _submitting = true;
-      _rejection = null;
-      _saved = false;
-    });
-    final Outcome<void> outcome =
-        await ref.read(distributionAdminProvider).cancelDistribution(
-              documentNumber: card.documentNumber,
-              sourceId: card.sourceId,
-              dealerId: card.dealerId,
-              cancelReason: blankToNull(_reason.text),
-            );
-    if (!mounted) return;
-    setState(() {
-      _submitting = false;
-      _saved = outcome is Success<void>;
-      _rejection = outcome is Failure<void>
-          ? appErrorMessage(outcome.error)
-          : null;
-    });
+    // ★ **وورقةٌ نجحت تُغلَق** — ⛔ **ولا تبقى مفتوحةً على مستندٍ حُفظ**:
+    //   ⟵ **فالسجلُّ في القائمة خلفها هو الدليل.**
+    if (outcome is Success<void> && mounted) Navigator.of(context).pop();
   }
 }
 
-/// ★ صفّ نوعٍ واحد — **كميةٌ بوحدتها** ⛔ **بلا حقل سعر**.
-///
-/// ⛔⛔★★ **ولا عمود سعرٍ في هذه الشاشة إطلاقاً** — ★ **السعر من التسعير
-/// اليومي** (`FR-M10-09`)، ⟵ **وتعديلُه شاشتُه هي التسعير**، ⛔ **وحقلٌ هنا
-/// كان سيُلزم كل موزّع بصلاحية تسعير.**
-class _LineRow extends StatelessWidget {
-  const _LineRow({
-    required this.item,
-    required this.edit,
-    required this.onChanged,
+/// ★★★ حقلُ المقوت — **منسدلٌ يُكتَب فيه فيُصفّي** (`AM-009` ⑦).
+class _DealerField extends StatelessWidget {
+  const _DealerField({
+    required this.dealers,
+    required this.selected,
+    required this.onSelected,
   });
 
-  final ItemCard item;
-  final _LineEdit edit;
-  final VoidCallback onChanged;
+  final List<DealerCard> dealers;
+  final String? selected;
+  final ValueChanged<String> onSelected;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: Spacing.space8),
-        child: Row(
-          children: <Widget>[
-            Expanded(flex: 3, child: Text(item.name, style: TypeScale.bodyMd)),
-            Expanded(
-              flex: 2,
-              child: TextField(
-                controller: edit.quantity,
-                keyboardType: TextInputType.numberWithOptions(
-                  decimal: item.unit == ItemUnit.kilogram,
-                ),
-                // ⛔★★ **والكسر مرفوض في المعدود من المُدخِل نفسه**
-                //    (`BR-M6-06` · `ERR_STOCK_002`).
-                inputFormatters: <TextInputFormatter>[
-                  if (item.unit == ItemUnit.piece)
-                    FilteringTextInputFormatter.digitsOnly
-                  else
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                ],
-                decoration: InputDecoration(
-                  isDense: true,
-                  suffixText: unitName(item.unit),
-                ),
-                onChanged: (String _) => onChanged(),
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) =>
+            DropdownMenu<String>(
+          // ⛔⛔★★★ **وعرضٌ محدودٌ صريح** — `DEBT-63`.
+          width: constraints.maxWidth,
+          initialSelection: selected,
+          label: const Text('المقوت'),
+          enableFilter: true,
+          enableSearch: true,
+          requestFocusOnTap: true,
+          menuHeight: Sizes.listRowHeight * 4,
+          onSelected: (String? value) {
+            if (value != null) onSelected(value);
+          },
+          dropdownMenuEntries: <DropdownMenuEntry<String>>[
+            for (final DealerCard dealer in dealers)
+              DropdownMenuEntry<String>(
+                value: dealer.dealerId,
+                label: dealer.name,
               ),
-            ),
           ],
         ),
       );
@@ -592,16 +991,14 @@ class _LineRow extends StatelessWidget {
 /// ★★★ **الملخّصُ المالي الثابت** — §5b نمط `P8` البند ⑦ (`ADR-0021`).
 ///
 /// ⛔⛔★★ **والإجماليان منفصلان دائماً** (`GR-19` · `FR-M10-15`) — ★ **سطران
-/// مستقلّان في [QtmsLiveSummary.details]** ⛔ **ولا سطرَ ثالثٌ يجمعهما.**
-///
-/// ★★ **وكان `Card` محلّياً** (`_Totals`) — ⟵ **وهو خامسُ صياغةٍ لملخّصٍ حيّ**:
-/// ⛔ **والمحظور الحادي عشر يمنع النسخة الثانية فضلاً عن الخامسة** (§8).
+/// مستقلّان** ⛔ **ولا سطرَ ثالثٌ يجمعهما.**
 ///
 /// ⚠️ **والجمعُ هنا عرضٌ لا معادلة** — ★ **مجموعُ ما كتبه المستخدمُ لحظتَه**،
 /// ⛔ **ولا قاعدةَ عملٍ فيه** (`ADR-0010` القاعدة 1).
-Widget _totals(List<DistributionLineInput> lines, Money? debtValue) {
+Widget _totals(List<DistributionLineInput> lines) {
   int pieces = 0;
   double kilograms = 0;
+  bool unpriced = false;
   for (final DistributionLineInput line in lines) {
     switch (line.quantity) {
       case PieceQuantity(:final PieceCount count):
@@ -609,77 +1006,71 @@ Widget _totals(List<DistributionLineInput> lines, Money? debtValue) {
       case WeightQuantity(:final WeightKg weight):
         kilograms += weight.kilograms;
     }
+    if (line.unitPrice == null) unpriced = true;
   }
   return QtmsLiveSummary(
     headline: 'إجمالي الحبات: $pieces حبة',
     details: <String>[
       'إجمالي الأوزان: ${kilograms.toStringAsFixed(WeightKg.decimals)} كجم',
+      if (unpriced) 'سطورٌ بلا سعر — تُسعَّر لاحقاً',
     ],
-    // ⛔⛔★★ **وقيمة الضمار لمن يملك رؤيتها وحده** (`ت-12`) —
-    //    ★ **و`null` غيابٌ لا فراغ.**
-    emphasis: switch (debtValue) {
-      final Money value => 'قيمة الضمار: ${value.riyals} ريال',
-      null => null,
-    },
+    // ⛔⛔★★★ **ولا قيمةَ ضمارٍ محسوبةٌ هنا** — `ADR-0010` القاعدة 1 ·
+    //    `design-system.md` §5.1: ★ **ضربُ السعر في الكمية معادلةُ عملٍ**،
+    //    ⟵ **وتكرارُها في شاشة يخالف «لا تكرار لأي معادلة خارج طبقة
+    //    النطاق»** (`CLAUDE.md`). ★ **والضمارُ المقيَّد يُقرأ من
+    //    `pricing/current` في ورقة العرض بعد الحفظ** ⛔ **لا يُقدَّر قبله.**
+    emphasis: null,
   );
 }
 
-/// ★★ شارة «يوجد توزيع — سيُفتح للتعديل» — `E-04` · `ERR_DIST_001`.
-class _ExistingBanner extends ConsumerWidget {
-  const _ExistingBanner({required this.card, required this.sourceId});
+/// ★★ شارة «يوجد توزيع — فُتح للتعديل» — `E-04` · `ERR_DIST_001`.
+class _ExistingBanner extends StatelessWidget {
+  const _ExistingBanner({required this.card});
 
   final DistributionCard card;
-  final String sourceId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Card(
+  Widget build(BuildContext context) => Card(
         color: SemanticColors.surfaceSunken,
         child: ListTile(
-          // ★★ **أيقونة 🕘 السجل السياقي** — `FR-M18-10`.
-          leading: auditTrailLeading(
-            ref,
-            entityType: distributionEntityType,
-            entityId: card.distributionId,
-            title: card.documentNumber,
-            sourceId: sourceId,
-          ),
           title: Text(card.documentNumber, style: TypeScale.bodyMd),
           subtitle: Text(
             'يوجد توزيع لهذا المقوت اليوم — فُتح للتعديل'
             '${card.amendCount > 0 ? ' · مُعدَّل ×${card.amendCount}' : ''}'
-            '${card.hasUnpricedLines ? ' · ⏳ سعر غير نهائي' : ''}',
+            '${card.hasUnpricedLines ? ' · سعر غير نهائي' : ''}',
           ),
         ),
       );
 }
 
-// ⛔⛔★★ **ولافتتا الرفض والنجاح المحليّتان حُذفتا** — ★ **حلّ محلّهما
-// [QtmsActionStatus] داخل الشريط الثابت** (§5b `P8`): ⟵ **فسقط معهما
-// «✅» الإيموجي** (§9) ⛔ **وسقط قفزُ الزرّ عند ظهور اللافتة.**
+/// تحرير سطرٍ محلي — **نوعٌ وكميةٌ وسعر.**
+class _DistLine {
+  _DistLine({this.itemId, String quantity = '', String price = ''})
+      : quantity = TextEditingController(text: quantity),
+        price = TextEditingController(text: price),
+        seed = _nextSeed++;
 
-class _EmptyHint extends StatelessWidget {
-  const _EmptyHint(this.text);
+  static int _nextSeed = 0;
 
-  final String text;
+  /// النوع — و`null` تعني **صفّاً لم يُختَر نوعُه بعد**.
+  String? itemId;
 
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(Spacing.space24),
-        child: Text(text, style: TypeScale.bodyMd),
-      );
-}
-
-/// تحرير سطرٍ محلي.
-class _LineEdit {
-  _LineEdit({String quantity = ''})
-      : quantity = TextEditingController(text: quantity);
-
+  /// الكمية المكتوبة.
   final TextEditingController quantity;
 
-  void dispose() => quantity.dispose();
+  /// ★ السعر المكتوب — **وفراغُه «تسعيرٌ لاحق»** (`FR-M10-08`).
+  final TextEditingController price;
+
+  /// مفتاحٌ ثابت للصفّ — ⛔ **ولا الموضعُ مفتاحاً.**
+  final int seed;
+
+  void dispose() {
+    quantity.dispose();
+    price.dispose();
+  }
 }
 
-/// ★★★ صفُّ الإرسال والتصدير — `M20` (`WU-010`).
+/// ★★★ زرُّ الإرسال والتصدير — `M20` (`WU-010`).
 ///
 /// ═══════════════════════════════════════════════════════════════════════
 /// ⛔⛔★★ **ولا يحسب شيئاً** (`design-system.md` §5.1): ★ **الأسعار وقيم
@@ -692,18 +1083,10 @@ class _LineEdit {
 /// `dealerBalanceView` لا يستطيع أن يضع رصيداً في رسالة**، ⛔ **ولا يُخترَع
 /// له صفر.**
 /// ═══════════════════════════════════════════════════════════════════════
-class _SendActions extends ConsumerWidget {
-  const _SendActions({
-    required this.card,
-    required this.sourceId,
-    required this.dealerId,
-    required this.dealerName,
-  });
+class _SendAction extends ConsumerWidget {
+  const _SendAction({required this.card});
 
   final DistributionCard card;
-  final String sourceId;
-  final String dealerId;
-  final String dealerName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -716,30 +1099,33 @@ class _SendActions extends ConsumerWidget {
     if (!canSend && !canExport) return const SizedBox.shrink();
 
     final MessageBusiness business = ref.watch(messageBusinessProvider);
-    final String sourceName = ref.watch(sourceDisplayNameProvider(sourceId));
+    final String sourceName =
+        ref.watch(sourceDisplayNameProvider(card.sourceId));
     final DistributionPricingCard? pricing =
         ref.watch(distributionPricingProvider(card.distributionId)).value;
     final DealerBalanceCard? balance = ref
         .watch(
           dealerBalanceProvider(
-            DealerBalanceQuery(dealerId: dealerId, sourceId: sourceId),
+            DealerBalanceQuery(
+              dealerId: card.dealerId,
+              sourceId: card.sourceId,
+            ),
           ),
         )
         .value;
     final String phone = ref
         .watch(distributionDealersProvider)
-        .where((DealerCard dealer) => dealer.dealerId == dealerId)
+        .where((DealerCard dealer) => dealer.dealerId == card.dealerId)
         .map((DealerCard dealer) => dealer.phone)
         .firstOrNull ??
         '';
 
     final DistributionMessageData data = _messageData(pricing, balance);
     // ★ **الشرطان معاً** — راجع ترويسة الصنف.
-    final bool priced = pricing != null &&
-        card.unpricedLineCount == 0 &&
-        balance != null;
+    final bool priced =
+        pricing != null && card.unpricedLineCount == 0 && balance != null;
 
-    return OutlinedButton.icon(
+    return IconButton(
       onPressed: () => showQtmsSendSheet(
         context,
         document: SendableDocument(
@@ -760,7 +1146,7 @@ class _SendActions extends ConsumerWidget {
           buildExport: (MessageTemplate template) => buildDistributionExport(
             business: business,
             data: data,
-            sourceId: sourceId,
+            sourceId: card.sourceId,
             sourceName: sourceName,
             entityId: card.distributionId,
             withPricing: template == MessageTemplate.distributionWithPricing,
@@ -768,7 +1154,7 @@ class _SendActions extends ConsumerWidget {
         ),
       ),
       icon: const Icon(Icons.send_outlined),
-      label: const Text('إرسال أو تصدير'),
+      tooltip: 'إرسال أو تصدير',
     );
   }
 
@@ -780,7 +1166,7 @@ class _SendActions extends ConsumerWidget {
     final Money current = balance?.balance.balance ?? Money.zero;
     final Money debt = pricing?.debtValue ?? Money.zero;
     return DistributionMessageData(
-      dealerName: dealerName,
+      dealerName: card.dealerName,
       stockDate: card.stockDate,
       lines: <MessageLine>[
         for (int i = 0; i < card.lines.length; i++)

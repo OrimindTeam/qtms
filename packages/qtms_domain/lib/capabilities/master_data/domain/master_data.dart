@@ -257,16 +257,12 @@ Outcome<ValidatedSource> validateSource(SourceInput input) {
 final class SupplierInput {
   /// ينشئ المدخلات.
   const SupplierInput({
-    required this.sourceIds,
     required this.name,
     required this.phone,
     this.notes,
     this.isActive = true,
     this.disableReason,
   });
-
-  /// ★ **المصادر (اختيار متعدد)** — `FR-M3-01` · `FR-M3-09`.
-  final List<String> sourceIds;
 
   /// الاسم.
   final String name;
@@ -288,7 +284,6 @@ final class SupplierInput {
 final class ValidatedSupplier {
   /// ينشئ الرعوي المُتحقَّق منه.
   ValidatedSupplier({
-    required List<String> sourceIds,
     required this.name,
     required this.normalizedName,
     required this.phone,
@@ -296,11 +291,7 @@ final class ValidatedSupplier {
     required this.notes,
     required this.isActive,
     required this.disableReason,
-  }) : sourceIds = List<String>.unmodifiable(sourceIds);
-
-  /// المصادر **مرتبةً ومنزوعة التكرار** — ★ **فنفس الاختيار يُنتج نفس
-  /// المستند في كل تشغيل** (`coding-standards.md` §2.7).
-  final List<String> sourceIds;
+  });
 
   /// الاسم مقصوصاً.
   final String name;
@@ -326,12 +317,13 @@ final class ValidatedSupplier {
 
 /// يفحص رعوياً — `FR-M3-01` · `FR-M3-02` · `FR-M3-06`.
 Outcome<ValidatedSupplier> validateSupplier(SupplierInput input) {
-  final Outcome<List<String>> sources =
-      _requiredSourceIds(input.sourceIds, 'FR-M3-01');
-  if (sources case Failure<List<String>>(:final AppError error)) {
-    return Failure<ValidatedSupplier>(error);
-  }
-
+  // ⛔⛔★★★ **ولا فحصَ مصادرَ هنا إطلاقاً** — `CR-006` (2026-08-31):
+  //    ★ **الرعوي يتبع كل المصادر الحالية والمستقبلية تلقائياً**، ⟵ **تماماً
+  //    كالمقوت** (`FR-M4-04`). ⛔ **وكان الفحص `_requiredSourceIds` يرفض
+  //    رعوياً بلا مصدر**، ★ **وهو الشرط الذي أسقطه الطلب.**
+  //
+  // ⚠️★★ **وهذا لا يجمع حساباته:** `FR-M3-05` قائمٌ بحرفه — **حسابُه في كل
+  //    مصدرٍ مستقل** بمفتاح `{supplierId}_{sourceId}` (`ADR-0005`).
   final String name = input.name.trim();
   if (name.length < partyNameMinLength || name.length > partyNameMaxLength) {
     return const Failure<ValidatedSupplier>(ValidationError('FR-M3-01'));
@@ -358,7 +350,6 @@ Outcome<ValidatedSupplier> validateSupplier(SupplierInput input) {
 
   return Success<ValidatedSupplier>(
     ValidatedSupplier(
-      sourceIds: (sources as Success<List<String>>).value,
       name: name,
       normalizedName: normalizeName(name),
       phone: (phone as Success<_Phone>).value.raw,

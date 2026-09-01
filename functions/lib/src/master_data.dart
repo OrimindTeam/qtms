@@ -415,7 +415,11 @@ MasterDataPlan _planSupplier(
   if (duplicate != null) return duplicate;
 
   final Map<String, Object?> after = <String, Object?>{
-    'sourceIds': supplier.sourceIds,
+    // ⛔⛔★★★ **ولا `sourceIds` هنا إطلاقاً** — `CR-006` (2026-08-31):
+    //    ★ **الرعوي يتبع كل المصادر الحالية والمستقبلية تلقائياً**، ⟵ **وحقلٌ
+    //    فارغٌ يُكتب كان يوهم بانتماءٍ محدود.** ⛔ **ولا يُحذَف من المستندات
+    //    القائمة**: ★ **قناعُ الكتابة يقتصر على المفاتيح أعلاه** — ⟵ **فما
+    //    كُتب سابقاً يبقى مهجوراً لا مقروءاً** (**لا حذف بيانات**).
     'name': supplier.name,
     'normalizedName': supplier.normalizedName,
     'phone': supplier.phone,

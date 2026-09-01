@@ -18,6 +18,7 @@ import 'package:qtms/capabilities/master_data/presentation/items_screen.dart';
 import 'package:qtms/capabilities/master_data/presentation/sources_screen.dart';
 import 'package:qtms/capabilities/master_data/presentation/suppliers_screen.dart';
 import 'package:qtms/core/messages/error_messages.dart';
+import 'package:qtms/core/ui/entity_tile.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
@@ -233,7 +234,10 @@ void main() {
       expect(find.text('اسم الرعوي'), findsOneWidget);
     });
 
-    testWidgets('★★ والمصدر المختار يُرسَل — ولا رعوي بلا مصدر',
+    // ⛔⛔★★★ **واستُبدل اختبار «المصدر المختار يُرسَل» بـ`CR-006`**
+    //    (2026-08-31) — ★ **ونقيضُه هو المطلوب الآن:** ⟵ **لا مُنتقيَ
+    //    مصادرَ في النموذج، ورعويٌّ بلا مصدرٍ يُقبَل** ⛔ **ولا يُرفَض.**
+    testWidgets('⛔★★★ ولا مُنتقيَ مصادرَ — ورعويٌّ يُنشأ بلا مصدر (CR-006)',
         (WidgetTester t) async {
       directory
         ..emitSuppliers(<SupplierCard>[])
@@ -246,24 +250,21 @@ void main() {
       );
       await t.tap(find.text('رعوي جديد'));
       await t.pumpAndSettle();
+
+      // ⛔⛔ **ولا شريحةَ مصدرٍ واحدة في الورقة** — ★ **والمصدر «رداع» مُعلَنٌ
+      //    في الدليل**، ⟵ **فظهورُه هنا كان يعني بقاء المُنتقي.**
+      expect(find.widgetWithText(FilterChip, 'رداع'), findsNothing);
+
       await t.enterText(find.widgetWithText(TextField, 'اسم الرعوي'), 'صالح');
       await t.enterText(
         find.widgetWithText(TextField, 'رقم الهاتف'),
         '0777123456',
       );
-
-      // ⛔ **بلا مصدر ⟵ رفضٌ محلي بلا رحلة شبكة** (`FR-M3-01`).
-      await t.tap(find.text('إنشاء'));
-      await t.pumpAndSettle();
-      expect(admin.calls, 0);
-
-      await t.tap(find.widgetWithText(FilterChip, 'رداع'));
-      await t.pump();
       await t.tap(find.text('إنشاء'));
       await t.pumpAndSettle();
 
+      // ✅ **يُقبَل بلا مصدر** — `CR-006`.
       expect(admin.calls, 1);
-      expect(admin.lastSupplier?.sourceIds, <String>['SRC-001']);
       // ★ **الهاتف مُطبَّع من طبقة النطاق** — `IQ-014`.
       expect(admin.lastSupplier?.normalizedPhone, '777123456');
     });
@@ -454,6 +455,89 @@ void main() {
 
       expect(admin.lastItem?.unit, ItemUnit.piece);
       expect(admin.lastItem?.isSystemDefault, isFalse);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ⛔⛔★★★ AM-008 ⑥ — زرُّ التعديل في صفّ الاسم نفسِه
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('⛔⛔★★★ AM-008 ⑥ — الإجراء في صفّ الاسم لا في صفٍّ لوحده', () {
+    testWidgets('★ المصادر والمقاوته والرعية — ثلاثتُها بلا فاصلٍ ولا صفٍّ ثانٍ',
+        (WidgetTester tester) async {
+      final List<(Widget, void Function(FakeMasterDataDirectory))> screens =
+          <(Widget, void Function(FakeMasterDataDirectory))>[
+        (
+          const SourcesScreen(),
+          (FakeMasterDataDirectory d) => d.emitSources(<SourceCard>[testSource()]),
+        ),
+        (
+          const DealersScreen(),
+          (FakeMasterDataDirectory d) => d.emitDealers(<DealerCard>[testDealer()]),
+        ),
+        (
+          const SuppliersScreen(),
+          (FakeMasterDataDirectory d) => d.emitSuppliers(<SupplierCard>[
+                const SupplierCard(
+                  supplierId: 'SUP-0001',
+                  name: 'رعوي مثال',
+                  phone: '777111222',
+                  isActive: true,
+                ),
+              ]),
+        ),
+      ];
+
+      for (final (Widget screen, void Function(FakeMasterDataDirectory) seed)
+          in screens) {
+        final FakeMasterDataDirectory directory = FakeMasterDataDirectory();
+        seed(directory);
+        await pumpScreen(
+          tester,
+          screen: screen,
+          directory: directory,
+          admin: FakeMasterDataAdmin(),
+        );
+
+        // ★ **الزرُّ أيقونيٌّ بوصفٍ دلالي** — ⛔ **لا رمزٌ صامت.**
+        expect(find.byTooltip('تعديل'), findsOneWidget,
+            reason: screen.runtimeType.toString());
+        // ⛔⛔ **ولا فاصلَ شعري في البطاقة** — ★ **وهو ما كان يفصل صفَّ
+        //    الإجراء عن الاسم** (`AM-008` ⑥).
+        expect(
+          find.descendant(
+            of: find.byType(EntityTile),
+            matching: find.byType(Divider),
+          ),
+          findsNothing,
+          reason: screen.runtimeType.toString(),
+        );
+        directory.dispose();
+      }
+    });
+
+    testWidgets('⛔★★ ولا «عددُ مصادر» في بطاقة الرعوي بعد CR-006',
+        (WidgetTester tester) async {
+      final FakeMasterDataDirectory directory = FakeMasterDataDirectory()
+        ..emitSuppliers(<SupplierCard>[
+          const SupplierCard(
+            supplierId: 'SUP-0001',
+            name: 'رعوي مثال',
+            phone: '777111222',
+            isActive: true,
+          ),
+        ]);
+      await pumpScreen(
+        tester,
+        screen: const SuppliersScreen(),
+        directory: directory,
+        admin: FakeMasterDataAdmin(),
+      );
+
+      // ★ **السطر الثانوي هاتفُه وحده** — ⛔ **ولا رقمٌ ثابتٌ في كل بطاقة.**
+      expect(find.text('777111222'), findsOneWidget);
+      expect(find.textContaining('مصدر'), findsNothing);
+      directory.dispose();
     });
   });
 }

@@ -11,6 +11,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../core/state/combine_async.dart';
 import '../../master_data/application/master_data_providers.dart';
 
 /// دليل المخزون — ⛔ **يُحقَن في الجذر**.
@@ -132,6 +133,60 @@ final itemMovementsProvider =
           ),
 );
 
+/// ★★★ **مرشِّحُ المصدر في شاشات السرد** — `AM-009` ③، **و`null` تعني
+/// «كل المصادر»**.
+///
+/// ⛔⛔★★★ **ومستقلٌّ عن [selectedSourceProvider] عمداً — والفرقُ ليس تجميلاً:**
+/// ★ **`selectedSourceProvider` هو *سياقُ العملية*** — ⟵ **يجيب «على أي
+/// مصدرٍ أكتب؟»**، ★ **و`null` فيه تعني «لا مصدرَ في النطاق» فتُوقِف الكتابة.**
+/// ★ **وهذا *مرشِّحُ عرض*** — ⟵ **يجيب «أيَّ سجلاتٍ أرى؟»**، **و`null` فيه
+/// تعني «كلَّها»**. ⛔ **ودمجُهما كان يجعل `null` تعني الشيءَ ونقيضَه.**
+///
+/// ★ **وافتراضُه «الكل»** — ⟵ **فأولُ ما يراه المستخدم يومُه كلُّه**،
+/// ⛔ **لا مصدرٌ اختارته الأداةُ عنه فيظنّ القائمة كاملةً وهي مفلترة.**
+final NotifierProvider<SourceListFilter, String?> sourceListFilterProvider =
+    NotifierProvider<SourceListFilter, String?>(SourceListFilter.new);
+
+/// حالة مرشِّح السرد.
+class SourceListFilter extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  /// يختار مصدراً — و`null` تعني **كل المصادر**.
+  void select(String? sourceId) => state = sourceId;
+}
+
+/// ★ وسيطُ سردٍ بمصدرٍ **اختياري** — و`null` تعني **كل مصادر النطاق**.
+final class SourceListQuery {
+  /// ينشئ الوسيط.
+  const SourceListQuery({required this.sourceId, required this.stockDate});
+
+  /// المصدر — و`null` تعني **الكل**.
+  final String? sourceId;
+
+  /// تاريخ المخزون.
+  final CalendarDay stockDate;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SourceListQuery &&
+      other.sourceId == sourceId &&
+      other.stockDate == stockDate;
+
+  @override
+  int get hashCode => Object.hash(sourceId, stockDate);
+}
+
+/// ★★ المصادر التي يشملها وسيطُ سردٍ — **واحدٌ أو كلُّ النطاق.**
+List<String> listedSourceIds(Ref ref, SourceListQuery query) =>
+    switch (query.sourceId) {
+      final String id => <String>[id],
+      null => <String>[
+          for (final SourceCard source in ref.watch(activeSourcesProvider))
+            source.sourceId,
+        ],
+    };
+
 /// مستندات الوارد عدداً في اليوم.
 final countedIntakesProvider =
     StreamProvider.family<List<CountedIntakeCard>, StockQuery>(
@@ -140,6 +195,48 @@ final countedIntakesProvider =
             sourceId: query.sourceId,
             stockDate: query.stockDate,
           ),
+);
+
+/// ★★★ **الوارد عدداً في اليوم — بمصدرٍ واحد أو بكل المصادر** (`AM-009` ③).
+///
+/// ⛔⛔★★★ **واستعلامٌ مقيَّدٌ لكل مصدرٍ ثم دمج** — راجع [combineAsyncLists]:
+/// ⟵ **فلا استعلامَ واحدٌ غيرُ مقيَّد يُرفَض كاملاً بشرط `storedInScope()`.**
+final countedIntakeListProvider =
+    Provider.family<AsyncValue<List<CountedIntakeCard>>, SourceListQuery>(
+  (Ref ref, SourceListQuery query) => combineAsyncLists<CountedIntakeCard>(
+    <AsyncValue<List<CountedIntakeCard>>>[
+      for (final String sourceId in listedSourceIds(ref, query))
+        ref.watch(
+          countedIntakesProvider(
+            StockQuery(sourceId: sourceId, stockDate: query.stockDate),
+          ),
+        ),
+    ],
+    // ★ **وترتيبٌ ثابتٌ بالمستند** — ⛔ **ولا ترتيبَ يتبع وصولَ التدفّقات**:
+    //   ⟵ **فقائمةٌ تتبدّل مواضعُها بين إطارين تُفقِد المستخدم موضعَ إصبعه.**
+    compare: (CountedIntakeCard a, CountedIntakeCard b) =>
+        a.documentNumber.compareTo(b.documentNumber),
+  ),
+);
+
+/// ★★★ **المتبقّي من كل نوعٍ في مصدرٍ اليوم** — `FR-M10-06`.
+///
+/// ⛔⛔★★ **وغيابُ النوع من الخريطة يعني صفراً** — `ADR-0008` القاعدة 5:
+/// ★ **فقائمةٌ لا تحوي نوعاً تعني رصيدَه صفراً** ⛔ **لا أن النوع غير موجود.**
+///
+/// ⚠️ **وهو رصيدُ عرضٍ لا حارس** — ★ **والرفضُ على تجاوز المتاح في الدالة
+/// السحابية داخل المعاملة** (`FR-M10-11` · `ADR-0013` القاعدة 3).
+final remainingStockProvider =
+    Provider.family<Map<String, StockQuantity>, StockQuery>(
+  (Ref ref, StockQuery query) {
+    final List<ItemDailyBalanceCard> balances =
+        ref.watch(todayStockProvider(query)).value ??
+            const <ItemDailyBalanceCard>[];
+    return <String, StockQuantity>{
+      for (final ItemDailyBalanceCard balance in balances)
+        balance.itemKey: balance.balance,
+    };
+  },
 );
 
 /// ★ الأنواع المتاحة للتوريد من مصدرٍ بعينه — `FR-M6-05` · `BR-M6-04`.
@@ -163,14 +260,24 @@ final intakeItemsProvider =
   ];
 });
 
-/// ★ الرعية المتاحون لمصدرٍ بعينه — `FR-M3-09`.
+/// ★★ الرعية المتاحون للتوريد — ⛔⛔ **بلا ترشيحٍ بالمصدر بعد `CR-006`**.
+///
+/// ⛔⛔★★★ **و`FR-M3-09` ساقطٌ بذلك الطلب** (2026-08-31) — ★ **الرعوي يتبع
+/// كل المصادر الحالية والمستقبلية تلقائياً**، ⟵ **والمرشِّح الوحيد الباقي
+/// حالتُه** (`FR-M3-07`: **المعطَّل لا يظهر في شاشات التوريد الجديدة**).
+///
+/// ⚠️★★ **والعائلة باقيةٌ بمعامل المصدر عمداً** — ⛔ **ولم تُحوَّل إلى مزوّدٍ
+/// مفرد:** ★ **الشاشات تستدعيها بمصدرها المختار**، ⟵ **وتغييرُ توقيعها
+/// كان يمسّ خمس شاشاتٍ بلا ربحٍ سلوكي**؛ ★ **والمعامل يبقى موضعَ الترشيح
+/// إن عاد يوماً بطلبٍ صريح.**
+// ignore: avoid_unused_constructor_parameters
 final intakeSuppliersProvider =
-    Provider.family<List<SupplierCard>, String>((Ref ref, String sourceId) {
+    Provider.family<List<SupplierCard>, String>((Ref ref, String _) {
   final List<SupplierCard> all =
       ref.watch(suppliersProvider).value ?? const <SupplierCard>[];
   return <SupplierCard>[
     for (final SupplierCard supplier in all)
-      if (supplier.isActive && supplier.sourceIds.contains(sourceId)) supplier,
+      if (supplier.isActive) supplier,
   ];
 });
 

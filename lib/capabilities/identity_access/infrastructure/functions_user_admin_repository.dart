@@ -31,7 +31,10 @@ final class FunctionsUserAdminRepository implements UserAdminRepository {
   final RequestIdFactory _newRequestId;
 
   @override
-  Future<Outcome<String>> create(ValidatedUserProfile profile) async {
+  Future<Outcome<String>> create(
+    ValidatedUserProfile profile, {
+    required InitialPassword password,
+  }) async {
     final Outcome<Map<String, Object?>> result = await _client.call(
       'createUser',
       <String, Object?>{
@@ -42,7 +45,20 @@ final class FunctionsUserAdminRepository implements UserAdminRepository {
         //    مفاتيحُها مقابل الممنوعات، **والمفتاح الفارغ نيّةٌ لا غياب**.
         if (profile.phone != null) 'phone': profile.phone,
         if (profile.roleId != null) 'roleId': profile.roleId,
-        // ⛔★★ ولا `password` ولا `permissions` ولا `sourceScope` إطلاقاً —
+        // ⚠️★★★ **كلمةُ المرور الأولية** — `CR-005` (2026-08-31): ★ **تعبر
+        //    إلى خدمة المصادقة وحدها**، ⛔ **ولا تُخزَّن في `users/{userId}`
+        //    ولا في قيد التدقيق ولا تُرجَع في الردّ.**
+        //
+        // ⛔⛔★★★ **والمفتاح `initialPassword` لا `password`** — ★ **الأخيرُ
+        //    ممنوعٌ ويُرفَض به الطلبُ كلُّه** (`FR-M1-02` · `forbiddenUserFields`):
+        //    ⟵ **والحارس باقٍ بحرفه**، ★ **والمفتاح الجديد يُستثنى صراحةً
+        //    في الدالة** ⛔ **لا بتخفيف قائمة الممنوعات.**
+        //
+        // ★★ **والتأكيد يُرسَل ليُفحَص هناك أيضاً** — `ADR-0013` القاعدة 3:
+        //    **«القاعدة نفسها في الطرفين»**.
+        'initialPassword': password.value,
+        'initialPasswordConfirm': password.value,
+        // ⛔★★ ولا `permissions` ولا `sourceScope` إطلاقاً —
         //    راجع ترويسة `functions/lib/src/user_admin.dart`.
       },
     );

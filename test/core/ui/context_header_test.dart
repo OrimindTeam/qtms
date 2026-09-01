@@ -29,7 +29,7 @@ Future<void> pumpHeader(
   String? selected,
   Widget? filters,
   int activeFilterCount = 0,
-  ValueChanged<String>? onSourceSelected,
+  ValueChanged<String?>? onSourceSelected,
   double textScale = 1,
 }) =>
     tester.pumpWidget(
@@ -46,7 +46,7 @@ Future<void> pumpHeader(
             body: QtmsContextHeader(
               sources: sources,
               selectedSourceId: selected,
-              onSourceSelected: onSourceSelected ?? (String _) {},
+              onSourceSelected: onSourceSelected ?? (String? _) {},
               day: fixedDay,
               filters: filters,
               activeFilterCount: activeFilterCount,
@@ -272,7 +272,7 @@ void main() {
           source('SRC-002', 'مصدر ذمار'),
         ],
         selected: 'SRC-001',
-        onSourceSelected: (String id) => picked = id,
+        onSourceSelected: (String? id) => picked = id,
       );
 
       await tester.tap(find.byType(DropdownButtonFormField<String>));

@@ -18,7 +18,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/core/design/app_theme.dart';
 import 'package:qtms/core/design/design_tokens.dart';
+import 'package:qtms/core/connectivity/connection_status.dart';
 import 'package:qtms/core/design/theme_extensions.dart';
+import 'package:qtms/core/ui/app_top_bar.dart';
 
 // ═══════════════════════════ أدوات القراءة ═══════════════════════════
 
@@ -822,6 +824,231 @@ void main() {
         isFalse,
         reason: '⛔ لا استدعاء لـ_submit من الملء المسبق',
       );
+    });
+  });
+
+  // ═════════ ⑧ ⛔⛔★★★ بوابة الشريط العلوي الموحّد — `AM-008` ① ═════════
+  //
+  // ⚠️⚠️★★★ **ولماذا بوابةٌ آلية لا قاعدةٌ في مستند — وهو عطلٌ مقيس:**
+  //    ★ **`ui-guidelines.md` كان يصف شريطاً بالشعار والتاريخ وحالة الاتصال
+  //    منذ `AM-007`** — ⛔ **وشاشةٌ واحدة من عشرين نفّذت شطرَه الأول، ولا
+  //    واحدةَ نفّذت الباقي.** ⟵ ★ **والنصُّ يصف نيّة، والاختبار وحده يفرضها.**
+
+  group('⛔⛔★★★ بوابة الشريط العلوي الموحّد — AM-008 ①', () {
+    /// ★ **الملف الوحيد المسموح له ببناء `AppBar`** — ⛔ **وما عداه يُرفَض.**
+    const String topBarPath = 'lib/core/ui/app_top_bar.dart';
+
+    /// ⛔ **شاشات ما قبل الجلسة** — `ui-guidelines.md` §3-أ الاستثناءان:
+    /// ★ **لا مستخدمَ بعدُ فلا صورةَ رمزية**، ⛔ **ولا شريطَ أصلاً فيها.**
+    const Set<String> preSessionScreens = <String>{
+      'login_screen.dart',
+      'session_blocked_screen.dart',
+    };
+
+    String normalize(String path) => path.replaceAll(r'\', '/');
+
+    test('⛔★★★ ولا `AppBar` مبنيٌّ يدوياً خارج المكوّن المركزي', () {
+      final List<String> hits = <String>[];
+      for (final _Source source in lib) {
+        final String path = normalize(source.path);
+        if (path.endsWith(topBarPath)) continue;
+        if (RegExp(r'\bAppBar\s*\(').hasMatch(source.code)) {
+          hits.add('$path ⟵ يبني `AppBar` بيده');
+        }
+      }
+      expect(
+        hits,
+        isEmpty,
+        reason: '\n★ استخدم `QtmsTopBar` — §3-أ القاعدة 1\n${hits.join('\n')}\n',
+      );
+    });
+
+    test('★★★ وكلُّ شاشةٍ ذاتُ شريطٍ علوي تحمل `QtmsTopBar` باسمها هي', () {
+      final List<String> hits = <String>[];
+      for (final _Source source in lib) {
+        final String path = normalize(source.path);
+        if (!path.contains('/presentation/')) continue;
+        if (preSessionScreens.any(path.endsWith)) continue;
+        // ★ **الشاشة هي ما يبني شريطاً علوياً** — ⛔ **وورقةٌ سفلية أو مكوّنٌ
+        //   لا يبنيه ليس شاشةً فلا يُطالَب.**
+        if (!source.code.contains('appBar:')) continue;
+        if (!source.code.contains('QtmsTopBar(')) {
+          hits.add('$path ⟵ شريطٌ ليس `QtmsTopBar`');
+          continue;
+        }
+        // ⛔⛔★★ **واسم الشاشة مُمرَّرٌ فعلاً** — §3-أ العنصر ②:
+        //    ★ **«ديناميكيٌّ لا نصٌّ ثابت في المكوّن»**، ⟵ **ومكوّنٌ بلا
+        //    `screenTitle` كان سيعرض عنواناً خاوياً.**
+        if (!source.code.contains('screenTitle:')) {
+          hits.add('$path ⟵ بلا `screenTitle`');
+        }
+      }
+      expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
+    });
+
+    test('⛔⛔★★★ ولا وسمَ اتصالٍ بلا قياس — الحالات الثلاث مُصرَّحة', () {
+      // ★★ **«متصل» لا تُقال قبل قياس** (`ADR-0003`) — ⟵ **ولذلك للنوع
+      //    حالةٌ ثالثة `unknown`**، ⛔ **ولو كان `bool` لكذبت اللحظةُ الأولى.**
+      expect(ConnectionStatus.values, hasLength(3));
+      // ⛔ **ولا معنى باللون وحده** — §8: ★ **لكل حالةٍ نصُّها المستقل.**
+      final Set<String> labels = <String>{
+        for (final ConnectionStatus status in ConnectionStatus.values)
+          ConnectionIndicator.labelOf(status),
+      };
+      expect(labels, hasLength(3));
+      // ★ **وثلاثيةٌ دلالية لكلٍّ** — §3.5: **حكمٌ لا هوية.**
+      expect(
+        ConnectionIndicator.triadOf(ConnectionStatus.online),
+        SemanticTriads.success,
+      );
+      expect(
+        ConnectionIndicator.triadOf(ConnectionStatus.offline),
+        SemanticTriads.danger,
+      );
+      expect(
+        ConnectionIndicator.triadOf(ConnectionStatus.unknown),
+        SemanticTriads.neutral,
+      );
+    });
+
+    test('⛔⛔★★★ ولا وميضَ «غير متصل» عند تجديد الرمز — DEBT (2026-08-31)', () {
+      // ★★★ **اختبارُ ارتدادٍ لعطلٍ رصده المحاكي وحده:** ⟵ **`authStateChanges`
+      //    تُصدِر عند كل تجديدٍ للرمز بنفس المعرّف**، ★ **و`asyncExpand` تهدم
+      //    المُصغي وتبنيه** ⟵ **فتأتي أولُ لقطةٍ من الذاكرة** فيومض المؤشّر
+      //    أحمرَ ثم يعود. ⛔ **وإنذارٌ كاذبٌ متكرر يُفقِد المؤشّرَ مصداقيتَه.**
+      //
+      // ⚠️ **والقياسُ نصّي لأن `FirebaseFirestore` صنفٌ نهائيٌّ لا يُزيَّف** —
+      //    ★ **وهو أضعفُ من اختبار سلوك**، ⛔ **لكنه أقوى من لا شيء**:
+      //    ⟵ **حذفُ `distinct` يُفشِل البوابة فوراً.**
+      final String monitor =
+          _scan('lib/core/connectivity/firestore_connection_monitor.dart').code;
+      expect(
+        monitor.contains('.distinct()'),
+        isTrue,
+        reason: '⛔ بلا `distinct` يُعاد بناء المُصغي عند كل تجديد رمز',
+      );
+    });
+  });
+
+  // ═════════════════════════════════════════════════════════════════════
+  group('⛔⛔★★★ بوابة AM-009 — الشريط بلا رجوعٍ ولا خروج، والأنواع بالطلب', () {
+    /// ★ **الملف الوحيد المسموح له ببناء `AppBar`** — ⛔ **وما عداه يُرفَض.**
+    const String topBarPath = 'lib/core/ui/app_top_bar.dart';
+
+    /// ★ **الملف الوحيد المسموح له باستدعاء الخروج** — `AM-009` ①.
+    const String sessionPath = 'lib/app/top_bar.dart';
+
+    /// ⛔ **شاشةُ الجلسة المرفوضة استثناءٌ معلَن** — ★ **مخرَجُها الوحيد
+    /// هو الخروج**، ⟵ **ولا شريطَ علويَّ فيها أصلاً.**
+    const String blockedPath =
+        'lib/capabilities/identity_access/presentation/session_blocked_screen.dart';
+
+    String normalize(String path) => path.replaceAll(r'\', '/');
+
+    test('⛔⛔★★★ ولا زرَّ رجوعٍ في أي شاشة — AM-009 ①', () {
+      // ★★ **والانحرافُ الذي قُبل في `AM-008` أُسقط بطلب المالك:** ⟵ **كان
+      //    `leading` الافتراضي يُستنتَج من الملاحة فيسبق الشعارَ في خمس
+      //    عشرة شاشة**، ⛔ **فصار الشريطُ يبدأ بالشعار في العشرين بلا استثناء.**
+      final String bar = _scan(topBarPath).code;
+      expect(
+        RegExp(r'automaticallyImplyLeading:\s*false').hasMatch(bar),
+        isTrue,
+        reason: '⛔ بلا `automaticallyImplyLeading: false` يعود زرُّ الرجوع',
+      );
+      // ⛔ **ولا `leading` يدويٌّ يُعيده من الباب الآخر.**
+      expect(
+        RegExp(r'\bleading:').hasMatch(bar),
+        isFalse,
+        reason: '⛔ `leading` يدويٌّ في الشريط العلوي يُعيد زرَّ الرجوع',
+      );
+    });
+
+    test('⛔⛔★★★ ولا أيقونةَ خروجٍ في شريطٍ ولا شاشة — الموضعُ قائمة الجلسة',
+        () {
+      // ★★★ **والقدرةُ لم تسقط بل انتقلت** — `showQtmsSessionSheet`:
+      //    ⟵ **وإسقاطُها بلا بديلٍ كان يترك المستخدم حبيسَ حسابه.**
+      final List<String> hits = <String>[];
+      for (final _Source source in lib) {
+        final String path = normalize(source.path);
+        if (path.endsWith(sessionPath) || path.endsWith(blockedPath)) continue;
+        if (source.code.contains('Icons.logout')) {
+          hits.add('$path ⟵ أيقونةُ خروجٍ خارج قائمة الجلسة');
+        }
+      }
+      expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
+
+      // ⛔⛔ **والقدرةُ قائمةٌ فعلاً** — ★ **ولا تسقط بصمت.**
+      // ⚠️ **و`withLiterals` لا `code`** — ★ **فالنصُّ المعروض حرفيٌّ**،
+      //    ⛔ **و`code` يُسقِط محتوى النصوص عمداً.**
+      final _Source session = _scan(sessionPath);
+      expect(session.code.contains('showQtmsSessionSheet'), isTrue);
+      expect(session.code.contains('signOut()'), isTrue);
+      expect(session.withLiterals.contains('تسجيل الخروج'), isTrue);
+    });
+
+    test('★★★ وكلُّ شاشةِ إدخالِ أنواعٍ تستعمل صفَّ السطر المشترك — AM-009 ④',
+        () {
+      // ⛔⛔★★★ **وكانت ثلاثُ شاشاتٍ تعرض *كل* أنواع المصدر صفوفَ إدخالٍ
+      //    دفعةً واحدة** — ⟵ **فطولُ النموذج يتبع طولَ الكتالوج لا حجمَ
+      //    العملية**، ★ **وهذه البوابة تمنع عودةَ ذلك النمط.**
+      const List<String> screens = <String>[
+        'lib/capabilities/inventory/presentation/counted_intake_screen.dart',
+        'lib/capabilities/inventory/presentation/sack_intake_screen.dart',
+        'lib/capabilities/sales_receivables/presentation/distribution_screen.dart',
+      ];
+      for (final String path in screens) {
+        final String code = _scan(path).code;
+        expect(
+          code.contains('QtmsItemLineRow'),
+          isTrue,
+          reason: '⛔ $path لا يستعمل صفَّ السطر المشترك',
+        );
+        expect(
+          code.contains('QtmsAddLineButton'),
+          isTrue,
+          reason: '⛔ $path بلا زرِّ إضافة سطر',
+        );
+        // ⛔⛔ **ولا حلقةٌ تبني صفّاً لكل نوعٍ في الكتالوج.**
+        expect(
+          RegExp(r'for \(final ItemCard \w+ in items\)\s*\n?\s*(_LineRow|QtmsItemLineRow)')
+              .hasMatch(code),
+          isFalse,
+          reason: '⛔ $path يبني صفّاً لكل نوعٍ في الكتالوج',
+        );
+      }
+    });
+
+    test('⛔⛔★★★ ولا زرَّ حذفٍ لمستندٍ مخزَّن في أي شاشة — GR-07', () {
+      // ⛔⛔★★★ **وطلبُ المالك في `AM-009` قال «حذف»** — ★ **ونُفِّذ إلغاءً**:
+      //    `CLAUDE.md` («لا حذف بيانات … لأي مستخدم بمن فيهم المالك»)،
+      //    ⟵ **والإلغاءُ هو المكافئُ المعتمَد** (`FR-M10-18` · `FR-M6-14`).
+      //
+      // ⚠️ **والاستثناءُ الوحيد قالبُ الدورِ غيرِ المُسنَد** (`IQ-018`) —
+      //    ★ **وله شاشتُه وحدها.**
+      // ⚠️★★ **واستثناءان معلَنان لا ثغرة:**
+      //    ① **`roles_screen`** — ★ **قالبُ الدورِ غيرِ المُسنَد وحدَه يُحذَف**
+      //       (`IQ-018`)، ⛔ **ولا يُقاس عليه مستخدمٌ ولا حركة ولا قيد.**
+      //    ② **`audit_trail_view`** — ⛔⛔ **ليست زرَّ حذفٍ البتة**: ★ **رمزُ
+      //       *إجراءِ* «إتلاف» في سجل التدقيق** (`AuditAction.disposal`)،
+      //       ⟵ **وهو وصفُ ما وقع لا فعلٌ يقع.**
+      const String rolesPath =
+          'lib/capabilities/identity_access/presentation/roles_screen.dart';
+      const String auditPath =
+          'lib/capabilities/oversight/presentation/audit_trail_view.dart';
+      final List<String> hits = <String>[];
+      for (final _Source source in lib) {
+        final String path = normalize(source.path);
+        if (!path.contains('/presentation/')) continue;
+        if (path.endsWith(rolesPath) || path.endsWith(auditPath)) continue;
+        for (final String glyph in <String>[
+          'Icons.delete',
+          'Icons.delete_outline',
+          'Icons.delete_forever',
+        ]) {
+          if (source.code.contains(glyph)) hits.add('$path ⟵ $glyph');
+        }
+      }
+      expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
     });
   });
 }

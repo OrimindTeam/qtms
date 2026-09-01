@@ -50,6 +50,7 @@ class QtmsContextHeader extends StatefulWidget {
     required this.selectedSourceId,
     required this.onSourceSelected,
     required this.day,
+    this.allowAllSources = false,
     this.filters,
     this.activeFilterCount = 0,
     super.key,
@@ -58,11 +59,28 @@ class QtmsContextHeader extends StatefulWidget {
   /// ★ المصادر المتاحة — **مصادرُ نطاق المستخدم وحدها** (`FR-M1-07` · `E-35`).
   final List<SourceCard> sources;
 
-  /// المصدر المختار — و`null` تعني **لم يُختَر بعد**.
+  /// المصدر المختار — و`null` تعني **لم يُختَر بعد** أو **«كل المصادر»**
+  /// حين يكون [allowAllSources] صادقاً.
   final String? selectedSourceId;
 
-  /// يُستدعى عند اختيار مصدر.
-  final ValueChanged<String> onSourceSelected;
+  /// ★ يُستدعى عند اختيار مصدر — و`null` تعني **«كل المصادر»**.
+  final ValueChanged<String?> onSourceSelected;
+
+  /// ★★★ **هل يعرض الحقلُ خيار «كل المصادر»؟** — `AM-009` ③.
+  ///
+  /// ⛔⛔★★★ **ولا يخالف `A-01` بحرف — والفرقُ جوهريٌّ يُقرأ ولا يُقاس عليه:**
+  /// ★ **`A-01` يمنع الجمع بين مصدرين في *عملية*** — ⟵ **رصيدٌ أو حركةٌ أو
+  /// حفظ**؛ ★ **وهذا *سرد* لا عملية:** ⟵ **كلُّ صفٍّ يبقى مستنداً في مصدره
+  /// ويُسمّي مصدرَه**، ⛔ **ولا رقمَ يُجمَع عبر مصدرين ولا مجموعَ يُعرَض.**
+  ///
+  /// ⛔⛔★★★ **والاستعلامُ يبقى مقيَّداً بالمصدر دائماً** — `IQ-024` ·
+  /// `WU-008`: ★ **«الكل» تُنفَّذ استعلاماً لكل مصدرٍ على حدة ثم دمجاً في
+  /// الذاكرة** ⛔ **لا استعلاماً واحداً غيرَ مقيَّد**: ⟵ **فشرطُ القراءة
+  /// يعتمد `resource.data.sourceId`**، **واستعلامٌ لا يُقيّده يُرفَض كاملاً.**
+  ///
+  /// ⛔ **وشاشاتُ العمليات على مصدرٍ واحد لا تمرّره** — ★ **المخزون والتسعير
+  /// والجواني**: ⟵ **فحقلُها إلزاميٌّ كما كان.**
+  final bool allowAllSources;
 
   /// ★ اليوم المقفل — **من الخادم** (`FR-M8-05` · `FR-M6-02`).
   final CalendarDay day;
@@ -105,6 +123,7 @@ class _QtmsContextHeaderState extends State<QtmsContextHeader> {
         sources: widget.sources,
         selectedSourceId: widget.selectedSourceId,
         onSourceSelected: widget.onSourceSelected,
+        allowAllSources: widget.allowAllSources,
       );
 
   List<Widget> _filterToggle() => <Widget>[
@@ -193,18 +212,25 @@ class _QtmsContextHeaderState extends State<QtmsContextHeader> {
 
 /// ★ منتقي المصدر — **قائمةٌ منسدلة بارتفاعٍ ثابت**.
 ///
-/// ⛔★★ **ولا خيار «كل المصادر» إطلاقاً** — `A-01`: **لا جمع بين مصدرين في
-/// أي عملية**، ⟵ **وخيارٌ كهذا كان يُوحي بأنه ممكن.**
+/// ⚠️★★ **وخيارُ «كل المصادر» مشروطٌ بـ[allowAllSources]** — `AM-009` ③:
+/// ★ **يُعرَض في شاشات *السرد* وحدها** ⛔ **ولا يُعرَض في شاشةِ عملية**،
+/// ⟵ **فـ`A-01` يمنع الجمعَ في عملية لا في قائمة** (راجع توثيق العَلَم).
 class _SourceField extends StatelessWidget {
   const _SourceField({
     required this.sources,
     required this.selectedSourceId,
     required this.onSourceSelected,
+    required this.allowAllSources,
   });
 
   final List<SourceCard> sources;
   final String? selectedSourceId;
-  final ValueChanged<String> onSourceSelected;
+  final ValueChanged<String?> onSourceSelected;
+  final bool allowAllSources;
+
+  /// ★ قيمةُ خيار «الكل» — ⛔ **ولا `null` قيمةً لعنصرٍ في القائمة**:
+  /// ⟵ **`DropdownButtonFormField` يقرأ `null` غياباً لا اختياراً.**
+  static const String _allValue = ' all';
 
   @override
   Widget build(BuildContext context) {
@@ -214,9 +240,14 @@ class _SourceField extends StatelessWidget {
     //   بينما الشاشة مفتوحة.**
     final bool known = sources
         .any((SourceCard source) => source.sourceId == selectedSourceId);
+    // ★ **و«الكل» اختيارٌ صريحٌ لا غياب** — ⟵ **فيظهر نصُّه في الحقل**،
+    //   ⛔ **ولا يُقرأ «اختر المصدر» على قائمةٍ تعرض كلَّ شيء.**
+    final String? value = known
+        ? selectedSourceId
+        : (allowAllSources ? _allValue : null);
 
     return DropdownButtonFormField<String>(
-      initialValue: known ? selectedSourceId : null,
+      initialValue: value,
       isDense: true,
       isExpanded: true,
       decoration: const InputDecoration(
@@ -226,14 +257,21 @@ class _SourceField extends StatelessWidget {
       // ★ **وصفٌ دلالي لقارئ الشاشة** — `design-system.md` §5 البند 3.
       hint: const Text('اختر المصدر'),
       items: <DropdownMenuItem<String>>[
+        if (allowAllSources)
+          const DropdownMenuItem<String>(
+            value: _allValue,
+            // ⛔ **ولا يُعرَض `all` نصّاً تقنياً** — `ui-guidelines.md` §6.
+            child: Text('كل المصادر', overflow: TextOverflow.ellipsis),
+          ),
         for (final SourceCard source in sources)
           DropdownMenuItem<String>(
             value: source.sourceId,
             child: Text(source.name, overflow: TextOverflow.ellipsis),
           ),
       ],
-      onChanged: (String? value) {
-        if (value != null) onSourceSelected(value);
+      onChanged: (String? selected) {
+        if (selected == null) return;
+        onSourceSelected(selected == _allValue ? null : selected);
       },
     );
   }

@@ -39,6 +39,8 @@ export 'capabilities/oversight/domain/report_builders.dart';
 export 'capabilities/oversight/domain/report_catalog.dart';
 export 'capabilities/oversight/domain/report_repository.dart';
 export 'capabilities/oversight/domain/report_table.dart';
+export 'capabilities/sales_receivables/domain/cash_sale.dart';
+export 'capabilities/sales_receivables/domain/cash_sale_repository.dart';
 export 'capabilities/sales_receivables/domain/distribution.dart';
 export 'capabilities/sales_receivables/domain/distribution_repository.dart';
 export 'capabilities/sales_receivables/domain/receipt.dart';

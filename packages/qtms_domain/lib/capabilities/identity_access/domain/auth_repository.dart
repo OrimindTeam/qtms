@@ -111,10 +111,19 @@ abstract interface class UserDirectoryRepository {
 abstract interface class UserAdminRepository {
   /// ينشئ مستخدماً ويُرجِع معرّفه.
   ///
-  /// ⛔ **ولا يمنح صلاحيةً ولا كلمة مرور** — المنح مسارُه [grantAccess]،
-  /// وكلمةُ المرور **يضبطها صاحبها** برابط استرجاع
-  /// (`authentication-policy.md` §5).
-  Future<Outcome<String>> create(ValidatedUserProfile profile);
+  /// ⛔ **ولا يمنح صلاحيةً** — المنح مسارُه [grantAccess] بقواعده.
+  ///
+  /// ⚠️★★★ **و[password] كلمةٌ أوليةٌ يضبطها المدير** — `CR-005` (2026-08-31):
+  /// ⟵ **ويغيّرها صاحبُها متى شاء** ⛔ **بلا إجبارٍ عند أول دخول وبلا مهلة.**
+  /// ⛔⛔ **ولا تُخزَّن في `users/{userId}` ولا في قيد التدقيق ولا تُرجَع في
+  /// الردّ** — ★ **تعبر إلى خدمة المصادقة وحدها** (`FR-M1-02` قائم).
+  ///
+  /// ⚠️ **وكان المسارُ رابطَ استرجاعٍ يُرسَل** — ★ **والرابط باقٍ مساراً
+  /// لتغييرها لاحقاً** ⛔ **ولم يعد المسارَ الوحيد لضبطها.**
+  Future<Outcome<String>> create(
+    ValidatedUserProfile profile, {
+    required InitialPassword password,
+  });
 
   /// يعدّل بيانات مستخدم — ★ **بسببٍ نصّي إلزامي** (`ADR-0004`).
   Future<Outcome<void>> update({

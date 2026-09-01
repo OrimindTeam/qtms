@@ -47,21 +47,22 @@ final class SourceCard {
 /// بطاقة رعوي — مستند `suppliers/{supplierId}`.
 final class SupplierCard {
   /// ينشئ البطاقة.
-  SupplierCard({
+  const SupplierCard({
     required this.supplierId,
     required this.name,
     required this.phone,
     required this.isActive,
-    List<String> sourceIds = const <String>[],
     this.notes,
     this.disableReason,
-  }) : sourceIds = List<String>.unmodifiable(sourceIds);
+  });
 
   /// معرّفه — `SUP-0001`.
   final String supplierId;
 
-  /// ★ مصادره — `FR-M3-09`: **لا يظهر في مصدر ليس ضمن مصادره**.
-  final List<String> sourceIds;
+  // ⛔⛔★★★ **ولا حقل مصدرٍ فيها** — `CR-006` (2026-08-31): ★ **الرعوي يتبع
+  //    كل المصادر الحالية والمستقبلية تلقائياً**، ⟵ **تماماً كـ[DealerCard]**
+  //    (`FR-M4-04`). ⚠️ **ومستنداتٌ قديمة تحمل `sourceIds` تُقرأ بلا الحقل**
+  //    ⛔ **ولا تُحذَف منها قيمة** (**لا حذف بيانات**).
 
   /// اسمه.
   final String name;

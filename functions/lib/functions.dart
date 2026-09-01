@@ -3,12 +3,12 @@
 /// ★ يولّد `functions_framework_builder` من التعليقات التوضيحية هنا الملف
 /// `bin/server.dart` — ⛔ **ولا يُحرَّر ذلك الملف يدوياً**.
 ///
-/// **الحالة الآن:** ★★ **أربعٌ وثلاثون عمليةً مستدعاة خلف نقطة دخول واحدة**
+/// **الحالة الآن:** ★★ **إحدى وأربعون عمليةً مستدعاة خلف نقطة دخول واحدة**
 /// (`callables` — حسم `IQ-019` الخيار أ) ★★ **وعمليتان مشغَّلتان بالكتابة**
 /// من §3.2 (`provisionAccountsOnSourceAdd` · `provisionAccountsOnPartyAdd`).
 /// بقية الدوال تُبنى في زياداتها، كما يفرض `ADR-0009` ②.
 ///
-/// ★★★ **وثلاثة أهداف لا أربعٌ وثلاثون** (`FUNCTION_TARGET`): `callables` +
+/// ★★★ **وثلاثة أهداف لا إحدى وأربعون** (`FUNCTION_TARGET`): `callables` +
 /// المُشغَّلتان. ⟵ ⛔ **والعمليات المستدعاة ليست أهدافاً مستقلة** — ★ **لأن
 /// `FUNCTION_TARGET` هدفٌ واحد لكل حاوية ولا يوجّه بالمسار**، ⟵ **فنشرُها
 /// أهدافاً منفصلة كان يعني مضيفاً لكل عملية**، وهو ما رفضه `IQ-019`.
@@ -29,6 +29,8 @@ import 'src/account_provisioning_handler.dart';
 import 'src/audited_transaction.dart';
 import 'src/callable.dart';
 import 'src/callable_router.dart';
+import 'src/cash_sale.dart';
+import 'src/cash_sale_handler.dart';
 import 'src/daily_pricing.dart';
 import 'src/daily_pricing_handler.dart';
 import 'src/distribution.dart';
@@ -86,6 +88,7 @@ Future<MasterDataHandler>? _masterDataHandler;
 Future<InventoryHandler>? _inventoryHandler;
 Future<DailyPricingHandler>? _dailyPricingHandler;
 Future<DistributionHandler>? _distributionHandler;
+Future<CashSaleHandler>? _cashSaleHandler;
 Future<ReceiptHandler>? _receiptHandler;
 Future<ExportLogHandler>? _exportLogHandler;
 
@@ -172,6 +175,12 @@ Future<Response> callables(Request request) async {
       _distribution(request, DistributionOperation.amendDistribution),
     CallableOperation.cancelDistribution =>
       _distribution(request, DistributionOperation.cancelDistribution),
+    CallableOperation.createCashSale =>
+      _cashSale(request, CashSaleOperation.createCashSale),
+    CallableOperation.amendCashSale =>
+      _cashSale(request, CashSaleOperation.amendCashSale),
+    CallableOperation.cancelCashSale =>
+      _cashSale(request, CashSaleOperation.cancelCashSale),
     CallableOperation.createReceipt =>
       _receipt(request, ReceiptOperation.createReceipt),
     CallableOperation.amendReceipt =>
@@ -219,6 +228,28 @@ Future<Response> _distribution(
   final DistributionHandler handler =
       await (_distributionHandler ??= _buildDistribution());
   return handler.handle(request, operation);
+}
+
+/// ★ المسار المشترك لعمليات البيع النقدي الثلاث (`WU-012`).
+///
+/// ⛔★★ **ولا يحتاج `QTMS_OWNER_UID`:** حارس المالك (`BR-M1-02`) يخصّ
+/// **حسابات المستخدمين** وحدها — ★ **وتفويض البيع النقدي مفاتيحُه الأربعة**
+/// (`cashSaleCreate` · `cashSaleBelowMinimum` · `cashSaleAmend` ·
+/// `cashSaleCancel`) **مع نطاق المصادر**، وتُفحَص في `cashSaleGate`
+/// و`planCashSale`.
+Future<Response> _cashSale(
+  Request request,
+  CashSaleOperation operation,
+) async {
+  final CashSaleHandler handler =
+      await (_cashSaleHandler ??= _buildCashSale());
+  return handler.handle(request, operation);
+}
+
+Future<CashSaleHandler> _buildCashSale() async {
+  final (IdentityGateway identity, AuditedTransaction transaction) =
+      await _connectDependencies();
+  return CashSaleHandler(identity: identity, transaction: transaction);
 }
 
 /// ★ المسار المشترك لعمليات القبض الأربع (`WU-007`).

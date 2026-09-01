@@ -1,10 +1,11 @@
-/// شاشة التوزيع والضمار — `WU-006`.
+/// شاشة التوزيع والضمار — `WU-006` · **مُعاد بناؤها في `AM-009` ⑦**.
 ///
 /// ⚠️⚠️ **وما تُثبته هذه الاختبارات وما لا تُثبته:** تُثبت أن الشاشة
-/// **تفتح التوزيعة القائمة للتعديل** (`E-04`)، وأنها **تُخفي قيمة الضمار
-/// عمّن لا يملك رؤيتها وتُرسل السعر مع ذلك** (`ت-12` — **أخطر ما في
-/// الوحدة**)، وأنها **تفصل الإجماليين** (`GR-19`)، وأنها **لا تُعبِّئ سبب
-/// التعديل نيابةً عن المستخدم**.
+/// **تعرض سجلات اليوم باسم المقوت**، وأنها **تفتح التوزيعة القائمة للتعديل**
+/// (`E-04`)، وأنها **تُخفي قيمة الضمار عمّن لا يملك رؤيتها وتُرسل السعر مع
+/// ذلك** (`ت-12` — **أخطر ما في الوحدة**)، وأنها **تفصل الإجماليين**
+/// (`GR-19`)، وأنها **لا تُعبِّئ سبب التعديل نيابةً عن المستخدم**،
+/// و⛔⛔ **أنها لا تعرض زرَّ حذفٍ إطلاقاً** (`GR-07`).
 /// ⛔ **ولا تُثبت أن الكتابة محميّة** — ★ **الحماية في `planDistribution`**،
 /// ولها اختباراتها هناك (`functions/test/distribution_test.dart`).
 library;
@@ -19,6 +20,7 @@ import 'package:qtms/capabilities/oversight/application/pending_entries_provider
 import 'package:qtms/capabilities/sales_receivables/application/distribution_providers.dart';
 import 'package:qtms/capabilities/sales_receivables/presentation/distribution_screen.dart';
 import 'package:qtms/core/ui/context_header.dart';
+import 'package:qtms/core/ui/search_field.dart';
 import 'package:qtms/core/ui/sticky_action_bar.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
@@ -42,6 +44,8 @@ const Set<Permission> fullPermissions = <Permission>{
   Permission.distributionCancel,
   Permission.distributionPriceNow,
   Permission.distributionPriceView,
+  Permission.distributionPriceAmend,
+  Permission.distributionPriceClear,
 };
 
 Future<void> pumpDistribution(
@@ -70,9 +74,9 @@ Future<void> pumpDistribution(
         distributionAdminProvider.overrideWithValue(admin),
         todayProvider.overrideWithValue(fixedDay),
       ],
-      child: MaterialApp(
-        locale: const Locale('ar'),
-        home: const DistributionScreen(),
+      child: const MaterialApp(
+        locale: Locale('ar'),
+        home: DistributionScreen(),
       ),
     ),
   );
@@ -127,11 +131,60 @@ Future<ProviderContainer> pumpWithPendingFocus(
   return container;
 }
 
-Future<void> selectDealer(WidgetTester tester) async {
-  await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+/// ★★★ **يفتح نموذج الإنشاء من الزرّ العائم** — `AM-009` ⑦.
+Future<void> openNewForm(WidgetTester tester) async {
+  await tester.tap(find.text('توزيعة جديدة'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('مقوت مثال').last);
+}
+
+/// ★★★ **يفتح نموذج التعديل من سجلّ المقوت** — `AM-009` ⑦.
+Future<void> openAmendForm(WidgetTester tester) async {
+  await tester.tap(find.byIcon(Icons.edit_outlined));
   await tester.pumpAndSettle();
+}
+
+/// ★ يختار المقوت داخل النموذج — **المنسدلُ الأول في الورقة.**
+Future<void> pickDealer(
+  WidgetTester tester, [
+  String name = 'مقوت مثال',
+]) async {
+  await tester.tap(find.byType(DropdownMenu<String>).first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(name).last);
+  await tester.pumpAndSettle();
+}
+
+/// ★ يُمرِّر ورقة النموذج حتى يظهر العنصر — **فالورقةُ أطول من الشاشة.**
+///
+/// ⛔ **و`ensureVisible` لا تكفي** — ★ **`ListView` يبني بالطلب**:
+/// ⟵ **فآخرُ عنصرٍ قد لا يكون مبنيّاً أصلاً** ⛔ **فلا يجده أي مُلتقِط.**
+Future<void> scrollFormTo(WidgetTester tester, Finder target) async {
+  await tester.dragUntilVisible(
+    target,
+    find.byType(ListView).last,
+    const Offset(0, -80),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// ★★★ **يضيف سطرَ نوعٍ بالنمط الجديد** — `AM-009` ④: **زرُّ `+` ثم منسدلٌ
+/// يُصفّي ثم الكمية** ⛔ **لا صفوفَ كتالوجٍ جاهزة.**
+Future<void> addLine(
+  WidgetTester tester, {
+  String item = 'عود',
+  required String quantity,
+}) async {
+  await tester.tap(find.text('إضافة نوع'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byType(DropdownMenu<String>).last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(item).last);
+  await tester.pumpAndSettle();
+  await tester.enterText(
+    find.widgetWithText(TextField, 'الكمية').last,
+    quantity,
+  );
+  await tester.pump();
 }
 
 void main() {
@@ -144,6 +197,7 @@ void main() {
     masterData.emitSources(<SourceCard>[testSource()]);
     masterData.emitItems(<ItemCard>[testItem()]);
     masterData.emitDealers(<DealerCard>[testDealer()]);
+    distributions.emitList(const <DistributionCard>[]);
   });
 
   tearDown(() {
@@ -153,7 +207,63 @@ void main() {
     inventory.dispose();
   });
 
-  group('★ الشاشة تفتح وتعرض المقاوته', () {
+  // ═══════════════════════════════════════════════════════════════════════
+  group('★★★ AM-009 ⑦ — سجلاتٌ ومرشِّحان وزرٌّ عائم', () {
+    testWidgets('★★★ الشاشة تعرض سجلات اليوم باسم المقوت — ⛔ لا نموذجَ مفتوح',
+        (WidgetTester tester) async {
+      distributions.emitOne(testDistributionCard());
+      await pumpDistribution(tester);
+
+      // ★ **العنوانُ اسمُ المقوت** — ⛔ **لا رقمُ المستند.**
+      expect(find.text('مقوت مثال'), findsOneWidget);
+      // ⛔⛔ **ولا نموذجَ إدخالٍ قبل أن يطلبه المستخدم.**
+      expect(find.text('إضافة نوع'), findsNothing);
+      expect(find.text('توزيعة جديدة'), findsOneWidget);
+    });
+
+    testWidgets('★★ ومرشِّحُ المصدر يحمل «كل المصادر» — AM-009 ③',
+        (WidgetTester tester) async {
+      await pumpDistribution(tester);
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      expect(find.text('كل المصادر'), findsWidgets);
+    });
+
+    testWidgets('★★★ وبحثُ المقوت يُصفّي السجلات', (WidgetTester tester) async {
+      distributions.emitList(<DistributionCard>[
+        testDistributionCard(),
+        testDistributionCard(
+          dealerId: 'MQT-0002',
+          dealerName: 'مقوت آخر',
+        ),
+      ]);
+      await pumpDistribution(tester);
+      expect(find.text('مقوت مثال'), findsOneWidget);
+      expect(find.text('مقوت آخر'), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'بحث بالمقوت'),
+        'آخر',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QtmsSearchField), findsOneWidget);
+      // ★ **والاسمُ الباقي وحده** — ⛔ **ولا قائمةٌ فارغة صامتة.**
+      expect(find.text('مقوت آخر'), findsWidgets);
+    });
+
+    testWidgets('★★ وأربعةُ إجراءاتٍ على كل سجلّ', (WidgetTester tester) async {
+      distributions.emitOne(testDistributionCard());
+      await pumpDistribution(tester);
+
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.block_outlined), findsOneWidget);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  group('★ اختيار المقوت في النموذج', () {
     testWidgets('⛔ ولا يظهر مقوتٌ معطَّل — FR-M10-12', (
       WidgetTester tester,
     ) async {
@@ -167,13 +277,15 @@ void main() {
         ),
       ]);
       await pumpDistribution(tester);
-      await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+      await openNewForm(tester);
+      await tester.tap(find.byType(DropdownMenu<String>).first);
       await tester.pumpAndSettle();
       expect(find.text('مقوت معطَّل'), findsNothing);
       expect(find.text('مقوت مثال'), findsWidgets);
     });
   });
 
+  // ═══════════════════════════════════════════════════════════════════════
   group('★★★ GR-18 · E-04 — يُفتَح الموجود للتعديل', () {
     testWidgets(
       '⛔⛔★★★ ارتداد: لا توزيعة بعد ⟵ نموذجُ إنشاءٍ فوراً — ⛔ لا هيكلٌ أبدي',
@@ -185,8 +297,8 @@ void main() {
         // ★ **والوجود الآن يُشتقّ من قائمة اليوم المقيَّدة بـ`sourceId`.**
         distributions.emitList(const <DistributionCard>[]);
         await pumpDistribution(tester);
-        await selectDealer(tester);
-        await tester.pump(const Duration(milliseconds: 20));
+        await openNewForm(tester);
+        await pickDealer(tester);
         expect(find.text('حفظ التوزيعة'), findsOneWidget);
       },
     );
@@ -196,26 +308,26 @@ void main() {
     ) async {
       distributions.emitOne(testDistributionCard());
       await pumpDistribution(tester);
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
       expect(
         distributions.requestedIds,
         contains('MQT-0001_SRC-001_20260827'),
       );
     });
 
-    testWidgets('★★ وتوزيعةٌ قائمة تُفتَح بشارتها وسبب تعديلٍ مطلوب', (
+    testWidgets('★★ وتوزيعةٌ قائمة تُفتَح بشارتها وسبب تعديلٍ اختياري', (
       WidgetTester tester,
     ) async {
       distributions.emitOne(testDistributionCard(amendCount: 2));
       await pumpDistribution(tester);
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
+      await openAmendForm(tester);
 
       expect(find.textContaining('فُتح للتعديل'), findsOneWidget);
-      expect(find.textContaining('مُعدَّل ×2'), findsOneWidget);
-      expect(find.text('سبب التعديل (اختياري)'), findsOneWidget);
+      expect(find.textContaining('مُعدَّل ×2'), findsWidgets);
       expect(find.text('حفظ التعديل'), findsOneWidget);
+      await scrollFormTo(tester, find.text('سبب التعديل (اختياري)'));
+      expect(find.text('سبب التعديل (اختياري)'), findsOneWidget);
       // ⛔ **ولا زرّ إنشاء على مستندٍ قائم.**
       expect(find.text('حفظ التوزيعة'), findsNothing);
     });
@@ -225,12 +337,14 @@ void main() {
     ) async {
       distributions.emitOne(null);
       await pumpDistribution(tester);
-      await selectDealer(tester);
+      await openNewForm(tester);
+      await pickDealer(tester);
       expect(find.text('حفظ التوزيعة'), findsOneWidget);
       expect(find.text('سبب التعديل (اختياري)'), findsNothing);
     });
   });
 
+  // ═══════════════════════════════════════════════════════════════════════
   group('⛔⛔★★★ ت-12 — إخفاء السعر لا يعني توزيعةً بلا سعر', () {
     testWidgets('⛔ من لا يملك `distributionPriceView` لا يرى قيمة الضمار', (
       WidgetTester tester,
@@ -243,8 +357,8 @@ void main() {
         tester,
         actorPermissions: const <Permission>{Permission.distributionCreate},
       );
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
       expect(find.textContaining('قيمة الضمار'), findsNothing);
     });
 
@@ -262,9 +376,9 @@ void main() {
           ),
         );
       await pumpDistribution(tester);
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
-      expect(find.textContaining('قيمة الضمار: 121852'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('121852'), findsWidgets);
     });
 
     testWidgets(
@@ -286,11 +400,12 @@ void main() {
           // ⛔ **بلا `distributionPriceView`** — ★ **ومع ذلك يُرسَل السعر.**
           actorPermissions: const <Permission>{Permission.distributionCreate},
         );
-        await selectDealer(tester);
-        await tester.pump(const Duration(milliseconds: 20));
+        await openNewForm(tester);
+        await pickDealer(tester);
+        await addLine(tester, quantity: '80');
+        // ⛔ **ولا حقلَ سعرٍ لمن لا يراه** — `FR-M10-07`.
+        expect(find.widgetWithText(TextField, 'السعر'), findsNothing);
 
-        await tester.enterText(find.byType(TextField).first, '80');
-        await tester.pump();
         await tester.tap(find.text('حفظ التوزيعة'));
         await tester.pump(const Duration(milliseconds: 20));
 
@@ -301,22 +416,98 @@ void main() {
         expect(sent.debtValue, const Money(120000));
       },
     );
+
+    testWidgets(
+      '★★★ AM-009 ⑦: ومن يملك تعديل السعر يراه مملوءاً بالمقترَح ويُغيِّره',
+      (WidgetTester tester) async {
+        pricing.emitPrices(fixedDay, <DailyPriceCard>[
+          DailyPriceCard(
+            sourceId: 'SRC-001',
+            itemKey: 'ITM-0002',
+            itemName: 'عود',
+            unit: ItemUnit.piece,
+            date: fixedDay,
+            distributionPrice: const Money(1500),
+          ),
+        ]);
+        distributions.emitOne(null);
+        await pumpDistribution(tester);
+        await openNewForm(tester);
+        await pickDealer(tester);
+        await addLine(tester, quantity: '10');
+
+        // ★★ **والسعرُ المقترَح يُملأ عند اختيار النوع** — `FR-M10-09`.
+        final TextField price = tester.widget<TextField>(
+          find.widgetWithText(TextField, 'السعر (أو اتركه لاحقاً)').last,
+        );
+        expect(price.controller!.text, '1500');
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'السعر (أو اتركه لاحقاً)').last,
+          '1600',
+        );
+        await tester.pump();
+        await tester.tap(find.text('حفظ التوزيعة'));
+        await tester.pump(const Duration(milliseconds: 20));
+
+        expect(admin.lastDistribution!.lines.single.unitPrice, const Money(1600));
+      },
+    );
+
+    testWidgets(
+      '★★★ AM-009 ⑦ · FR-M10-08: وتفريغُ السعر «تسعيرٌ لاحق» — يصل غياباً',
+      (WidgetTester tester) async {
+        pricing.emitPrices(fixedDay, <DailyPriceCard>[
+          DailyPriceCard(
+            sourceId: 'SRC-001',
+            itemKey: 'ITM-0002',
+            itemName: 'عود',
+            unit: ItemUnit.piece,
+            date: fixedDay,
+            distributionPrice: const Money(1500),
+          ),
+        ]);
+        distributions.emitOne(null);
+        await pumpDistribution(tester);
+        await openNewForm(tester);
+        await pickDealer(tester);
+        await addLine(tester, quantity: '10');
+
+        // ★★★ **وتفريغُ الحقل هو «التسعير لاحقاً»** — `FR-M10-08`:
+        //    ⟵ **فالسطرُ يُحفَظ بلا سعر ويدخل مركز الإدخالات المعلّقة**،
+        //    ⛔ **ولا يُرسَل صفرٌ ولا يُعاد المقترَح خلسةً.**
+        await tester.enterText(
+          find.widgetWithText(TextField, 'السعر (أو اتركه لاحقاً)').last,
+          '',
+        );
+        await tester.pump();
+        expect(find.textContaining('سطورٌ بلا سعر'), findsOneWidget);
+
+        await tester.tap(find.text('حفظ التوزيعة'));
+        await tester.pump(const Duration(milliseconds: 20));
+
+        expect(admin.createCalls, 1);
+        expect(admin.lastDistribution!.lines.single.unitPrice, isNull);
+      },
+    );
   });
 
+  // ═══════════════════════════════════════════════════════════════════════
   group('⛔ GR-19 — إجماليان منفصلان دائماً', () {
     testWidgets('★ الحبات والأوزان سطران لا سطرٌ واحد', (
       WidgetTester tester,
     ) async {
       distributions.emitOne(null);
       await pumpDistribution(tester);
-      await selectDealer(tester);
-      await tester.enterText(find.byType(TextField).first, '80');
-      await tester.pump();
+      await openNewForm(tester);
+      await pickDealer(tester);
+      await addLine(tester, quantity: '80');
       expect(find.textContaining('إجمالي الحبات: 80'), findsOneWidget);
       expect(find.textContaining('إجمالي الأوزان: 0.000'), findsOneWidget);
     });
   });
 
+  // ═══════════════════════════════════════════════════════════════════════
   group('⛔⛔★★★ ولا يُعبَّئ سبب التعديل نيابةً عن المستخدم', () {
     // ⛔⛔★★★ **وبعد `ADR-0020` صار «الفارغ» يُرسَل غياباً لا نصّاً فارغاً**
     //    — ★ **والسحابة تقبله**، ⟵ **فالحارس الباقي أن التطبيق لا يخترع
@@ -326,8 +517,7 @@ void main() {
     ) async {
       distributions.emitOne(testDistributionCard());
       await pumpDistribution(tester);
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
+      await openAmendForm(tester);
 
       await tester.tap(find.text('حفظ التعديل'));
       await tester.pump(const Duration(milliseconds: 20));
@@ -340,9 +530,9 @@ void main() {
     testWidgets('✅ وما كتبه يصل كما هو', (WidgetTester tester) async {
       distributions.emitOne(testDistributionCard());
       await pumpDistribution(tester);
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
+      await openAmendForm(tester);
 
+      await scrollFormTo(tester, find.text('سبب التعديل (اختياري)'));
       await tester.enterText(
         find.widgetWithText(TextField, 'سبب التعديل (اختياري)'),
         'تصحيح كمية',
@@ -353,19 +543,22 @@ void main() {
     });
   });
 
+  // ═══════════════════════════════════════════════════════════════════════
   group('★ الإلغاء — GR-07 · E-15', () {
-    testWidgets('⛔ ولا زرّ حذف إطلاقاً', (WidgetTester tester) async {
+    testWidgets('⛔⛔★★★ ولا زرّ حذف إطلاقاً — والإلغاء بديلُه المعتمَد', (
+      WidgetTester tester,
+    ) async {
       distributions.emitOne(testDistributionCard());
       await pumpDistribution(tester);
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
-      await tester.dragUntilVisible(
-        find.text('إلغاء التوزيعة'),
-        find.byType(ListView),
-        const Offset(0, -80),
-      );
+
+      // ⛔⛔★★★ **وطلبُ المالك في `AM-009` قال «حذف»** — ★ **ونُفِّذ إلغاءً**:
+      //    `GR-07` · `ADR-0004` · `CLAUDE.md` («لا حذف بيانات … لأي مستخدم
+      //    بمن فيهم المالك») ⟵ **والإلغاء هو المكافئ** (`FR-M10-18`).
+      expect(find.byIcon(Icons.delete), findsNothing);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+      expect(find.byIcon(Icons.delete_forever), findsNothing);
       expect(find.text('حذف'), findsNothing);
-      expect(find.text('إلغاء التوزيعة'), findsOneWidget);
+      expect(find.byIcon(Icons.block_outlined), findsOneWidget);
     });
 
     testWidgets('★ ورفضُ السحابة يُعرَض بنصّ الكتالوج', (
@@ -374,23 +567,28 @@ void main() {
       admin.rejection = const ValidationError('ERR_AMEND_005');
       distributions.emitOne(testDistributionCard());
       await pumpDistribution(tester);
-      await selectDealer(tester);
+      await tester.tap(find.byIcon(Icons.block_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('تأكيد الإلغاء'));
       await tester.pump(const Duration(milliseconds: 20));
-      await tester.dragUntilVisible(
-        find.text('إلغاء التوزيعة'),
-        find.byType(ListView),
-        const Offset(0, -80),
-      );
-      // ⚠️★★ **ودفعةٌ إضافية بعد ظهوره** — §5b `P8`: ★ **الشريطُ الثابت
-      //    يحتلّ أسفل الشاشة**، ⟵ **فأولُ ظهورٍ للزرّ قد يقع خلفه**
-      //    ⛔ **فتُصيب النقرةُ الشريطَ لا الزرّ.**
-      await tester.drag(find.byType(ListView), const Offset(0, -200));
-      await tester.pump();
-      await tester.tap(find.text('إلغاء التوزيعة'));
-      await tester.pump(const Duration(milliseconds: 20));
+
       expect(admin.cancelCalls, 1);
       // ★ **ورسالةٌ ظاهرة لا صمت** — ⛔ **والصمت بعد فشلٍ أخطر من الفشل.**
       expect(find.textContaining('❌'), findsWidgets);
+    });
+
+    testWidgets('✅★★★ ADR-0020: ويُقبَل الإلغاء بلا سببٍ — ويصل غياباً', (
+      WidgetTester tester,
+    ) async {
+      distributions.emitOne(testDistributionCard());
+      await pumpDistribution(tester);
+      await tester.tap(find.byIcon(Icons.block_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('تأكيد الإلغاء'));
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(admin.cancelCalls, 1);
+      expect(admin.lastCancelReason, isNull);
     });
 
     testWidgets('⛔ والملغاة لا تُعدَّل', (WidgetTester tester) async {
@@ -398,13 +596,15 @@ void main() {
         testDistributionCard(status: DistributionStatus.cancelled),
       );
       await pumpDistribution(tester);
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
-      expect(find.textContaining('ملغاة'), findsOneWidget);
-      expect(find.text('حفظ التعديل'), findsNothing);
+
+      expect(find.text('ملغى'), findsOneWidget);
+      // ⛔ **ولا زرَّ تعديلٍ ولا إلغاءٍ على مستندٍ ملغى.**
+      expect(find.byIcon(Icons.edit_outlined), findsNothing);
+      expect(find.byIcon(Icons.block_outlined), findsNothing);
     });
   });
 
+  // ═══════════════════════════════════════════════════════════════════════
   group('★★★ P3 · P8 — رأس السياق والشريط الثابت (ADR-0021 · §5b)', () {
     testWidgets('★ رأسُ سياقٍ بصفٍّ واحد بدل أربعة مستويات', (
       WidgetTester tester,
@@ -416,13 +616,13 @@ void main() {
       expect(find.byIcon(Icons.lock_outline), findsOneWidget);
     });
 
-    testWidgets('★★★ والملخّصُ المالي والزرُّ في شريطٍ ثابت أسفل الشاشة', (
+    testWidgets('★★★ والملخّصُ المالي والزرُّ في شريطٍ ثابت أسفل الورقة', (
       WidgetTester tester,
     ) async {
       distributions.emitOne(null);
       await pumpDistribution(tester);
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
+      await openNewForm(tester);
+      await pickDealer(tester);
 
       expect(find.byType(QtmsStickyActionBar), findsOneWidget);
       // ★★ **والإجماليان داخل الشريط** — ⟵ **فالأثرُ مرئيٌّ لحظةَ الإدخال**،
@@ -431,23 +631,16 @@ void main() {
       expect(find.text('حفظ التوزيعة'), findsOneWidget);
     });
 
-    testWidgets('⛔⛔★★★ والمدمّرُ ليس داخل الشريط الثابت', (
+    testWidgets('⛔⛔★★★ ولا مدمّرَ داخل نموذج التعديل — موضعُه السجلّ', (
       WidgetTester tester,
     ) async {
       distributions.emitOne(testDistributionCard());
       await pumpDistribution(tester);
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
+      await openAmendForm(tester);
 
-      // ★ **«إلغاء التوزيعة» في ذيل المحتوى الممرَّر** — §5b `P8` ⑨:
-      //   ⟵ **فلا يُلامَس سهواً بإصبعٍ تقصد الحفظ.**
-      expect(
-        find.descendant(
-          of: find.byType(QtmsStickyActionBar),
-          matching: find.text('إلغاء التوزيعة'),
-        ),
-        findsNothing,
-      );
+      // ★★★ **والإلغاء انتقل إلى صفّ إجراءات السجلّ** — `AM-009` ⑦:
+      //    ⟵ **فلا يقع تحت إصبعٍ تقصد الحفظ داخل النموذج أصلاً.**
+      expect(find.text('إلغاء التوزيعة'), findsNothing);
       expect(
         find.descendant(
           of: find.byType(QtmsStickyActionBar),
@@ -458,8 +651,9 @@ void main() {
     });
   });
 
+  // ═══════════════════════════════════════════════════════════════════════
   group('★ الصلاحيات — إخفاءٌ لا حماية', () {
-    testWidgets('⛔ بلا `distributionCreate` لا يظهر زر الحفظ', (
+    testWidgets('⛔ بلا `distributionCreate` لا يظهر الزرُّ العائم', (
       WidgetTester tester,
     ) async {
       distributions.emitOne(null);
@@ -467,8 +661,7 @@ void main() {
         tester,
         actorPermissions: const <Permission>{Permission.dealerWrite},
       );
-      await selectDealer(tester);
-      expect(find.text('حفظ التوزيعة'), findsNothing);
+      expect(find.text('توزيعة جديدة'), findsNothing);
     });
 
     testWidgets('⛔ وبلا `distributionCancel` لا يظهر زر الإلغاء', (
@@ -482,13 +675,25 @@ void main() {
           Permission.distributionAmend,
         },
       );
-      await selectDealer(tester);
-      await tester.pump(const Duration(milliseconds: 20));
-      expect(find.text('إلغاء التوزيعة'), findsNothing);
-      expect(find.text('حفظ التعديل'), findsOneWidget);
+      expect(find.byIcon(Icons.block_outlined), findsNothing);
+      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+    });
+
+    testWidgets('⛔ وبلا `distributionAmend` لا يظهر زر التعديل', (
+      WidgetTester tester,
+    ) async {
+      distributions.emitOne(testDistributionCard());
+      await pumpDistribution(
+        tester,
+        actorPermissions: const <Permission>{Permission.distributionCreate},
+      );
+      expect(find.byIcon(Icons.edit_outlined), findsNothing);
+      // ★ **والعرضُ بلا مفتاح** — ⟵ **القراءة يحكمها النطاق وحده.**
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
     });
   });
 
+  // ═══════════════════════════════════════════════════════════════════════
   group('⛔⛔★★★ DEBT-68 — وجهةُ المركز المعلّق لا تُسقِط الشاشة', () {
     PendingFocus focusOn(String documentId) => PendingFocus(
           kind: PendingDocumentKind.distribution,
@@ -520,9 +725,10 @@ void main() {
       expect(container.read(pendingFocusProvider), isNull);
     });
 
-    testWidgets('★★ والمقوت المقصود يُنتقى من المعرّف المركّب', (
+    testWidgets('★★ والمقوت المقصود يُضبَط في حقل البحث', (
       WidgetTester tester,
     ) async {
+      distributions.emitOne(testDistributionCard());
       await pumpWithPendingFocus(
         tester,
         focus: focusOn('MQT-0001_SRC-001_20260827'),
@@ -536,7 +742,11 @@ void main() {
     ) async {
       await pumpWithPendingFocus(tester, focus: focusOn('لا-يطابق-الشكل'));
       expect(tester.takeException(), isNull);
-      expect(find.text('اختر المقوت لبدء التوزيع'), findsOneWidget);
+      // ★ **وحقلُ البحث يبقى فارغاً** — ⛔ **ولا يُملأ باسمٍ مُخمَّن.**
+      final TextField search = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'بحث بالمقوت'),
+      );
+      expect(search.controller!.text, isEmpty);
     });
   });
 }

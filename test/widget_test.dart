@@ -15,6 +15,7 @@ import 'package:qtms/core/design/brand.dart';
 import 'package:qtms/core/messages/error_messages.dart';
 import 'package:qtms/core/startup/app_startup.dart';
 import 'package:qtms/main.dart';
+import 'package:qtms/core/ui/avatar.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import 'support/fake_identity.dart';
@@ -120,8 +121,16 @@ void main() {
     await _settle(tester);
 
     expect(find.byType(HomeShell), findsOneWidget);
-    expect(find.text('عبدالفتاح'), findsOneWidget);
-    expect(find.text('كل المصادر'), findsOneWidget);
+    // ⚠️★★ **والاسمُ في الصورة الرمزية بعد `AM-008` ①** — ⛔ **لا نصّاً في
+    //    الشريط**: ★ **والهويةُ معروضةٌ بشكلٍ آخر لا ساقطة.**
+    expect(
+      tester.widget<QtmsAvatar>(find.byType(QtmsAvatar)).name,
+      'عبدالفتاح',
+    );
+    // ⛔⛔★★★ **ولا بطاقةَ دورٍ ولا نطاقِ مصادر في الصدَفة** — `AM-009` ②:
+    //    ★ **كانت تعرض «كل المصادر» في صدر الشاشة**، ⟵ **وأُزيلت بطلب
+    //    المالك** ⛔ **ولا تعود بصمت.**
+    expect(find.text('كل المصادر'), findsNothing);
   });
 
   testWidgets('★★ FR-M1-15: تعطيل الحساب يُخرج المستخدم من شاشات العمل فوراً', (

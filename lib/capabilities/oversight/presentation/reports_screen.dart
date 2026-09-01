@@ -22,6 +22,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../../app/top_bar.dart';
+
 import '../../../app/router.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -41,10 +43,7 @@ class ReportsScreen extends ConsumerWidget {
     final List<ReportId> reports = ref.watch(visibleReportsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: SemanticColors.surface,
-        title: const Text('التقارير', style: TypeScale.titleSm),
-      ),
+      appBar: QtmsTopBar(screenTitle: 'التقارير'),
       body: families.isEmpty
           ? const QtmsEmptyState(
               spec: EmptyStateSpec(
