@@ -316,4 +316,10 @@ String _entityTypeOf(SourceDocumentType type) => switch (type) {
       //   سندَ البيع النقدي برقمه** (`FR-M18-10`): ★ **ومعرّفُه رقمُه**
       //   ⛔ **لا معرّفٌ مركّب** (`schema/cash-sales.md`).
       SourceDocumentType.cashSale => cashSaleEntityType,
+      // ★★ **وكاتبان خامسٌ وسادس منذ `WU-014`** — ⟵ **والسجل السياقي
+      //   للحركة يفتح السحبيةَ أو الخرجيةَ برقمها** (`FR-M18-10`).
+      //   ⛔⛔★★★ **ونوعان لا نوعٌ واحد** (`GR-43`): ⟵ **فمن يملك «عرض
+      //   الخرجيات» وحدها لا يُفتَح له سجلُّ سحبيةٍ باسمٍ محايد.**
+      SourceDocumentType.withdrawal => withdrawalEntityType,
+      SourceDocumentType.expense => expenseEntityType,
     };

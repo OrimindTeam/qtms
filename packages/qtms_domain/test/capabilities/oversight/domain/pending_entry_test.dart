@@ -219,7 +219,14 @@ void main() {
 
     test('★ تحليل النوع والحقل من قيمةٍ مخزَّنة', () {
       expect(PendingDocumentKind.tryParse('sack'), PendingDocumentKind.sack);
-      expect(PendingDocumentKind.tryParse('outflow'), isNull);
+      // ✅★★ **`outflow` صار معروفاً في `WU-014`** — ⛔ **وكان `isNull`
+      //    حتى 2026-09-01.** ★ **والنوعُ المجهول يبقى مُختبَراً أدناه**:
+      //    ⟵ **فالتسامح مع المجهول قاعدةٌ باقية** ⛔ **لا سطرٌ سقط.**
+      expect(
+        PendingDocumentKind.tryParse('outflow'),
+        PendingDocumentKind.outflow,
+      );
+      expect(PendingDocumentKind.tryParse('somethingNew'), isNull);
       expect(
         PendingMissingField.tryParse('itemPricing'),
         PendingMissingField.itemPricing,
@@ -228,17 +235,53 @@ void main() {
     });
   });
 
-  group('⛔⛔ M22 غائبٌ عمداً — ولا كاتبَ له بعد', () {
-    test('★ ثلاثةُ أنواعٍ لا أربعة — والسحبيات تُضاف في WU-014', () {
-      expect(PendingDocumentKind.values, hasLength(3));
+  // ═══════════════════════════════════════════════════════════════════════
+  // ✅★★ **M22 أُضيف في `WU-014` (2026-09-01) — والحارس انقلب من نفيٍ إلى
+  //    إثبات** ⛔ **ولم يُحذَف:** ★ **بنفس ما فعله `IQ-007` بحارس المفاتيح
+  //    الإدارية حرفياً** — ⟵ **فالعدد يبقى مفحوصاً عمداً**، ⛔ **ولا تتّسع
+  //    القائمةُ صامتةً بقيمةٍ لا كاتبَ لها.**
+  // ═══════════════════════════════════════════════════════════════════════
+  group('✅ M22 حاضرٌ الآن — وله كاتبٌ فعليٌّ في WU-014', () {
+    test('★ أربعةُ أنواعٍ لا ثلاثة — والسحبياتُ آخرُها', () {
+      expect(PendingDocumentKind.values, hasLength(4));
       expect(
         PendingDocumentKind.values.map((PendingDocumentKind k) => k.name),
-        <String>['sack', 'dailyPrice', 'distribution'],
+        <String>['sack', 'dailyPrice', 'distribution', 'outflow'],
       );
     });
 
-    test('★ وخمسةُ حقولٍ لا تسعة — راجع ترويسة PendingMissingField', () {
-      expect(PendingMissingField.values, hasLength(5));
+    test('★ وستةُ حقولٍ لا خمسة — راجع ترويسة PendingMissingField', () {
+      expect(PendingMissingField.values, hasLength(6));
+      expect(
+        PendingMissingField.outflowLinePricing.fieldKey,
+        'unitPrice',
+      );
+    });
+
+    test('★ ووجهتُه شاشةُ السحبيات — ⛔ لا شاشةَ إدخالٍ بديلة', () {
+      expect(
+        PendingDocumentKind.outflow.screen,
+        PendingScreen.outflow,
+      );
+    });
+
+    test('⛔⛔ ومعرّفُ بندِه لا يلتبس ببندِ توزيعةٍ بنفس الرقم', () {
+      // ★★ **والحقلُ `unitPrice` نفسُه في النوعين** — ⟵ **فالتمييزُ من
+      //    [PendingDocumentKind] وحده**: ⛔ **ولولاه لتصادم المعرّفان.**
+      expect(
+        pendingEntryId(
+          kind: PendingDocumentKind.outflow,
+          documentId: 'WDR-20260901-0001',
+          field: PendingMissingField.outflowLinePricing,
+        ),
+        isNot(
+          pendingEntryId(
+            kind: PendingDocumentKind.distribution,
+            documentId: 'WDR-20260901-0001',
+            field: PendingMissingField.distributionLinePricing,
+          ),
+        ),
+      );
     });
   });
 }

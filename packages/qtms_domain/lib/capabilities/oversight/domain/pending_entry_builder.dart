@@ -296,6 +296,65 @@ PendingEntrySet describeDistributionPending({
     );
 
 // ═════════════════════════════════════════════════════════════════════════
+// `M22` — بندُ قاتٍ بلا سعر في سحبيةٍ أو خرجية (`WU-014`)
+// ═════════════════════════════════════════════════════════════════════════
+
+/// ★ حقول السند المُلاحَقة — **واحدٌ بالضبط** (راجع [PendingMissingField]).
+const List<PendingMissingField> outflowPendingFields =
+    <PendingMissingField>[PendingMissingField.outflowLinePricing];
+
+/// ★★★ بندُ سحبيةٍ أو خرجيةٍ ببنود قاتٍ غير مسعَّرة — `FR-M22-07` · `E-27`
+/// · `AT-41`.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ★★ **بندٌ واحد للسند مهما بلغ عدد بنوده غير المسعَّرة** — ★ **بنفس قرار
+/// [describeDistributionPending] حرفياً** (`pending-entries-design.md` §9 ·
+/// `AT-23`): ⟵ **والعدد يظهر في نصّ البند** ⛔ **لا في عدد البنود.**
+///
+/// ⛔⛔ **والسند الملغى يُخلي بنده** (`GR-06` · `FR-M22-18`) — ★ **بنفس علّة
+/// التوزيعة الملغاة حرفياً**: ⟵ **مستندٌ خرج من كل حساب لا يُطالَب بسعر.**
+///
+/// ⛔⛔★★★ **والعنوان يحمل اسم الفئة لا اسمَ السجل وحده** — ★ **فـ«سحبية
+/// قات» و«خرجية شُقى الشُقّات» يُميّزهما القارئ فوراً**: ⟵ **والمستخدم يفتح
+/// شاشةً واحدة** (`PendingScreen.outflow`) **ويُسعِّر ما فيها.**
+///
+/// ⚠️⚠️★★ **و[stockDate] هنا تاريخُ **المخزون** لا تاريخُ السند** — `FR-M22-10` ·
+/// `GR-49`: ⟵ **لأن البند يُطالِب بسعر **بضاعةٍ خرجت**، ★ **وشاشةُ التسعير
+/// تُفتَح على تاريخ مخزونها** ⛔ **لا على يوم وقوع المصروف**: ★ **والخلطُ
+/// كان يفتح الشاشة على يومٍ لا كميةَ فيه.**
+/// ═══════════════════════════════════════════════════════════════════════
+PendingEntrySet describeOutflowPending({
+  required String outflowId,
+  required String sourceId,
+  required CalendarDay stockDate,
+  required String categoryLabel,
+  required int unpricedLineCount,
+  String? documentNumber,
+  bool isCancelled = false,
+}) =>
+    _completeSet(
+      kind: PendingDocumentKind.outflow,
+      documentId: outflowId,
+      allFields: outflowPendingFields,
+      drafts: !isCancelled && unpricedLineCount > 0
+          ? <PendingEntryDraft>[
+              PendingEntryDraft(
+                kind: PendingDocumentKind.outflow,
+                documentId: outflowId,
+                field: PendingMissingField.outflowLinePricing,
+                readableTitle: categoryLabel,
+                sourceId: sourceId,
+                date: stockDate,
+                documentNumber: documentNumber,
+                missingField: unpricedLineCount == 1
+                    ? 'سعر الوحدة لبندٍ واحد'
+                    : 'سعر الوحدة لـ$unpricedLineCount بنود',
+              ),
+            ]
+          : const <PendingEntryDraft>[],
+    );
+
+// ═════════════════════════════════════════════════════════════════════════
 // المُكمِّل — ★ **ما لم يُكتَب يُمحى**
 // ═════════════════════════════════════════════════════════════════════════
 

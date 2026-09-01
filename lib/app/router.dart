@@ -28,6 +28,8 @@ import '../capabilities/oversight/presentation/pending_entries_screen.dart';
 import '../capabilities/oversight/presentation/report_view_screen.dart';
 import '../capabilities/oversight/presentation/reports_screen.dart';
 import '../capabilities/sales_receivables/presentation/cash_sale_screen.dart';
+import '../capabilities/financial_outflow/presentation/outflow_screen.dart';
+import '../capabilities/sales_receivables/presentation/discount_screen.dart';
 import '../capabilities/sales_receivables/presentation/distribution_screen.dart';
 import '../capabilities/sales_receivables/presentation/receipt_screen.dart';
 import '../capabilities/master_data/application/master_data_providers.dart';
@@ -118,6 +120,22 @@ const String cashSaleRoute = '/home/cash-sales';
 /// «المقبوض في تاريخ» يُختار من الرابط**، ⛔ **وهو حقلُ سندٍ لا وجهةُ ملاحة.**
 const String receiptRoute = '/home/receipts';
 
+/// ★ مسار الخصومات (`M13` · `WU-013`) — **مستويان**.
+///
+/// ⛔⛔★★★ **ومسارٌ مستقلٌّ عن [receiptRoute] قطعاً** (`FR-M15-06-أ`) —
+/// ★ **وهذا أولُ موضعٍ يراه المستخدم من الفصل**: ⟵ **شاشتان لا شاشةٌ
+/// بمبدِّل**، ⛔ **ومبدِّلٌ بينهما كان يجعل الخلطَ خطأَ نقرةٍ واحدة.**
+const String discountRoute = '/home/discounts';
+
+/// ★ مسار السحبيات والخرجيات (`M22` · `WU-014`) — **مستويان**.
+///
+/// ⛔⛔★★★ **ومسارٌ واحدٌ للسجلَّين** — `FR-M22` §1 نصّاً («**سجلّان
+/// منفصلان في شاشة واحدة**») ⛔ **بخلاف الخصم والقبض**: ⟵ **فآليتُهما
+/// واحدة تماماً والفارقُ في الصلاحية والتصنيف** (`outflow-design.md` §2)،
+/// ★ **والفصلُ الأمني في المفاتيح والقاعدة والدالة الكاتبة** ⛔ **لا في
+/// المسار** (`GR-43`).
+const String outflowRoute = '/home/outflows';
+
 /// ★ مسار سجل التدقيق المركزي (`FR-M18-09`) — **مستويان**.
 ///
 /// ⛔★★ **ولا معامل كيانٍ في المسار** — ★ **السجل السياقي ورقةٌ تُفتَح فوق
@@ -142,6 +160,10 @@ String pendingScreenRoute(PendingScreen screen) => switch (screen) {
       PendingScreen.sackIntake => sackIntakeRoute,
       PendingScreen.dailyPricing => dailyPricingRoute,
       PendingScreen.distribution => distributionRoute,
+      // ★★ **وشاشةٌ رابعة منذ `WU-014`** — ⟵ **وواحدةٌ للسجلَّين**
+      //   (`FR-M22` §1): ★ **والسجلُّ المقصود يُقرأ من رقم المستند نفسِه**
+      //   (`WDR-` · `EXP-`) ⛔ **لا من قيمةٍ ثانية في المعجم.**
+      PendingScreen.outflow => outflowRoute,
     };
 
 /// ★ مسار قائمة التقارير (`FR-M19`) — **مستويان**.
@@ -269,6 +291,18 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             path: 'receipts',
             builder: (BuildContext context, GoRouterState state) =>
                 const ReceiptScreen(),
+          ),
+          // ── الخصومات (`WU-013`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'discounts',
+            builder: (BuildContext context, GoRouterState state) =>
+                const DiscountScreen(),
+          ),
+          // ── السحبيات والخرجيات (`WU-014`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'outflows',
+            builder: (BuildContext context, GoRouterState state) =>
+                const OutflowScreen(),
           ),
           // ── سجل التدقيق (`WU-008`) — شاشةٌ بمستويين ──
           GoRoute(

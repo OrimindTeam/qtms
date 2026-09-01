@@ -19,6 +19,9 @@ import 'package:http/http.dart' as http;
 
 import 'app/router.dart';
 import 'capabilities/identity_access/application/admin_providers.dart';
+import 'capabilities/financial_outflow/application/outflow_providers.dart';
+import 'capabilities/financial_outflow/infrastructure/firestore_outflow_directory.dart';
+import 'capabilities/financial_outflow/infrastructure/functions_outflow_repository.dart';
 import 'capabilities/identity_access/application/session_providers.dart';
 import 'capabilities/identity_access/infrastructure/firebase_auth_repository.dart';
 import 'capabilities/identity_access/infrastructure/firestore_user_card_repository.dart';
@@ -52,6 +55,9 @@ import 'capabilities/sales_receivables/infrastructure/firestore_cash_sale_direct
 import 'capabilities/sales_receivables/infrastructure/firestore_distribution_directory.dart';
 import 'capabilities/sales_receivables/infrastructure/functions_cash_sale_repository.dart';
 import 'capabilities/sales_receivables/infrastructure/functions_distribution_repository.dart';
+import 'capabilities/sales_receivables/application/discount_providers.dart';
+import 'capabilities/sales_receivables/infrastructure/firestore_discount_directory.dart';
+import 'capabilities/sales_receivables/infrastructure/functions_discount_repository.dart';
 import 'capabilities/sales_receivables/application/receipt_providers.dart';
 import 'capabilities/sales_receivables/infrastructure/firestore_receipt_directory.dart';
 import 'capabilities/sales_receivables/infrastructure/functions_receipt_repository.dart';
@@ -188,6 +194,36 @@ Future<void> main() async {
               ),
               cashSaleAdminProvider.overrideWithValue(
                 FunctionsCashSaleRepository(
+                  client: _callableClient(),
+                  newRequestId: _newRequestId,
+                ),
+              ),
+              // ★★ `WU-013` — الخصومات: **القراءة مباشرة والكتابة عبر
+              //   العمليات المستدعاة الثلاث** (`ADR-0013` القاعدتان 2 و4).
+              //   ⛔⛔★★★ **ومستودعٌ منفصلٌ عن المقبوضات قطعاً**
+              //   (`FR-M15-06-أ`): ★ **مجموعةٌ وصلاحيةٌ ونوعُ قيدٍ منفصلة**،
+              //   ⟵ **فما دفعه المقوت نقداً وما أسقطه المالك عنه رقمان
+              //   مختلفان لا يجوز خلطهما.**
+              discountDirectoryProvider.overrideWithValue(
+                FirestoreDiscountDirectory(FirebaseFirestore.instance),
+              ),
+              discountAdminProvider.overrideWithValue(
+                FunctionsDiscountRepository(
+                  client: _callableClient(),
+                  newRequestId: _newRequestId,
+                ),
+              ),
+              // ★★ `WU-014` — السحبيات والخرجيات: **القراءة مباشرة والكتابة
+              //   عبر العمليات المستدعاة الثلاث** (`ADR-0013` القاعدتان 2 و4).
+              //   ⛔⛔★★★ **ومستودعٌ واحدٌ للسجلَّين** — ★ **والفصلُ الأمني
+              //   في ثمانية مفاتيح وفي `resource.data.ledgerType` بالقاعدة
+              //   وفي `outflowPermission` بالدالة الكاتبة** (`GR-43`):
+              //   ⟵ **ومستودعان متطابقان كانا يفترقان عند أول تعديل.**
+              outflowDirectoryProvider.overrideWithValue(
+                FirestoreOutflowDirectory(FirebaseFirestore.instance),
+              ),
+              outflowAdminProvider.overrideWithValue(
+                FunctionsOutflowRepository(
                   client: _callableClient(),
                   newRequestId: _newRequestId,
                 ),

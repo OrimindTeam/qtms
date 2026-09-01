@@ -142,6 +142,44 @@ class HomeShell extends ConsumerWidget {
                   ),
                 ),
               ),
+              // ⚠️⚠️ **وإخفاءٌ لا حماية** — ★ **والفحصُ في `discountGate`**،
+              //    ⛔ **ولا مفتاح «عرض الخصومات» في الكتالوج §2.5**:
+              //    ★ **مفاتيحُه مفاتيحُ فعلٍ لا عرض**، ⟵ **فمدخلُ الشاشة
+              //    `discountCreate`** ⛔ **ولا يُخترَع مفتاحٌ للعرض**
+              //    (`BR-M1-07`) — ★ **نفسُ قرار المقبوضات حرفياً.**
+              //
+              // ⛔⛔★★★ **ومدخلٌ مستقلٌّ عن «المقبوضات» قطعاً** (`FR-M15-06-أ`):
+              //    ★ **فالفصلُ يبدأ من الشبكة نفسِها**، ⟵ **ومدخلٌ واحدٌ
+              //    بمبدِّل كان يجعل الخلطَ خطأَ نقرةٍ واحدة.**
+              PermissionGate(
+                permission: Permission.discountCreate,
+                child: QtmsHubButton(
+                  entry: QtmsHubEntry(
+                    label: 'الخصومات',
+                    icon: Icons.percent_outlined,
+                    onPressed: () => context.go(discountRoute),
+                  ),
+                ),
+              ),
+              // ⛔⛔★★★ **ومدخلُ السحبيات والخرجيات ببوابةٍ «أيُّهما»**
+              //    (`WU-014` · `GR-43`) — ★ **فمفتاحا الإنشاء مستقلان**:
+              //    ⟵ **ويظهر المدخلُ لمن يملك أحدهما**، ★ **والشاشةُ نفسُها
+              //    لا تعرض إلا السجلَّ الذي يملكه** (`FR-M22-03`).
+              //    ⛔⛔ **ومدخلٌ واحدٌ لا مدخلان** — `FR-M22` §1 نصّاً
+              //    («**سجلّان منفصلان في شاشة واحدة**»).
+              AnyPermissionGate(
+                permissions: const <Permission>[
+                  Permission.withdrawalCreate,
+                  Permission.expenseCreate,
+                ],
+                child: QtmsHubButton(
+                  entry: QtmsHubEntry(
+                    label: 'السحبيات والخرجيات',
+                    icon: Icons.outbound_outlined,
+                    onPressed: () => context.go(outflowRoute),
+                  ),
+                ),
+              ),
               PermissionGate(
                 permission: Permission.incomingCountWrite,
                 child: QtmsHubButton(

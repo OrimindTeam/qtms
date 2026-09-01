@@ -257,6 +257,13 @@ class _PendingTile extends ConsumerWidget {
             );
       case PendingDocumentKind.sack:
         break;
+      // ★★ **وبندُ `M22` يفتح شاشةَ السحبيات على مصدره** (`WU-014`) —
+      //   ⚠️ **ولا تركيزَ على بندٍ بعينه فيها بعد**: ⟵ **فالشاشةُ اليومَ
+      //   نموذجُ إنشاءٍ لا قائمةَ سنداتٍ تُفتَح على سند** (`FR-M22-13`
+      //   موضعُه `WU-018`) — ★ **وهو حدٌّ مُعلَنٌ لا سهو**، ⛔ **وادّعاءُ
+      //   تركيزٍ لا يقع كان أسوأ من غيابه** (`DEBT-64` نفسُه).
+      case PendingDocumentKind.outflow:
+        break;
     }
 
     context.go(pendingScreenRoute(kind.screen));

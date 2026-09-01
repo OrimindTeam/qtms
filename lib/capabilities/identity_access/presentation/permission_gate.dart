@@ -32,6 +32,43 @@ class PermissionGate extends ConsumerWidget {
   }
 }
 
+/// ★★ يُظهر [child] إن ملك المستخدم **أيَّ مفتاحٍ** من [permissions]
+/// (`WU-014`).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **ولماذا لزم بوابةٌ ثانية بدل تكرار [PermissionGate]:** ★ **`M22`
+/// أولُ وحدةٍ لها *مفتاحا إنشاءٍ مستقلان لشاشةٍ واحدة*** — `GR-43`
+/// (`withdrawalCreate` · `expenseCreate`): ⟵ **ومدخلُها يجب أن يظهر لمن
+/// يملك أحدهما**، ⛔ **وبوابتان متتاليتان كانتا تعرضان مدخلين لشاشةٍ
+/// واحدة** ★ **أو تُخفيان المدخلَ عمّن يملك الثاني وحده.**
+///
+/// ⚠️⚠️ **وهي إخفاءٌ لا حماية كأختها** (`RISK-02`) — ★ **والحارس الحقيقي
+/// في `firestore.rules` وفي `outflowPermission` داخل الدالة الكاتبة**:
+/// ⟵ **وكلُّ مفتاحٍ يُفحَص هناك على السجل الذي يخصّه وحده.**
+/// ═══════════════════════════════════════════════════════════════════════
+class AnyPermissionGate extends ConsumerWidget {
+  /// ينشئ البوابة.
+  const AnyPermissionGate({
+    required this.permissions,
+    required this.child,
+    super.key,
+  });
+
+  /// المفاتيح — ★ **ويكفي واحدٌ منها** ⛔ **ولا تُجمع بـ«و».**
+  final List<Permission> permissions;
+
+  /// المحتوى المحروس.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    for (final Permission permission in permissions) {
+      if (ref.watch(hasPermissionProvider(permission))) return child;
+    }
+    return const SizedBox.shrink();
+  }
+}
+
 /// يُظهر [child] إن كان [sourceId] ضمن نطاق المستخدم — `FR-M1-07` · `E-35`.
 class SourceScopeGate extends ConsumerWidget {
   const SourceScopeGate({

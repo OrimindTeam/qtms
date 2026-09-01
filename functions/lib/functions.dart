@@ -33,6 +33,8 @@ import 'src/cash_sale.dart';
 import 'src/cash_sale_handler.dart';
 import 'src/daily_pricing.dart';
 import 'src/daily_pricing_handler.dart';
+import 'src/discount.dart';
+import 'src/discount_handler.dart';
 import 'src/distribution.dart';
 import 'src/distribution_handler.dart';
 import 'src/export_log.dart';
@@ -40,6 +42,8 @@ import 'src/export_log_handler.dart';
 import 'src/identity_gateway.dart';
 import 'src/inventory.dart';
 import 'src/inventory_handler.dart';
+import 'src/outflow.dart';
+import 'src/outflow_handler.dart';
 import 'src/owner_bootstrap_handler.dart';
 import 'src/permission_sync.dart';
 import 'src/receipt.dart';
@@ -90,6 +94,8 @@ Future<DailyPricingHandler>? _dailyPricingHandler;
 Future<DistributionHandler>? _distributionHandler;
 Future<CashSaleHandler>? _cashSaleHandler;
 Future<ReceiptHandler>? _receiptHandler;
+Future<DiscountHandler>? _discountHandler;
+Future<OutflowHandler>? _outflowHandler;
 Future<ExportLogHandler>? _exportLogHandler;
 
 /// ★★★ **`callables` — نقطة الدخول الوحيدة للعمليات المستدعاة** (`IQ-019`).
@@ -189,6 +195,18 @@ Future<Response> callables(Request request) async {
       _receipt(request, ReceiptOperation.cancelReceipt),
     CallableOperation.confirmReceiptDeposit =>
       _receipt(request, ReceiptOperation.confirmReceiptDeposit),
+    CallableOperation.createDiscount =>
+      _discount(request, DiscountOperation.createDiscount),
+    CallableOperation.amendDiscount =>
+      _discount(request, DiscountOperation.amendDiscount),
+    CallableOperation.cancelDiscount =>
+      _discount(request, DiscountOperation.cancelDiscount),
+    CallableOperation.createOutflow =>
+      _outflow(request, OutflowOperation.createOutflow),
+    CallableOperation.amendOutflow =>
+      _outflow(request, OutflowOperation.amendOutflow),
+    CallableOperation.cancelOutflow =>
+      _outflow(request, OutflowOperation.cancelOutflow),
     CallableOperation.logExport =>
       _exportLog(request, ExportLogOperation.logExport),
   };
@@ -252,6 +270,26 @@ Future<CashSaleHandler> _buildCashSale() async {
   return CashSaleHandler(identity: identity, transaction: transaction);
 }
 
+/// ★ المسار المشترك لعمليات السحبيات والخرجيات الثلاث (`WU-014`).
+///
+/// ⛔★★ **ولا يحتاج `QTMS_OWNER_UID`:** حارس المالك (`BR-M1-02`) يخصّ
+/// **حسابات المستخدمين** وحدها — ★★ **وتفويضُ هذه العمليات ثمانيةُ مفاتيح
+/// موزَّعةٌ على سجلَّين** (`withdrawalCreate` · `withdrawalAmend` ·
+/// `withdrawalCancel` · `withdrawalQatPriceNow` · `withdrawalBackdate` ·
+/// ونظائرُها الأربعة للخرجيات) **مع نطاق المصادر** — ⟵ **ويختارها
+/// `outflowPermission` من `ledgerType`**، وتُفحَص في `outflowGate`
+/// و`planOutflow`.
+Future<Response> _outflow(Request request, OutflowOperation operation) async {
+  final OutflowHandler handler = await (_outflowHandler ??= _buildOutflow());
+  return handler.handle(request, operation);
+}
+
+Future<OutflowHandler> _buildOutflow() async {
+  final (IdentityGateway identity, AuditedTransaction transaction) =
+      await _connectDependencies();
+  return OutflowHandler(identity: identity, transaction: transaction);
+}
+
 /// ★ المسار المشترك لعمليات القبض الأربع (`WU-007`).
 ///
 /// ⛔★★ **ولا يحتاج `QTMS_OWNER_UID`:** حارس المالك (`BR-M1-02`) يخصّ
@@ -268,6 +306,25 @@ Future<ReceiptHandler> _buildReceipt() async {
   final (IdentityGateway identity, AuditedTransaction transaction) =
       await _connectDependencies();
   return ReceiptHandler(identity: identity, transaction: transaction);
+}
+
+/// ★ المسار المشترك لعمليات الخصم الثلاث (`WU-013`).
+///
+/// ⛔★★ **ولا يحتاج `QTMS_OWNER_UID`:** حارس المالك (`BR-M1-02`) يخصّ
+/// **حسابات المستخدمين** وحدها — ★ **وتفويض الخصم مفاتيحُه الأربعة**
+/// (`discountCreate` · `discountBackdate` · `discountAmend` ·
+/// `discountCancel`) **مع نطاق المصادر**، وتُفحَص في `discountGate`
+/// و`planDiscount`.
+Future<Response> _discount(Request request, DiscountOperation operation) async {
+  final DiscountHandler handler =
+      await (_discountHandler ??= _buildDiscount());
+  return handler.handle(request, operation);
+}
+
+Future<DiscountHandler> _buildDiscount() async {
+  final (IdentityGateway identity, AuditedTransaction transaction) =
+      await _connectDependencies();
+  return DiscountHandler(identity: identity, transaction: transaction);
 }
 
 /// ★ المسار المشترك لعمليات المخزون الثلاث (`WU-003`).

@@ -364,9 +364,10 @@ final class AuditedTransaction {
       // ① كل القراءات أولاً — §2.6. ★ **والاستعلامات منها**: تُنفَّذ داخل
       //   المعاملة نفسها فتشترك في اتّساقها (`IQ-018`).
       final _QueryResults results = await _runQueries(queries, transactionId);
+      final _DocumentReads documents = await _readAll(readPaths, transactionId);
       final Map<String, List<_QueryHit>> hits = results.hits;
       final TransactionReads reads = TransactionReads(
-        documents: await _readAll(readPaths, transactionId),
+        documents: documents.documents,
         queries: <String, List<String>>{
           for (final MapEntry<String, List<_QueryHit>> entry in hits.entries)
             entry.key: <String>[
@@ -380,7 +381,15 @@ final class AuditedTransaction {
             ],
         },
         // ★★★ **ساعة المنصّة** — ⛔ لا ساعة الحاوية (راجع [TransactionReads.readTime]).
-        readTime: results.readTime,
+        //
+        // ⛔⛔★★★ **ومن قراءة المستندات كذلك — `DEBT-77` (2026-09-01):**
+        //   ★ **زمنُ الاستعلام أولاً** ⟵ **فلا يتغيّر سلوكُ معالِجٍ قائم**
+        //   (كلُّهم يستعلمون)، ★ **ثم زمنُ `batchGet` بـ`??=` عند غيابه.**
+        //   ⟵ **وبدونه كانت *كل* عمليةٍ بلا استعلامٍ واحد تسقط بـ`500`**:
+        //   **سندُ `M22` بمبالغَ فقط** (`FR-M22-05` ② و③) **أولُ من وقع فيه**،
+        //   ⛔ **ولم يكن عَرَضاً في `outflow_handler` بل فخّاً في هذه الطبقة**
+        //   ⟵ **فعُولج هنا لا باستعلامٍ صوريٍّ هناك.**
+        readTime: results.readTime ?? documents.readTime,
       );
       // ② ثم تخطيط خالص، ③ ثم الكتابات في التزام واحد.
       final AuditedWrite<T> write;
@@ -508,35 +517,55 @@ final class AuditedTransaction {
     return id;
   }
 
-  Future<Map<String, Map<String, Object?>?>> _readAll(
+  /// ★★★ يقرأ كل المسارات **في نداءٍ واحد داخل المعاملة** — ومعها **زمنُها**.
+  ///
+  /// ⛔⛔★★★ **ولماذا `batchGet` لا `get` لكل مسار** (`DEBT-77`): ★ **استجابةُ
+  /// `get` تحمل `createTime` و`updateTime` وحدهما** ⛔ **ولا تحمل `readTime`
+  /// إطلاقاً** — ⟵ **فكانت ساعةُ المنصّة تصل من الاستعلامات وحدها**،
+  /// ⛔ **وعمليةٌ بلا استعلامٍ واحد تُخطَّط بـ`readTime == null` فتسقط.**
+  /// ★ **و`batchGet` يُعلن `readTime` مع كل عنصر — حتى لعنصرٍ `missing`** ⟵
+  /// **فمستندٌ غائبٌ يُعطي زمناً صالحاً**، ★ **وهو حالُ العدّاد أولَ يومٍ.**
+  ///
+  /// ⚠️ **والمسارُ المكرَّر يُطوى في الطلب** (الخدمة تُلغي المكرَّر أصلاً)،
+  /// ★ **وكلُّ مسارٍ مطلوب يظهر في الخريطة** — ⛔ **والغياب `null` لا حذفٌ**،
+  /// ⟵ **فيبقى تمييزُ «قُرئ فغاب» عن «لم يُطلَب» كما كان.**
+  Future<_DocumentReads> _readAll(
     List<String> paths,
     String transactionId,
   ) async {
+    if (paths.isEmpty) {
+      return const _DocumentReads(
+        documents: <String, Map<String, Object?>?>{},
+        readTime: null,
+      );
+    }
+    final firestore.BatchGetDocumentsResponse response =
+        await _api.projects.databases.documents.batchGet(
+      firestore.BatchGetDocumentsRequest()
+        ..documents = paths.toSet().toList(growable: false)
+        ..transaction = transactionId,
+      _root,
+    );
     final Map<String, Map<String, Object?>?> reads =
         <String, Map<String, Object?>?>{};
+    DateTime? readTime;
+    for (final firestore.BatchGetDocumentsResponseElement element in response) {
+      // ★ **يصل مع كل عنصر — الموجودِ والغائبِ معاً** (توثيق `readTime`).
+      if (element.readTime case final String stamp) {
+        readTime ??= DateTime.parse(stamp).toUtc();
+      }
+      if (element.found?.name case final String name) {
+        // ★★★ **فكٌّ مُصنَّف** — ⛔ **لا `toJson()`** (راجع `firestore_decode.dart`).
+        reads[name] = decodeDocumentFields(element.found?.fields);
+      } else if (element.missing case final String name) {
+        // ★ غياب المستند ليس خطأً — أول منح لمستخدم لا سجلّ له بعد.
+        reads[name] = null;
+      }
+    }
     for (final String path in paths) {
-      reads[path] = await _readOne(path, transactionId);
+      reads.putIfAbsent(path, () => null);
     }
-    return reads;
-  }
-
-  Future<Map<String, Object?>?> _readOne(
-    String path,
-    String transactionId,
-  ) async {
-    try {
-      final firestore.Document doc =
-          await _api.projects.databases.documents.get(
-        path,
-        transaction: transactionId,
-      );
-      // ★★★ **فكٌّ مُصنَّف** — ⛔ **لا `toJson()`** (راجع `firestore_decode.dart`).
-      return decodeDocumentFields(doc.fields);
-    } on firestore.DetailedApiRequestError catch (error) {
-      // ★ غياب المستند ليس خطأً — أول منح لمستخدم لا سجلّ له بعد.
-      if (error.status == 404) return null;
-      rethrow;
-    }
+    return _DocumentReads(documents: reads, readTime: readTime);
   }
 
   Future<void> _commit(String transactionId, AuditedWrite<Object?> write) async {
@@ -638,6 +667,16 @@ final class _QueryOutcome {
   const _QueryOutcome({required this.hits, required this.readTime});
 
   final List<_QueryHit> hits;
+  final DateTime? readTime;
+}
+
+/// ★★ مخرَج قراءةِ المستندات — بمساراتها **وزمن قراءتها من المنصّة**.
+///
+/// ⛔ **وزمنُه ليس تزييناً** — راجع [AuditedTransaction._readAll] و`DEBT-77`.
+final class _DocumentReads {
+  const _DocumentReads({required this.documents, required this.readTime});
+
+  final Map<String, Map<String, Object?>?> documents;
   final DateTime? readTime;
 }
 

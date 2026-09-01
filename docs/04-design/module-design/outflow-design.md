@@ -2,7 +2,7 @@
 
 | البند | القيمة |
 |---|---|
-| **الحالة** | **مخطَّط** |
+| **الحالة** | ⏳★★ **مبنيٌّ ومُختبَرٌ آلياً (2026-09-01 · `WU-014`)** — ⛔ **غيرُ مُثبَتٍ حيّاً**: ★ **العملياتُ الثلاث غيرُ منشورة** (راجع §12) |
 | **الوحدات المغطّاة** | `M22` |
 | **يعتمد على** | `inventory` · `master-data` |
 | **المتطلبات** | `FR-M22-01` … `FR-M22-20` |
@@ -129,3 +129,22 @@
 ## 11. الاختبارات المرتبطة
 
 `TC-M22-001` … `TC-M22-005` · `AT-38` … `AT-43` · `E-26` … `E-29`
+
+## 12. ★★ حاشيةُ التنفيذ (`WU-014` — 2026-09-01)
+
+| البند | ما نُفِّذ |
+|---|---|
+| **طبقة النطاق** | [`outflow.dart`](../../../packages/qtms_domain/lib/capabilities/financial_outflow/domain/outflow.dart) · [`outflow_repository.dart`](../../../packages/qtms_domain/lib/capabilities/financial_outflow/domain/outflow_repository.dart) — ★ **قدرةٌ سادسة `financial_outflow`** (`architecture-overview.md` §131) |
+| **العمليات السحابية** | [`outflow.dart`](../../../functions/lib/src/outflow.dart) · [`outflow_handler.dart`](../../../functions/lib/src/outflow_handler.dart) — **`createOutflow` · `amendOutflow` · `cancelOutflow`** |
+| **التطبيق** | [`outflow_screen.dart`](../../../lib/capabilities/financial_outflow/presentation/outflow_screen.dart) · مزوّداتٌ ومستودعان |
+| ★★ **المفاتيح** | **ثلاثةٌ جديدة**: `expenseQatPriceNow` · `withdrawalBackdate` · `expenseBackdate` — **الكتالوج 82 ⟵ 85** |
+| ★★ **المركز المعلّق** | ✅ **`M22` صار له كاتب** — `PendingDocumentKind.outflow` و`PendingMissingField.outflowLinePricing` (**§11 البند 1 من [`pending-entries-design.md`](pending-entries-design.md)**) |
+| ⛔⛔ **`firestore.rules`** | **لم تُمَسّ بحرف** — ★ **`outflows` و`outflow_ledger` مكتوبتان فيها منذ `WU-026`** (`allow create, update: if false`) |
+
+⛔⛔★★★ **وما لم يُنفَّذ يُقال صراحةً:**
+
+| البند | الموضع |
+|---|---|
+| **`FR-M22-16`** — تقرير الأثر النهائي (`R-23` · `AT-42` · §8 أعلاه) | **`WU-018`** — نطاقُه `R-20`…`R-27` |
+| **`FR-M22-20`** — السحبية السريعة والقوالب والتفكيك والمقارنة | **مؤجَّلة** — ★ **ميزاتٌ مساعدة لا معيارُ قبول** |
+| ⚠️★★ **§5 و`FR-M22-10`** — `stockDate` < `documentDate` (قاتٌ من متبقٍّ متأخر) | **`WU-019`** بمفتاحها `agedRemainderClear` — ✅ **والحقلان مستقلان من اليوم فلا هجرةَ بيانات** |

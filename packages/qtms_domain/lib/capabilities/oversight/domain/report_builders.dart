@@ -904,6 +904,10 @@ String _entryTypeLabel(DealerLedgerEntryType? type) => switch (type) {
       DealerLedgerEntryType.debt => 'ضمار',
       DealerLedgerEntryType.receipt => 'قبض',
       DealerLedgerEntryType.surplusApplication => 'تطبيق فائض',
+      // ★★ `WU-013` — ⛔ **ويُسمّى «خصم» لا «قبض»** (`FR-M15-06-أ`):
+      //    ⟵ **فكشفُ الحساب هو أولُ موضعٍ يقرأ فيه المالك الرقمين**،
+      //    ⛔ **وتسميتُه قبضاً كانت تُظهر المقوتَ وكأنه سدّد مالاً لم يدفعه.**
+      DealerLedgerEntryType.discount => 'خصم',
       null => 'قيد غير معروف',
     };
 

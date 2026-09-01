@@ -154,9 +154,20 @@ const MOVED_TO_CLOUD_WRITE = [
   'receiptBackdate',
   'receiptDepositConfirm',
   'discountCreate',
+  // ★★ WU-013 — نظيرُ `receiptBackdate` تماماً: إنفاذُه في
+  //   `functions/lib/src/discount.dart` (planDiscount ④)، ومسارُ
+  //   `discounts` مغلقٌ للكتابة أصلاً (ADR-0013 القاعدة 2).
+  'discountBackdate',
   'withdrawalCreate',
   'expenseCreate',
   'withdrawalQatPriceNow',
+  // ★★ WU-014 — الثلاثة الجديدة، بنفس منطق `discountBackdate` حرفياً:
+  //   إنفاذُها في `functions/lib/src/outflow.dart` (planOutflow القيدان
+  //   ⑤ و⑨)، ومسارُ `outflows` مغلقٌ للكتابة أصلاً (ADR-0013 القاعدة 2).
+  //   ⛔ ولا شرطَ لها في القواعد لأن الكتابة كلَّها سحابية.
+  'expenseQatPriceNow',
+  'withdrawalBackdate',
+  'expenseBackdate',
   'incomingCountAmend',
   'incomingCountCancel',
   'sackAmend',

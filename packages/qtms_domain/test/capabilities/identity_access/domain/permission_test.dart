@@ -54,14 +54,31 @@ void main() {
     test('الحارس نفسه ليس فارغاً — وإلا نجح بلا أن يفحص شيئاً', () {
       // ★ حارس على الحارس: لو انكسر التحليل لعادت مجموعة فارغة **فنجح
       //   الفحصان أدناه دائماً**. هذا يمنع ذلك.
-      expect(catalog.length, 81,
-          reason: 'الكتالوج يعلن 81 مفتاحاً — فإن تغيّر العدد فُحص عمداً');
+      // ★★ **81 ⟵ 82 في `WU-013`** — ★ **وفُحص عمداً كما يطلب هذا الحارس:**
+      //    ⟵ **`discountBackdate` مفتاحٌ يُسمّيه `FR-M13-06` صراحةً**
+      //    («**بصلاحية «خصم بتاريخ سابق»**») **ويُدرِجه `FR-M13` §4**،
+      //    ⛔ **ولم يكن في الكتالوج.** ★ **ونظيرُه `receiptBackdate` قائمٌ
+      //    منذ `WU-007`**: ⛔ **ولا يُغني عنه** — ⟵ **فمن يُصحِّح تاريخ
+      //    قبضٍ ليس بالضرورة من يُسقِط ديناً بأثرٍ رجعي.**
+      // ★★★ **و82 ⟵ 85 في `WU-014`** — ★ **وثلاثتُها يُسمّيها `FR-M22`
+      //    نصّاً** ⛔ **ولا واحدةٌ منها مخترَعة:** **`expenseQatPriceNow`**
+      //    (§3 و`FR-M22-08`) · **`withdrawalBackdate` و`expenseBackdate`**
+      //    (`FR-M22-09` حرفياً). ★ **والعلّةُ الحاكمة `GR-43`:** «**صلاحياتُ
+      //    عرضٍ وإنشاءٍ منفصلة**» للسجلَّين — ⟵ **فمفتاحٌ واحدٌ يخدمهما معاً
+      //    كان يُسقِط الفصلَ الذي وُجد السجلّان لأجله.**
+      expect(catalog.length, 85,
+          reason: 'الكتالوج يعلن 85 مفتاحاً — فإن تغيّر العدد فُحص عمداً');
       expect(catalog, contains('sackView'));
       // ★ `IQ-021` الخيار أ — ⛔ ولا يُقاس عليه مفتاحٌ حقلي.
       expect(catalog, contains('sackCreate'));
       expect(catalog, contains('disposalCancel'));
       // ★ `IQ-032` الخيار أ — مفتاح التصدير الواحد للسندات والتقارير معاً.
       expect(catalog, contains('documentExport'));
+      // ★★ **وثلاثةُ `WU-014` بأسمائها** — ⛔ **فلا يمرّ العدد وحده:**
+      //    ⟵ **عددٌ صحيحٌ بمفاتيحَ خاطئة يُنجِح الحارس بلا أن يفحص شيئاً.**
+      expect(catalog, contains('expenseQatPriceNow'));
+      expect(catalog, contains('withdrawalBackdate'));
+      expect(catalog, contains('expenseBackdate'));
     });
 
     test('⟵ لا مفتاح في الكود بلا سطر في المستند', () {
@@ -75,7 +92,9 @@ void main() {
     test('اسم قيمة التعداد هو المفتاح حرفياً — فلا جدول تحويل', () {
       expect(Permission.sackView.name, 'sackView');
       expect(Permission.distributionPriceView.name, 'distributionPriceView');
-      expect(Permission.values.length, 81);
+      // ★ **85 بعد ثلاثة `WU-014`** (`expenseQatPriceNow` ·
+      //   `withdrawalBackdate` · `expenseBackdate`) — راجع الحارس أعلاه.
+      expect(Permission.values.length, 85);
     });
 
     test('★ المفاتيح الإدارية التسعة موجودة — `IQ-007` الخيار أ', () {
