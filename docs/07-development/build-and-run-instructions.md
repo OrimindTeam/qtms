@@ -249,7 +249,7 @@ flutter build apk --release
 | **معرّف التطبيق** | ✅ **الإنتاج:** `dev.orimind.qtms.c001` · 🔶 **التجريبي:** `…​.staging` |
 | **اسم العرض** | ✅ ★ **وكالة محمد المحامي** — `android:label="@string/app_name"` · 🔶 **التجريبي:** «… — تجريبي» (`AM-002`) |
 | **رقم الإصدار** | وفق [`../00-governance/versioning-and-change-policy.md`](../00-governance/versioning-and-change-policy.md) |
-| **الحد الأدنى** | **API 26** |
+| **الحد الأدنى** | ★★ **API 24** (أندرويد 7.0) — `CR-010` ✅ **معتمَد 2026-09-02** · `AM-011` |
 | **الأيقونة** | ✅ **مولَّدة من شعار العميل** — [`../19-assets/icons/`](../19-assets/icons/) · **§4.1 أدناه** |
 | **الخط العربي** | ✅ **IBM Plex Sans Arabic** — [`../19-assets/fonts/`](../19-assets/fonts/) |
 

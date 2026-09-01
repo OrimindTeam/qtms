@@ -24,8 +24,18 @@ android {
         // معرّف التطبيق المعتمد — environments.md §1.1 (RD-002).
         // ⛔ لا يُغيَّر: التطبيق مسجَّل به فعلاً في المشروعين السحابيين.
         applicationId = "dev.orimind.qtms.c001"
-        // أندرويد 8.0 (API 26) حدّاً أدنى — technology-stack.md §1 · srs.md.
-        minSdk = 26
+        // ★★ أندرويد 7.0 (API 24) حدّاً أدنى — `AM-011` · `CR-010`
+        //    (✅ معتمَد بتوقيع المالك 2026-09-02 · `NFR-COMPAT-01`).
+        //    ⛔ وليس 26: الأرضيةُ خُفِضت بقرار المالك.
+        //
+        // ★ وهو الحدُّ الأدنى الافتراضي لـFlutter نفسِه في هذا الإصدار
+        //   (`FlutterExtension.minSdkVersion = 24`) — ⛔ ولا يُكتب
+        //   `flutter.minSdkVersion` مكانه: القيمةُ قرارُ منتجٍ موثَّق، ★ وربطُها
+        //   بالإطار يجعلها تتحرك صامتةً مع أي ترقية SDK.
+        //
+        // ⛔⛔ ولا تُخفَض دون 24: `url_launcher_android` يُعلن `minSdk = 24`
+        //    بالضبط (6.3.30) ⟵ فدونها يفشل دمجُ المانفست.
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
