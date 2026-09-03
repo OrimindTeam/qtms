@@ -32,13 +32,16 @@ import 'package:shelf/shelf.dart';
 
 import 'audited_transaction.dart';
 import 'callable.dart';
+import 'sack_valuation_handler.dart';
 import 'cash_sale.dart';
+import 'owner_ledger_summary_handler.dart';
 import 'counter_allocator.dart' show counterValueField;
 import 'identity_gateway.dart';
 import 'inventory.dart';
 import 'inventory_handler.dart'
     show
         inventoryLedgerQuery,
+        ledgerSackIds,
         platformDayOf,
         readInt,
         readItemRecords,
@@ -57,12 +60,29 @@ final class CashSaleHandler {
     required IdentityGateway identity,
     required AuditedTransaction transaction,
     DateTime Function()? clock,
+    SackValuationHandler? valuation,
+    OwnerLedgerSummaryHandler? summaries,
   })  : _identity = identity,
         _transaction = transaction,
+        _valuation = valuation,
+        _summaries = summaries,
         _clock = clock;
 
   final IdentityGateway _identity;
   final AuditedTransaction _transaction;
+
+  /// ⛅★★ **مُحتسِبُ مالية الجواني** (`WU-015`) — ★ **يُطلَق بعد الالتزام**.
+  ///
+  /// ⛔⛔ **و`null` في الاختبار تعني «لا احتساب»** — ★ **فالمُحتسِب عمليةٌ
+  /// مشغَّلةٌ مستقلة لها اختبارُها**، ⟵ **وفشلُه لا يُبطل هذه العملية أصلاً**
+  /// (`api-overview.md` §3.3).
+  final SackValuationHandler? _valuation;
+
+  /// ⛅★★★ **باني ملخصات ضمار المالك** (`WU-016`) — ★ **يُطلَق بعد الالتزام**.
+  ///
+  /// ★★ **وعلى `stockDate`** — `schema/cash-sales.md` القاعدة 8: **«إن كان
+  /// من مخزون يوم سابق فيُحتسب في «نقدي» ذلك اليوم» لا اليوم الحالي.**
+  final OwnerLedgerSummaryHandler? _summaries;
 
   /// ★ ساعةُ **الاقتراح** وحدها — ⛔ **ولا تُكتب قيمتها في أي حقل** بلا
   /// موافقة المنصّة (راجع ترويسة الملف). تُحقَن في الاختبار.
@@ -151,6 +171,23 @@ final class CashSaleHandler {
         onAllocated: (String allocated) => number = allocated,
       );
       if (drift == null) {
+        // ⛅★★★ **ويُعاد احتساب مالية جواني هذا اليوم** — `FR-M14-05`:
+        //    ★ **بعد الالتزام لا داخله** (`api-overview.md` §3.2 و§3.3)،
+        //    ⛔ **وفشلُه لا يُبطل هذه العملية.**
+        await revalueSacksAfterCommit(
+          _valuation,
+          sourceId: sourceId,
+          stockDate: day,
+        );
+        // ⛅★★★ **وتُعاد بناءُ بطاقة ضمار المالك** — `FR-M15-13` · `FR-M15-01`:
+        //    ★ **والبيعُ النقدي بندُ «منه نقدي» فيها.**
+        await buildDailySummariesAfterCommit(
+          _summaries,
+          days: <OwnerLedgerDay>{
+            OwnerLedgerDay(sourceId: sourceId, date: day),
+          },
+          today: day,
+        );
         return callableSuccess(<String, Object?>{
           'documentNumber': number,
           'stockDate': day.format(),
@@ -243,6 +280,8 @@ final class CashSaleHandler {
           sourceId: sourceId,
           lines: lines,
           items: items,
+          // ★★★ **ومرجعُ الجونية يُقاس من الدفتر** — [`DEBT-86`].
+          sackIds: ledgerSackIds(reads: reads, itemKeys: itemPaths.keys),
           notes: call.readString('notes'),
         );
         if (validated is Failure<ValidatedCashSale>) {
@@ -383,6 +422,11 @@ final class CashSaleHandler {
         ),
     };
 
+    // ★★ **ويومُ المنصّة يُلتقَط من المعاملة نفسِها** — ⛔ **لا من ساعة
+    //    الحاوية** (`GR-54`): ⟵ **وبه وحدَه يُعرَف أن اليومَ المبنيَّ ماضٍ
+    //    فيُوسَم «⟳ مُحدَّث بأثر رجعي»** (`FR-M15-12`).
+    CalendarDay? platformToday;
+
     await _transaction.run<void>(
       readPaths: <String>[
         documentPath,
@@ -395,6 +439,7 @@ final class CashSaleHandler {
           inventoryLedgerQuery(sourceId: sourceId, itemKey: itemId, day: day),
       ],
       plan: (TransactionReads reads) {
+        platformToday = platformDayOf(reads);
         final Map<String, ItemRead> items = withLedgerItems(
           readItemRecords(reads, itemPaths),
           reads: reads,
@@ -408,6 +453,8 @@ final class CashSaleHandler {
             sourceId: sourceId,
             lines: lines,
             items: items,
+            // ★★★ **ومرجعُ الجونية يُقاس من الدفتر** — [`DEBT-86`].
+            sackIds: ledgerSackIds(reads: reads, itemKeys: itemPaths.keys),
             notes: call.readString('notes'),
           );
           if (validated is Failure<ValidatedCashSale>) {
@@ -465,6 +512,20 @@ final class CashSaleHandler {
       },
     );
 
+    // ⛅★★★ **ويُعاد احتساب مالية جواني هذا اليوم** — `FR-M14-05`:
+    //    ★ **بعد الالتزام لا داخله** (`api-overview.md` §3.2 و§3.3)،
+    //    ⛔ **وفشلُه لا يُبطل هذه العملية** (راجع `revalueSacksAfterCommit`).
+    await revalueSacksAfterCommit(
+      _valuation,
+      sourceId: sourceId,
+      stockDate: day,
+    );
+    await buildDailySummariesAfterCommit(
+      _summaries,
+      days: <OwnerLedgerDay>{OwnerLedgerDay(sourceId: sourceId, date: day)},
+      today: platformToday ?? day,
+    );
+
     return callableSuccess(<String, Object?>{
       'documentNumber': number,
       'stockDate': day.format(),
@@ -482,6 +543,7 @@ final class CashSaleHandler {
     required String sourceId,
     required List<_LineRequest> lines,
     required Map<String, ItemRead> items,
+    required Map<String, String> sackIds,
     required String? notes,
   }) {
     final List<CashSaleLineInput> inputs = <CashSaleLineInput>[];
@@ -507,7 +569,9 @@ final class CashSaleHandler {
           unit: item.unit,
           quantity: quantity,
           unitPrice: unitPrice,
-          sackId: line.sackId,
+          // ★★★ **والمقيسُ يسبق المُرسَل** — [`DEBT-86`] · `ADR-0007` ⑤:
+          //    ⟵ **فحركةُ الخروج تحمل مرجعَ جونيتها ولو لم تُرسِله الشاشة.**
+          sackId: sackIds[line.itemId] ?? line.sackId,
           belowMinReason: line.belowMinReason,
         ),
       );

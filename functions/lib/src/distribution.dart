@@ -384,6 +384,12 @@ DistributionPlan _planDistribution(
 
   writes.addAll(_surplusApplicationWrites(request, applications));
 
+  // ⑩ ★★★ **وتسويةُ الضمار تُكتَب دائماً** — `DEBT-85` (راجع
+  //    [_settlementWrites]): ⛔ **لا عند تطبيق الفائض وحده.**
+  writes.addAll(
+    _settlementWrites(request: request, applications: applications),
+  );
+
   final Map<String, Object?> after = _documentFields(request, distribution);
   writes.insert(0, _documentWrite(request, operation, after, reason));
 
@@ -848,18 +854,74 @@ List<InventoryWrite> _surplusApplicationWrites(
     );
   }
 
-  // ③ ★★★ **التسوية — المبالغ في `pricing/current` والحالة في الأب**.
+  return writes;
+}
+
+/// ★ مجموعُ ما طُبِّق من الفائض الآن — ⛔ **بلا ما طُبِّق سابقاً.**
+Money _appliedNow(List<SurplusApplication> applications) =>
+    applications.fold<Money>(
+      Money.zero,
+      (Money total, SurplusApplication a) => total + a.amount,
+    );
+
+/// ★★★ **تسويةُ الضمار — المبالغ في `pricing/current` والحالة في الأب**
+/// ([`ADR-0011`] · `IQ-027`).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **وتُكتَب في كل إنشاءٍ وتعديل — لا عند تطبيق الفائض وحده**
+/// (`DEBT-85` — **مقيسٌ على التجريبية 2026-09-02**):
+///
+/// ★ **العطل الذي كشفه اختبار المرحلة:** **كانت هذه الكتابةُ داخل
+/// [_surplusApplicationWrites]** ⟵ **وهي تعود فارغةً متى لا فائض**:
+/// ⟹ ⛔⛔ **فضمارٌ يُنشأ عادةً لا يحمل `settlementStatus` إطلاقاً.**
+///
+/// ⛔⛔★★★ **وأثرُه أن الضمار الجديد لا يُقبَض منه ولا يُخصَم عليه أبداً:**
+/// ★ **استعلامُ الضمارات المفتوحة يُقيّد `settlementStatus whereIn
+/// [open, partiallyOpen]`** (`firestore_receipt_directory.dart`)،
+/// ⟵ **والحقلُ الغائب لا يطابق شرطاً** ⟹ **فالضمار غيرُ مرئيٍّ في شاشتَي
+/// المقبوضات والخصومات.**
+///
+/// ★★ **مقيسٌ رقماً برقم:** `dealer_balances/MQT-0001_SRC-001` **= 62,600
+/// ريال**، ⛔ **بينما شاشةُ المقبوضات تقول «إجمالي الديون على المقوت: 350
+/// ريال (1 ضمار مفتوح)»** — ★ **والوحيدُ الظاهر هو الضمارُ الذي وسَمَه خصمٌ
+/// سابق**: ⟵ **وخمسةٌ من ستةٍ بلا حقلٍ إطلاقاً** (`runQuery` على
+/// `distributions`). ⛔⛔ **وهذا يُخالف `FR-M12-03` نصّاً** («**إجمالي الديون
+/// فور اختيار المقوت**»).
+/// ═══════════════════════════════════════════════════════════════════════
+///
+/// ⛔⛔★★★ **والمُطبَّقُ سابقاً يُصان ولا يُصفَّر:** ★ **`settledAmount`
+/// و`discountedAmount` من [DistributionRequest.storedSettlement]** —
+/// ⟵ **وتعديلُ الضمار يُعيد بناء `remaining` على القيمة الجديدة**
+/// ⛔ **ولا يمحو قبضاً وصل ولا خصماً مُنح.**
+List<InventoryWrite> _settlementWrites({
+  required DistributionRequest request,
+  required List<SurplusApplication> applications,
+}) {
+  final DebtSettlement? stored = request.storedSettlement;
+  final Money debtValue = _debtValueOf(request);
+  // ⛔⛔★★ **وضمارٌ بقيمة صفرٍ بلا سابقةٍ ولا فائضٍ لا يُكتب له سجل** —
+  //    [`ADR-0008`] القاعدة 5 («**لا يُنشأ سجل بصفر بلا داعٍ**»)
+  //    و[`ADR-0011`]: ⟵ **ومستندٌ كلُّ سطوره غير مسعَّرة ينمو عند التسعير**
+  //    (`E-05` · `FR-M10-08`)، ★ **فيُكتب سجلُّه حينها لا اليوم.**
+  if (debtValue.isZero && stored == null && applications.isEmpty) {
+    return const <InventoryWrite>[];
+  }
   final DebtSettlement settlement = computeDebtSettlement(
-    debtValue: _debtValueOf(request),
-    settledAmount: applied,
-    discountedAmount: Money.zero,
+    // ★ **القيمةُ من المستند المُتحقَّق منه** — [_debtValueOf].
+    debtValue: debtValue,
+    settledAmount:
+        (stored?.settledAmount ?? Money.zero) + _appliedNow(applications),
+    discountedAmount: stored?.discountedAmount ?? Money.zero,
   );
   final Map<String, Object?> pricingFields = <String, Object?>{
     'settledAmount': settlement.settledAmount.riyals,
     'discountedAmount': settlement.discountedAmount.riyals,
     'remaining': settlement.remaining.riyals,
   };
-  writes.add(
+  final Map<String, Object?> parentFields = <String, Object?>{
+    'settlementStatus': settlement.status.name,
+  };
+  return <InventoryWrite>[
     InventoryWrite(
       collectionId: '$distributionsCollection/${request.compositeId}'
           '/$distributionPricingSubcollection',
@@ -867,20 +929,13 @@ List<InventoryWrite> _surplusApplicationWrites(
       fields: pricingFields,
       updateMask: pricingFields.keys.toList(),
     ),
-  );
-  final Map<String, Object?> parentFields = <String, Object?>{
-    'settlementStatus': settlement.status.name,
-  };
-  writes.add(
     InventoryWrite(
       collectionId: distributionsCollection,
       documentId: request.compositeId,
       fields: parentFields,
       updateMask: parentFields.keys.toList(),
     ),
-  );
-
-  return writes;
+  ];
 }
 
 /// ★ قيمة الضمار المخطَّطة — **من المستند المُتحقَّق منه**.
@@ -1253,6 +1308,8 @@ AuditEntry _entry({
       actor: AuditActor(
         userId: request.actor.userId,
         userName: request.actor.userName,
+        // ★★★ **والبريد منسوخٌ وقت الحدث** — `AM-012` §3.
+        userEmail: request.actor.userEmail,
       ),
       action: action,
       reason: reason,

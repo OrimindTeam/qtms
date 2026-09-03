@@ -33,6 +33,7 @@ import 'identity_gateway.dart';
 import 'inventory.dart';
 import 'inventory_handler.dart' show platformDayOf, readInt;
 import 'permission_sync_handler.dart' show requestIdField;
+import 'owner_ledger_summary_handler.dart';
 import 'receipt.dart' show DebtLotRead, ReceiptLedgerRead;
 
 /// اسم حقل سبب التعديل أو الإلغاء في الحمولة.
@@ -55,12 +56,21 @@ final class DiscountHandler {
     required IdentityGateway identity,
     required AuditedTransaction transaction,
     DateTime Function()? clock,
+    OwnerLedgerSummaryHandler? summaries,
   })  : _identity = identity,
         _transaction = transaction,
+        _summaries = summaries,
         _clock = clock;
 
   final IdentityGateway _identity;
   final AuditedTransaction _transaction;
+
+  /// ⛅★★★ **باني ملخصات ضمار المالك** (`WU-016`) — ★ **يُطلَق بعد الالتزام**.
+  ///
+  /// ⛔⛔★★ **وعلى يوم الضمار المخصوم لا يوم السند** — `FR-M15-06`:
+  /// ★ **«الخصومات» بندٌ ثالثٌ مستقلٌّ عن «الواصل»**، ⟵ **ويخصّ ضماراتِ
+  /// ذلك اليوم**: ⛔ **وخصمُ اليومِ لضمار أمس يُعيد بناءَ بطاقةِ أمس.**
+  final OwnerLedgerSummaryHandler? _summaries;
 
   /// ★ ساعةُ **الاقتراح** وحدها — ⛔ **ولا تُكتب قيمتها في أي حقل** بلا
   /// موافقة المنصّة. تُحقَن في الاختبار.
@@ -143,7 +153,10 @@ final class DiscountHandler {
 
     CalendarDay day = CalendarDay.fromUtc(_now());
     String? number;
+    final Set<OwnerLedgerDay> touched = <OwnerLedgerDay>{};
+    CalendarDay? platformToday;
     for (int attempt = 0; attempt < 2; attempt++) {
+      touched.clear();
       final _DayMismatch? drift = await _runCreate(
         actor: actor,
         requestId: requestId,
@@ -151,8 +164,20 @@ final class DiscountHandler {
         payload: payload,
         day: day,
         onAllocated: (String allocated) => number = allocated,
+        onLots: (Set<OwnerLedgerDay> lots, CalendarDay observed) {
+          touched
+            ..clear()
+            ..addAll(lots);
+          platformToday = observed;
+        },
       );
       if (drift == null) {
+        // ⛅★★★ **وتُعاد بناءُ بطاقةِ كل ضمارٍ خُصم منه** — `FR-M15-06`.
+        await buildDailySummariesAfterCommit(
+          _summaries,
+          days: touched,
+          today: platformToday ?? day,
+        );
         return callableSuccess(<String, Object?>{
           'documentNumber': number,
           'date': payload.date.format(),
@@ -173,6 +198,7 @@ final class DiscountHandler {
     required _DiscountPayload payload,
     required CalendarDay day,
     required void Function(String) onAllocated,
+    required void Function(Set<OwnerLedgerDay>, CalendarDay) onLots,
   }) async {
     final String dealerPath =
         _transaction.documentPath(dealersCollection, dealerId);
@@ -226,7 +252,7 @@ final class DiscountHandler {
             sourceFilter: payload.sourceFilter,
             lines: payload.lines,
             usedAutoAllocation: payload.usedAutoAllocation,
-            lots: _lotsOf(reads, lotPaths),
+            lots: _reportLots(_lotsOf(reads, lotPaths), observed, onLots),
             storedDealer: reads.document(dealerPath),
             dealerLedger: _dealerLedgerOf(reads),
             deviceInfo: payload.deviceInfo,
@@ -309,6 +335,9 @@ final class DiscountHandler {
     final String dealerPath =
         _transaction.documentPath(dealersCollection, dealerId);
 
+    final Set<OwnerLedgerDay> touched = <OwnerLedgerDay>{};
+    CalendarDay? platformToday;
+
     await _transaction.run<void>(
       readPaths: <String>[
         documentPath,
@@ -342,7 +371,16 @@ final class DiscountHandler {
             sourceFilter: payload?.sourceFilter ?? _storedFilter(stored),
             lines: payload?.lines ?? const <DiscountLineInput>[],
             usedAutoAllocation: payload?.usedAutoAllocation ?? false,
-            lots: _lotsOf(reads, lotPaths),
+            lots: _reportLots(
+              _lotsOf(reads, lotPaths),
+              observed,
+              (Set<OwnerLedgerDay> lots, CalendarDay today) {
+                touched
+                  ..clear()
+                  ..addAll(lots);
+                platformToday = today;
+              },
+            ),
             storedDealer: reads.document(dealerPath),
             storedDocument: stored,
             dealerLedger: _dealerLedgerOf(reads),
@@ -365,6 +403,14 @@ final class DiscountHandler {
           result: null,
         );
       },
+    );
+
+    // ⛅★★★ **وتُعاد بناءُ بطاقةِ كل ضمارٍ مسَّه السند** — ★ **قديمِه
+    //    وجديدِه معاً** (نفسُ علّة مسار القبض حرفياً).
+    await buildDailySummariesAfterCommit(
+      _summaries,
+      days: touched,
+      today: platformToday ?? CalendarDay.fromUtc(_now()),
     );
 
     return callableSuccess(<String, Object?>{'documentNumber': number});
@@ -410,6 +456,25 @@ final class DiscountHandler {
   /// ⚠️⚠️ **وضمارٌ بلا تسعير متبقّيه صفر** — ★ **فسطرٌ عليه يُرفَض
   /// بـ`BR-M13-02`** ⟵ **وهو الصواب**: ⛔ **لا يُخصَم مما لم يُسعَّر بعد**
   /// (`FR-M10-08`).
+  /// ★★ يُبلِّغ المُستدعيَ بالضمارات المتأثرة **ويُمرِّرها كما هي**.
+  ///
+  /// ⛔⛔ **ومصدرُ الضمار ويومُه من المستند المخزَّن** — ⛔ **لا من الحمولة**
+  /// (نفسُ درس [`DEBT-86`] ②).
+  static Map<String, DebtLotRead> _reportLots(
+    Map<String, DebtLotRead> lots,
+    CalendarDay observed,
+    void Function(Set<OwnerLedgerDay>, CalendarDay) onLots,
+  ) {
+    onLots(
+      <OwnerLedgerDay>{
+        for (final DebtLotRead lot in lots.values)
+          OwnerLedgerDay(sourceId: lot.sourceId, date: lot.stockDate),
+      },
+      observed,
+    );
+    return lots;
+  }
+
   static Map<String, DebtLotRead> _lotsOf(
     TransactionReads reads,
     Map<String, _LotPaths> lotPaths,

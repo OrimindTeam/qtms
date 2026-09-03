@@ -42,7 +42,7 @@ GoRouter buildRouter() => GoRouter(
               const PendingEntriesScreen(),
         ),
         for (final String route in <String>[
-          sackIntakeRoute,
+          supplyIntakeRoute,
           dailyPricingRoute,
           distributionRoute,
         ])
@@ -234,7 +234,8 @@ void main() {
       await tester.tap(find.text('إدخال'));
       await tester.pumpAndSettle();
 
-      expect(find.text('وجهة: $sackIntakeRoute'), findsOneWidget);
+      // ★★★ **والجونيةُ تبويبٌ في «التوريد مخزني» منذ `AM-012` §2.**
+      expect(find.text('وجهة: $supplyIntakeRoute'), findsOneWidget);
       expect(container.read(selectedSourceProvider), 'SRC-002');
     });
 

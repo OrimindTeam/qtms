@@ -16,12 +16,13 @@ import '../capabilities/identity_access/application/session_state.dart';
 import '../capabilities/identity_access/presentation/home_shell.dart';
 import '../capabilities/identity_access/presentation/login_screen.dart';
 import '../capabilities/identity_access/presentation/permissions_screen.dart';
+import '../capabilities/identity_access/presentation/profile_screen.dart';
 import '../capabilities/identity_access/presentation/roles_screen.dart';
 import '../capabilities/identity_access/presentation/session_blocked_screen.dart';
 import '../capabilities/identity_access/presentation/users_screen.dart';
-import '../capabilities/inventory/presentation/counted_intake_screen.dart';
-import '../capabilities/inventory/presentation/sack_intake_screen.dart';
+import '../capabilities/inventory/presentation/supply_intake_screen.dart';
 import '../capabilities/inventory/presentation/daily_pricing_screen.dart';
+import '../capabilities/inventory/presentation/sack_finance_screen.dart';
 import '../capabilities/inventory/presentation/today_stock_screen.dart';
 import '../capabilities/oversight/presentation/audit_log_screen.dart';
 import '../capabilities/oversight/presentation/pending_entries_screen.dart';
@@ -29,13 +30,17 @@ import '../capabilities/oversight/presentation/report_view_screen.dart';
 import '../capabilities/oversight/presentation/reports_screen.dart';
 import '../capabilities/sales_receivables/presentation/cash_sale_screen.dart';
 import '../capabilities/financial_outflow/presentation/outflow_screen.dart';
+import '../capabilities/financial_outflow/presentation/owner_ledger_history_screen.dart';
+import '../capabilities/financial_outflow/presentation/owner_ledger_screen.dart';
 import '../capabilities/sales_receivables/presentation/discount_screen.dart';
 import '../capabilities/sales_receivables/presentation/distribution_screen.dart';
 import '../capabilities/sales_receivables/presentation/receipt_screen.dart';
 import '../capabilities/master_data/application/master_data_providers.dart';
+import '../capabilities/master_data/presentation/about_screen.dart';
 import '../capabilities/master_data/presentation/dealers_screen.dart';
 import '../capabilities/master_data/presentation/first_run_setup_screen.dart';
 import '../capabilities/master_data/presentation/items_screen.dart';
+import '../capabilities/master_data/presentation/settings_screen.dart';
 import '../capabilities/master_data/presentation/sources_screen.dart';
 import '../capabilities/master_data/presentation/suppliers_screen.dart';
 import '../core/design/brand.dart';
@@ -60,6 +65,28 @@ const String usersRoute = '/home/users';
 /// ★ مسار الأدوار (`FR-M1-03`) — **مستويان** ⛔ ولا يتجاوز الثلاثة.
 const String rolesRoute = '/home/roles';
 
+/// ★★★ **مسار «الملف الشخصي»** — `AM-012` §5 · **مستويان**.
+///
+/// ⛔⛔★★ **ولا معامل مستخدمٍ في المسار إطلاقاً** — ★ **الشاشةُ لصاحب الجلسة
+/// وحدَه** (`CR-012` `FR-M1-18`): ⟵ **ومسارٌ يقبل معرّفاً كان يُوحي بأن
+/// ثمّة ملفّاً شخصياً لغيره يُفتَح** ⛔ **وهو ما تمنعه الشاشةُ نفسُها**،
+/// ★ **وإدارةُ المستخدمين لها مسارُها ومفاتيحُها** (`usersRoute`).
+const String profileRoute = '/home/profile';
+
+/// ★★★ **مسار «الإعدادات»** — `AM-012` §4.4 · **مستويان**.
+///
+/// ⛔⛔ **وتفضيلاتُ عرضٍ محليةٌ وحدَها** — ★ **ولا صلةَ لها بـ`setupRoute`:**
+/// ⟵ **تلك بوابةُ إعدادٍ تأسيسيٍّ لا رجعةَ فيها تُفتَح مرةً واحدة**
+/// (`FR-M21-03`)، ★ **وهذه شاشةٌ تُفتَح متى شاء المستخدم.**
+const String settingsRoute = '/home/settings';
+
+/// ★★ **مسار «حول التطبيق»** — `FR-SYS-28` · **مستويان**.
+///
+/// ★ **ويُفتَح من صفِّ «حول التطبيق» في الإعدادات** — ⛔ **ولا مدخلَ له في
+/// قائمة الجلسة**: ⟵ **تلك مداخلُ حسابٍ وجهاز** (`AM-012` §4.4)، ★ **و«حول»
+/// صفٌّ من نمط الإعدادات المجمَّعة** (`ui-guidelines.md` §3 نمط 7).
+const String aboutRoute = '/home/about';
+
 /// ★★ مسار تخصيص صلاحيات مستخدم (`FR-M1-05`) — **ثلاثة مستويات وهو الحدّ**
 /// (`ui-guidelines.md` §4)، ⟵ **فلا يُضاف تحته شيء.**
 String permissionsRouteFor(String userId) => '/home/users/$userId/permissions';
@@ -76,14 +103,22 @@ const String dealersRoute = '/home/dealers';
 /// ★ مسار الأنواع (`FR-M5`).
 const String itemsRoute = '/home/items';
 
-/// ★ مسار الوارد عدداً (`FR-M6`) — **مستويان**.
-const String countedIntakeRoute = '/home/intake';
-
-/// ★ مسار الوارد جواني (`FR-M7`) — **مستويان**.
+/// ★★★ **مسار «التوريد مخزني»** (`FR-M6` + `FR-M7`) — **مستويان** ·
+/// `AM-012` §2 (2026-09-02).
 ///
-/// ⛔★★ **ولا معامل تاريخ ولا رقم متسلسل في المسار** — `FR-M7-02` و`FR-M7-04`:
-/// **كلاهما من الخادم**، ⟵ **ومسارٌ يقبل أياً منهما كان يُوحي بأنه يُختار.**
-const String sackIntakeRoute = '/home/sacks';
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **ومسارٌ واحدٌ حلّ محلّ `'/home/intake'` و`'/home/sacks'`** —
+/// ★ **بطلب المالك: شاشةٌ واحدة بتبويبين** ([SupplyIntakeScreen]).
+///
+/// ⛔⛔ **ولا معاملَ تبويبٍ في المسار** — ★ **التبويبُ مُدخَلٌ في المُنشئ:**
+/// ⟵ **ووجهةُ ملاحةٍ داخلية لا رابطٌ يُشارَك** (نفسُ علّة `auditLogRoute`
+/// و`pendingEntriesRoute` أدناه حرفياً).
+///
+/// ⛔★★ **ولا معامل تاريخ ولا رقم متسلسل** — `FR-M6-02` · `FR-M7-02` ·
+/// `FR-M7-04`: **كلُّها من الخادم**، ⟵ **ومسارٌ يقبل أياً منها كان يُوحي
+/// بأنه يُختار.**
+/// ═══════════════════════════════════════════════════════════════════════
+const String supplyIntakeRoute = '/home/supply';
 
 /// ★ مسار مخزون اليوم (`FR-M8` الشاشة الأولى) — **مستويان**.
 ///
@@ -136,6 +171,28 @@ const String discountRoute = '/home/discounts';
 /// المسار** (`GR-43`).
 const String outflowRoute = '/home/outflows';
 
+/// ★★★ **مسار ضمار المالك وحركة النقد** (`M15` · `WU-016`) — **مستويان**.
+///
+/// ⛔★★ **ولا معامل مصدرٍ ولا تاريخٍ في المسار** — ★ **كلاهما مرشِّحٌ داخل
+/// الشاشة** (`FR-M15-22`): ⟵ **ومسارٌ يحمل مصدراً كان يصير طريقاً ثانياً
+/// لقراءة بطاقةٍ ماليةٍ خارج نطاق قارئه** (نفسُ علّة `sackFinanceRoute`).
+const String ownerLedgerRoute = '/home/owner-ledger';
+
+/// ★★ **مسار سجل الأيام السابقة** (`FR-M15-14`) — **ثلاثة مستويات وهو الحدّ**
+/// (`ui-guidelines.md` §4)، ⟵ **فلا يُضاف تحته شيء.**
+///
+/// ⛔ **ومصدرُه من حالة الشاشة الأمّ لا من المسار** — ★ **فالسجلُّ امتدادٌ
+/// لبطاقةٍ مفتوحة** ⛔ **لا وجهةٌ مستقلة تُشارَك برابط.**
+const String ownerLedgerHistoryRoute = '/home/owner-ledger/history';
+
+/// ★★ **مسار مالية الجواني وحساب الرعوي** (`M14` · `WU-015`) — **مستويان**.
+///
+/// ⛔★★ **ولا معامل رعويٍّ ولا تاريخٍ في المسار** — ★ **كلاهما مرشِّحٌ داخل
+/// الشاشة** (`FR-M14-01` · `ui-guidelines.md` §4): ⟵ **ومسارٌ يحمل رعوياً
+/// كان يصير طريقاً ثانياً لقراءة حسابٍ ماليّ** بلا الشاشة التي تملك
+/// صلاحيته وسياقه (بنفس علّة `auditLogRoute` أدناه).
+const String sackFinanceRoute = '/home/sack-finance';
+
 /// ★ مسار سجل التدقيق المركزي (`FR-M18-09`) — **مستويان**.
 ///
 /// ⛔★★ **ولا معامل كيانٍ في المسار** — ★ **السجل السياقي ورقةٌ تُفتَح فوق
@@ -157,7 +214,9 @@ const String pendingEntriesRoute = '/home/pending';
 /// ★ **وطبقةُ النطاق تُسمّي الشاشة، والتطبيق وحده يعرف مسارَها**
 /// (`ADR-0009`): ⟵ **فلا مسارٌ محفورٌ في `qtms_domain`.**
 String pendingScreenRoute(PendingScreen screen) => switch (screen) {
-      PendingScreen.sackIntake => sackIntakeRoute,
+      // ★★ **والجونيةُ تبويبٌ في «التوريد مخزني» منذ `AM-012` §2** — ★ **ويُفتَح
+      //   على تبويبها بـ[supplyIntakeSackTab]** ⛔ **لا على التبويب الأول.**
+      PendingScreen.sackIntake => supplyIntakeRoute,
       PendingScreen.dailyPricing => dailyPricingRoute,
       PendingScreen.distribution => distributionRoute,
       // ★★ **وشاشةٌ رابعة منذ `WU-014`** — ⟵ **وواحدةٌ للسجلَّين**
@@ -230,6 +289,27 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             builder: (BuildContext context, GoRouterState state) =>
                 const RolesScreen(),
           ),
+          // ── ★★★ الملفُّ الشخصي والإعدادات (`AM-012` §4.4 و§5) ──
+          //
+          // ⛔⛔ **وكلتاهما بلا بوابة صلاحية** — ★ **ولا مفتاحَ لهما في
+          //    الكتالوج** (`BR-M1-07`): ⟵ **بياناتُ صاحب الجلسة نفسِه
+          //    وتفضيلاتُ جهازه ليستا مورداً يُؤذَن فيه**، ⛔ **ولا تقرأ
+          //    أيٌّ منهما مستندَ أحدٍ سواه.**
+          GoRoute(
+            path: 'profile',
+            builder: (BuildContext context, GoRouterState state) =>
+                const ProfileScreen(),
+          ),
+          GoRoute(
+            path: 'settings',
+            builder: (BuildContext context, GoRouterState state) =>
+                const SettingsScreen(),
+          ),
+          GoRoute(
+            path: 'about',
+            builder: (BuildContext context, GoRouterState state) =>
+                const AboutScreen(),
+          ),
           // ── البيانات المرجعية (`WU-002`) — أربع قوائم بمستويين ──
           GoRoute(
             path: 'sources',
@@ -251,22 +331,28 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             builder: (BuildContext context, GoRouterState state) =>
                 const ItemsScreen(),
           ),
-          // ── المخزون والتوريد (`WU-003`) — شاشتان بمستويين ──
+          // ── ★★★ التوريد مخزني (`WU-003` + `WU-004` · `AM-012` §2) ──
+          //
+          // ⛔⛔ **وشاشةٌ واحدة بتبويبين** — ★ **حلّت محلّ `intake` و`sacks`:**
+          //    ⟵ **والمساران القديمان لم يعودا يُعرَّفان**، ⛔ **فلا بابٌ
+          //    ثانٍ يفتح نصفَ الشاشة بلا تبويبها الآخر.**
           GoRoute(
-            path: 'intake',
+            path: 'supply',
             builder: (BuildContext context, GoRouterState state) =>
-                const CountedIntakeScreen(),
+                SupplyIntakeScreen(
+              // ★★ **والتبويبُ المطلوب حالةُ ملاحةٍ في التطبيق** — ⛔ **لا
+              //    معاملٌ في الرابط:** ⟵ **يُمرَّر من `extra` عند الحاجة**
+              //    (مركزُ الإدخالات المعلّقة)، ★ **وافتراضُه الأول.**
+              initialTab: state.extra is int
+                  ? state.extra! as int
+                  : supplyIntakeCountedTab,
+            ),
           ),
+          // ── المخزون اليومي (`WU-003`) — شاشةٌ بمستويين ──
           GoRoute(
             path: 'stock',
             builder: (BuildContext context, GoRouterState state) =>
                 const TodayStockScreen(),
-          ),
-          // ── الوارد جواني (`WU-004`) — شاشةٌ بمستويين ──
-          GoRoute(
-            path: 'sacks',
-            builder: (BuildContext context, GoRouterState state) =>
-                const SackIntakeScreen(),
           ),
           // ── التسعير اليومي (`WU-005`) — شاشةٌ بمستويين ──
           GoRoute(
@@ -286,6 +372,12 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             builder: (BuildContext context, GoRouterState state) =>
                 const CashSaleScreen(),
           ),
+          // ── مالية الجواني وحساب الرعوي (`WU-015`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'sack-finance',
+            builder: (BuildContext context, GoRouterState state) =>
+                const SackFinanceScreen(),
+          ),
           // ── المقبوضات (`WU-007`) — شاشةٌ بمستويين ──
           GoRoute(
             path: 'receipts',
@@ -303,6 +395,19 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             path: 'outflows',
             builder: (BuildContext context, GoRouterState state) =>
                 const OutflowScreen(),
+          ),
+          // ── ضمار المالك وحركة النقد (`WU-016`) — بطاقةٌ وسجلٌّ تحتها ──
+          GoRoute(
+            path: 'owner-ledger',
+            builder: (BuildContext context, GoRouterState state) =>
+                const OwnerLedgerScreen(),
+            routes: <RouteBase>[
+              GoRoute(
+                path: 'history',
+                builder: (BuildContext context, GoRouterState state) =>
+                    const OwnerLedgerHistoryScreen(),
+              ),
+            ],
           ),
           // ── سجل التدقيق (`WU-008`) — شاشةٌ بمستويين ──
           GoRoute(

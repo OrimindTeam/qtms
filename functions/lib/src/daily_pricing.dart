@@ -249,6 +249,8 @@ DailyPricingPlan planDailyPricing(
       actor: AuditActor(
         userId: request.actor.userId,
         userName: request.actor.userName,
+        // ★★★ **والبريد منسوخٌ وقت الحدث** — `AM-012` §3.
+        userEmail: request.actor.userEmail,
       ),
       // ★ **إنشاءٌ ما لم تُغيَّر قيمةٌ قائمة** — `FR-M9-01`: **كل يوم يبدأ
       //   بلا أسعار**، ⟵ **فالتسعير الأول إنشاءٌ لا تعديل.**

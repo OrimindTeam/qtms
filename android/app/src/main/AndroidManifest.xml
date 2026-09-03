@@ -1,4 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- ★★★ AM-012 §5.2 و§6 (ADR-0024 ⏳ مقترح): الدخولُ ببصمة الإصبع.
+
+         ★ USE_BIOMETRIC إذنٌ من فئة «عادي» (Normal) يُمنَح عند التثبيت
+           ⛔ بلا حوارِ وقتِ تشغيلٍ يراه المستخدم، ⟵ فلا يُضاف بابُ إذنٍ
+           رابع: ★ والأذونات المعتمدة في dependency-management-policy §3
+           (جهات الاتصال · التخزين) تبقى كما هي بلا مساس.
+
+         ⚠️ ومتاحٌ منذ API 28 — ★ وأرضيةُ المشروع 24 (AM-011):
+           ⟵ فالإصداراتُ الأقدم تتجاهله بلا ضرر، ★ و`local_auth` تسقط إلى
+           FINGERPRINT الملغى داخلياً، ⛔ ولا انهيارَ ولا فشلَ بناء.
+
+         ⛔⛔ ولا إذنَ آخر يُضاف مع هذه الميزة — ★ والخزنةُ الآمنة
+           (flutter_secure_storage) بلا أي إذن: تكتب في مساحة التطبيق
+           ومفتاحُها في Android Keystore. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+
     <!-- ★ AM-002: الاسم الظاهر للتطبيق من مورد واحد (`res/values/strings.xml`)
          لتتجاوزه النكهة التجريبية من مجموعة مصادرها — ⛔ ولا نصّ محفور هنا. -->
     <application

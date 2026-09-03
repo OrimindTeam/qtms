@@ -469,6 +469,51 @@ void main() {
       expect(first, isNot(second));
     });
 
+    // ═══════════════════════════════════════════════════════════════════
+    // ⛔⛔★★★ [`DEBT-86`] — والاسمُ المركّب هو **المعروض** لا المخزَّن فحسب
+    // ═══════════════════════════════════════════════════════════════════
+    test('✅★★★ DEBT-86: سطرُ جونيةٍ يُعرَض باسمه المركّب لا بالمجرَّد', () {
+      // ★★ **وحركةُ الجونية تُخزِّن المجرَّد في `itemName`** — ⟵ **فعرضُه
+      //    وحدَه كان يجعل جونيتين من نوعٍ واحد سطرين متطابقين**، ⛔ **وهو
+      //    عينُ ما رفضه `ADR-0007` في خياره الثاني.**
+      expect(
+        ledgerItemDisplayName(
+          itemKey: 'عتود - جونية رقم 1',
+          itemName: 'عتود',
+        ),
+        'عتود - جونية رقم 1',
+      );
+    });
+
+    test('★★ ومفتاحُ الوارد عدداً يُعرَض باسمه المخزَّن — BR-M6-10', () {
+      // ⛔ **والمفتاحُ هنا معرّفُ سجلٍّ لا اسم** — ⟵ **وعرضُه كان يُظهر
+      //    «ITM-0002» للمستخدم.**
+      expect(
+        ledgerItemDisplayName(itemKey: 'ITM-0002', itemName: 'عود'),
+        'عود',
+      );
+    });
+
+    test('⛔★ واسمٌ مخزَّنٌ فارغٌ يقع على المفتاح — ⛔ لا على فراغ', () {
+      expect(ledgerItemDisplayName(itemKey: 'ITM-0002', itemName: '  '),
+          'ITM-0002');
+    });
+
+    test('★★★ والقاعدةُ تُقرأ ما يكتبه [sackCompositeItemName] حرفياً', () {
+      // ⛔⛔★★ **وهو الحارسُ الفعلي** — ★ **بانٍ وقارئٌ في ملفٍ واحد**:
+      //    ⟵ **فتغييرُ الصيغة يُسقِط هذا الاختبار قبل أن يُسقِط شاشة.**
+      const String bare = 'بطوة معالم أحمر';
+      final String composite = sackCompositeItemName(
+        itemName: bare,
+        dailySequence: 1,
+        supplierName: 'عبدالفتاح',
+      );
+      expect(
+        ledgerItemDisplayName(itemKey: composite, itemName: bare),
+        composite,
+      );
+    });
+
     test('★ وسطر السكرب يُبنى من اسم النوع المخزَّن لا من نصّ محفور', () {
       expect(
         sackScrapCompositeName(dailySequence: 2, supplierName: 'مازن'),

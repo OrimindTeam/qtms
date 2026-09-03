@@ -230,9 +230,12 @@ void main() {
 
     testWidgets('★ وغيابُ القيمة نصٌّ صريح لا خانةٌ فارغة',
         (WidgetTester tester) async {
+      // ⚠️★★ **والفعلُ «تعديل» لا «إنشاء» منذ `AM-012` §3.1** — ★ **والإنشاءُ
+      //    صار بلا صفوفٍ إطلاقاً**، ⟵ **وحقلٌ أُضيف في تعديلٍ هو الحالُ
+      //    الحقيقيُّ الذي يُنتج «قبل» غائبة** (`AuditFieldChange.before`).
       auditLog.emitCentral(<AuditLogEntryCard>[
         testAuditEntry(
-          action: AuditAction.create,
+          action: AuditAction.amend,
           after: <String, Object?>{'quantity': 40},
           reason: null,
         ),
@@ -276,9 +279,10 @@ void main() {
     testWidgets('⛔ وشطبُ «قبل» على قيمةٍ كانت وحدها — ولا يُشطَب نفيُ القيمة',
         (WidgetTester tester) async {
       // ⟵ **شطبُ «لا قيمة» يشطب النفيَ لا القيمة** ⛔ **فيُقرأ عكسَ معناه.**
+      // ⚠️ **والفعلُ «تعديل» بعد `AM-012` §3.1** — راجع الاختبار أعلاه.
       auditLog.emitCentral(<AuditLogEntryCard>[
         testAuditEntry(
-          action: AuditAction.create,
+          action: AuditAction.amend,
           after: <String, Object?>{'quantity': 40},
           reason: null,
         ),
@@ -297,6 +301,120 @@ void main() {
       await pumpScreen(tester, const AuditLogScreen());
       expect(find.textContaining('مخزون 2026/08/26'), findsOneWidget);
     });
+
+    testWidgets(
+      '⛔⛔★★★ AM-012 §3.1: الإنشاءُ بلا صفِّ «قبل/بعد» واحد',
+      (WidgetTester tester) async {
+        auditLog.emitCentral(<AuditLogEntryCard>[
+          testAuditEntry(
+            action: AuditAction.create,
+            after: <String, Object?>{'quantity': 40, 'itemName': 'شامي'},
+            reason: null,
+          ),
+        ]);
+        await pumpScreen(tester, const AuditLogScreen());
+
+        // ★ **والقيدُ نفسُه معروضٌ كاملاً** — ⛔ **لم يختفِ.**
+        // ⚠️ **و«إنشاء» تظهر مرتين: في حبّة الفعل وفي مرشِّح الأفعال** —
+        //    ★ **والمقصودُ هنا وجودُها لا عددُها.**
+        expect(find.text('إنشاء'), findsAtLeastNWidgets(1));
+        expect(find.text('عبدالفتاح'), findsOneWidget);
+        // ⛔⛔ **ولا صفَّ تغيّرٍ واحد.**
+        expect(find.text('لا قيمة'), findsNothing);
+        expect(find.text('40'), findsNothing);
+        expect(find.byIcon(Icons.arrow_forward), findsNothing);
+      },
+    );
+
+    testWidgets(
+      '★★★ AM-012 §3.2: والتعديلُ يعرض ما تغيّر فعلاً وحدَه',
+      (WidgetTester tester) async {
+        auditLog.emitCentral(<AuditLogEntryCard>[
+          testAuditEntry(
+            action: AuditAction.amend,
+            before: <String, Object?>{'quantity': 100, 'itemName': 'شامي'},
+            after: <String, Object?>{'quantity': 95, 'itemName': 'شامي'},
+          ),
+        ]);
+        await pumpScreen(tester, const AuditLogScreen());
+
+        expect(find.text('100'), findsOneWidget);
+        expect(find.text('95'), findsOneWidget);
+        // ⛔ **والحقلُ الذي لم يتغيّر لا يُعرَض** — ★ **صفٌّ واحد لا صفّان.**
+        expect(find.text('شامي'), findsNothing);
+        expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '★★★ AM-012 §3: وبريدُ المُنفِّذ تحت اسمه',
+      (WidgetTester tester) async {
+        auditLog.emitCentral(<AuditLogEntryCard>[
+          testAuditEntry(userEmail: 'owner@qtms.test'),
+        ]);
+        await pumpScreen(tester, const AuditLogScreen());
+        expect(find.text('عبدالفتاح'), findsOneWidget);
+        expect(find.text('owner@qtms.test'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '⛔⛔★★★ وغيابُ البريد يُسقِط السطر — ⛔ ولا «لا قيمة» في موضع هوية',
+      (WidgetTester tester) async {
+        // ★★ **وهي حالُ كل قيدٍ كُتب قبل 2026-09-02** — ⟵ **والسجلُّ للإضافة
+        //    فقط ولا يُهاجَر**: ⛔ **فلا يُملأ بأثرٍ رجعي.**
+        auditLog.emitCentral(<AuditLogEntryCard>[
+          testAuditEntry(userEmail: null),
+        ]);
+        await pumpScreen(tester, const AuditLogScreen());
+        expect(find.text('عبدالفتاح'), findsOneWidget);
+        expect(find.text('لا قيمة'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      '★★★ AM-012 §3.3: وسطرُ الهدف «اسم النوع: الرقم»',
+      (WidgetTester tester) async {
+        auditLog.emitCentral(<AuditLogEntryCard>[
+          testAuditEntry(
+            entityType: countedIntakeEntityType,
+            entityId: 'INC-20260827-0001',
+          ),
+        ]);
+        await pumpScreen(tester, const AuditLogScreen());
+        expect(
+          find.text('الوارد عدداً: INC-20260827-0001'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      '★★ ونوعٌ آخر باسمه هو — ⛔ لا اسمٌ واحدٌ لكل الكيانات',
+      (WidgetTester tester) async {
+        auditLog.emitCentral(<AuditLogEntryCard>[
+          testAuditEntry(
+            entityType: userEntityType,
+            entityId: 'U-042',
+            stockDate: null,
+          ),
+        ]);
+        await pumpScreen(tester, const AuditLogScreen());
+        expect(find.text('المستخدمون: U-042'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '⛔⛔ ونوعٌ لا يعرفه هذا الإصدار يُعرَض بمفتاحه ⛔ ولا يختفي',
+      (WidgetTester tester) async {
+        // ★ **بنفس علّة «إجراء غير معروف»** — ⟵ **السجلُّ للإضافة فقط.**
+        auditLog.emitCentral(<AuditLogEntryCard>[
+          testAuditEntry(entityType: 'somethingNew', entityId: 'X-1'),
+        ]);
+        await pumpScreen(tester, const AuditLogScreen());
+        expect(find.textContaining('somethingNew: X-1'), findsOneWidget);
+      },
+    );
 
     testWidgets('⛔ والحالة الفارغة بسببٍ وإجراء — §هـ',
         (WidgetTester tester) async {

@@ -32,6 +32,8 @@ import '../../../app/top_bar.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/hub_section.dart';
 import '../../../core/ui/needs_action_row.dart';
+import '../../inventory/presentation/sack_finance_screen.dart';
+import '../../inventory/presentation/supply_intake_screen.dart';
 import '../../oversight/application/pending_entries_providers.dart';
 import '../../oversight/application/report_providers.dart';
 import '../application/session_providers.dart';
@@ -161,6 +163,22 @@ class HomeShell extends ConsumerWidget {
                   ),
                 ),
               ),
+              // ⛅★★★ **ومدخلُ ضمار المالك وحركة النقد** (`WU-016` · `M15`) —
+              //    ★ **بمفتاح `ownerLedgerView` وحدَه**: ⟵ **وهو مفتاحُ
+              //    عرضٍ صريحٌ في الكتالوج §2.7** ⛔ **بخلاف المقبوضات
+              //    والخصومات** (مفاتيحُها مفاتيحُ فعل).
+              //    ⚠️⚠️ **وإخفاءٌ لا حماية** — ★ **والحارسُ شرطُ قراءة
+              //    `daily_summaries` بالنطاق** (`RISK-02`).
+              PermissionGate(
+                permission: Permission.ownerLedgerView,
+                child: QtmsHubButton(
+                  entry: QtmsHubEntry(
+                    label: 'ضمار المالك',
+                    icon: Icons.account_balance_wallet_outlined,
+                    onPressed: () => context.go(ownerLedgerRoute),
+                  ),
+                ),
+              ),
               // ⛔⛔★★★ **ومدخلُ السحبيات والخرجيات ببوابةٍ «أيُّهما»**
               //    (`WU-014` · `GR-43`) — ★ **فمفتاحا الإنشاء مستقلان**:
               //    ⟵ **ويظهر المدخلُ لمن يملك أحدهما**، ★ **والشاشةُ نفسُها
@@ -180,26 +198,34 @@ class HomeShell extends ConsumerWidget {
                   ),
                 ),
               ),
-              PermissionGate(
-                permission: Permission.incomingCountWrite,
+              // ★★★ **مدخلٌ واحد للتوريد** — `AM-012` §2 (2026-09-02):
+              //
+              // ⛔⛔★★★ **وكانا مدخلين بمفتاحين مختلفين** — ★ **والشاشتان
+              //    دُمجتا بتبويبين**، ⟵ **فمدخلان إلى شاشةٍ واحدة كانا
+              //    يُوهمان بوجهتين.**
+              //
+              // ⚠️⚠️★★★ **والبوابةُ صارت «أو» لا «و» — وهو قرارٌ مُعلَن:**
+              //    ★ **من يملك `incomingCountWrite` وحده، أو `sackCreate`
+              //    وحده، يرى المدخل** — ⟵ **ويجد تبويبَه عاملاً والآخرَ
+              //    بلا زرِّ إضافة** (البوابةُ داخل كلِّ تبويب باقيةٌ كما هي).
+              //    ⛔⛔ **وشرطُ «و» كان سيُخفي الشاشةَ عمّن يملك نصفَها**،
+              //    ★ **فتسقط عنه قدرةٌ يملك مفتاحها فعلاً.**
+              //    ⚠️ **وإخفاءٌ لا حماية** — ★ **والرفضُ في السحابة**
+              //    (`ADR-0013` القاعدة 3 · `RISK-02`).
+              //    ★ **و[AnyPermissionGate] مبنيةٌ منذ `WU-014`** — ⛔ **ولا
+              //    بوابةَ ثانيةٌ تُخترَع** (`design-system.md` §8 المحظور
+              //    الحادي عشر: «نسخُ مكوّن بدل إعادة استخدامه»).
+              AnyPermissionGate(
+                permissions: const <Permission>[
+                  Permission.incomingCountWrite,
+                  // ★★★ `IQ-021` الخيار أ — ⛔ **ولا مفتاح حقلي بديلاً عنه**.
+                  Permission.sackCreate,
+                ],
                 child: QtmsHubButton(
                   entry: QtmsHubEntry(
-                    label: 'الوارد عدداً',
+                    label: supplyIntakeScreenTitle,
                     icon: Icons.add_box_outlined,
-                    onPressed: () => context.go(countedIntakeRoute),
-                  ),
-                ),
-              ),
-              // ⛔⛔★★★ **ومدخلُ الجواني `sackCreate` لا مفتاحٌ حقلي**
-              //    (`IQ-021`) — ★ **إنشاءُ الرأس مدخلُ الوحدة كلها**،
-              //    ⛔ **ولا يُغني عنه `sackLinesEnter` ولا `sackView`.**
-              PermissionGate(
-                permission: Permission.sackCreate,
-                child: QtmsHubButton(
-                  entry: QtmsHubEntry(
-                    label: 'الوارد جواني',
-                    icon: Icons.inventory_outlined,
-                    onPressed: () => context.go(sackIntakeRoute),
+                    onPressed: () => context.go(supplyIntakeRoute),
                   ),
                 ),
               ),
@@ -299,6 +325,35 @@ class HomeShell extends ConsumerWidget {
                     label: 'الأدوار',
                     icon: Icons.badge_outlined,
                     onPressed: () => context.go(rolesRoute),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // ★★ **قسمُ المالية** — `ui-guidelines.md` §4-أ التبويب ④.
+          //
+          // ⛔⛔★★ **ومدخلٌ مستقلٌّ عن «الرعية» في البيانات المرجعية:**
+          //    ★ **تلك تهيئةُ كياناتٍ بمفتاح `supplierWrite`**، ⟵ **وهذه
+          //    حسابٌ ماليٌّ بمفتاحَي قراءةٍ آخرَين** (`sackFinanceView` ·
+          //    `supplierFinanceView`) — ⛔ **ودمجُهما كان يُلزم من يقرأ
+          //    الحساب بامتلاك صلاحية تعديل الرعية.**
+          //
+          // ⚠️⚠️ **وإخفاءٌ لا حماية** — ★ **والشرطُ في `firestore.rules`
+          //    على `finance/current` و`supplier_balances`** (`RISK-02`).
+          QtmsHubSection(
+            title: 'المالية',
+            children: <Widget>[
+              // ★★ **والبوابةُ على `sackView`** — ⟵ **فبلا قراءةِ الجونية
+              //   نفسِها لا سطرَ في الشاشة أصلاً**، ★ **والمبالغُ تُخفيها
+              //   `sackFinanceView` داخلَها بندًا بندًا** (`ADR-0011`).
+              PermissionGate(
+                permission: Permission.sackView,
+                child: QtmsHubButton(
+                  entry: QtmsHubEntry(
+                    label: sackFinanceScreenTitle,
+                    icon: Icons.account_balance_wallet_outlined,
+                    onPressed: () => context.go(sackFinanceRoute),
                   ),
                 ),
               ),

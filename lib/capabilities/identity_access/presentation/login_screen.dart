@@ -15,6 +15,7 @@ import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/inline_banner.dart';
 import '../../../core/startup/staging_qa_credentials.dart';
+import '../application/biometric_providers.dart';
 import '../application/login_controller.dart';
 
 /// شاشة تسجيل الدخول.
@@ -51,6 +52,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   /// ★ هل كلمةُ المرور ظاهرة الآن؟ — **حالةُ عرضٍ محلية بحتة.**
   bool _passwordVisible = false;
+
+  /// ★★ **نصُّ تعذُّرِ الدخول بالبصمة** — ⛔ **ولا يُبتلَع.**
+  ///
+  /// ⚠️⚠️ **ومستقلٌّ عن [LoginRejected] عمداً:** ★ **ذاك رفضٌ من خدمة
+  /// المصادقة على بياناتٍ أُرسلت**، ⟵ **وهذا تعذُّرٌ قبل الإرسال أصلاً**
+  /// (بصمةٌ لم تُقبَل · جهازٌ لا يدعم · لا بياناتٍ محفوظة) — ⛔ **وخلطُهما
+  /// كان يُري المستخدم «بيانات دخول غير صحيحة» وهو لم يُدخِل شيئاً.**
+  String? _biometricStatus;
+
+  /// ★ هل تجري محاولةُ بصمةٍ الآن؟
+  bool _biometricBusy = false;
 
   bool get _canSubmit =>
       _email.text.trim().isNotEmpty && _password.text.isNotEmpty;
@@ -145,6 +157,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           )
                         : const Text('دخول'),
                   ),
+                  // ⑤ ★★★ **الدخولُ بالبصمة** — `AM-012` §6 · [`ADR-0024`].
+                  //
+                  // ⛔⛔★★★ **ولا يظهر إلا لمن فعّله على *هذا الجهاز*** —
+                  //    ★ **والمقياسُ وجودُ بياناتٍ محفوظةٍ فعلاً**
+                  //    (`biometricLoginEnabledProvider`): ⟵ **فزرٌّ يظهر بلا
+                  //    بياناتٍ يفشل أبداً**، ⛔ **ويُعلِّم المستخدم أن الميزة
+                  //    معطوبة وهي لم تُفعَّل أصلاً.**
+                  //
+                  // ⛔⛔★★★ **وهو بديلٌ لا اختصار:** ★ **حقلا البريد وكلمة
+                  //    المرور باقيان كاملين فوقه** — ⟵ **فمن فشلت بصمتُه أو
+                  //    بدّل حسابَه يدخل كما كان**، ⛔ **ولا مسارَ يُغلَق.**
+                  if (ref.watch(biometricLoginEnabledProvider).value ?? false)
+                    ...<Widget>[
+                      const SizedBox(height: Spacing.space12),
+                      OutlinedButton.icon(
+                        onPressed: (submitting || _biometricBusy)
+                            ? null
+                            : _biometricSignIn,
+                        icon: const Icon(Icons.fingerprint),
+                        label: const Text('الدخول ببصمة الإصبع'),
+                      ),
+                    ],
+                  if (_biometricStatus case final String message) ...<Widget>[
+                    const SizedBox(height: Spacing.space16),
+                    QtmsInlineBanner(
+                      text: message,
+                      triad: SemanticTriads.danger,
+                    ),
+                  ],
                   if (state is LoginRejected) ...<Widget>[
                     const SizedBox(height: Spacing.space16),
                     _RejectionBanner(reason: state.reason),
@@ -165,6 +206,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           password: _password.text,
         );
   }
+
+  /// ★★★ **الدخولُ بالبصمة** — `AM-012` §6.
+  ///
+  /// ⛔⛔★★★ **ولا تُملأ الحقولُ بالمحفوظ إطلاقاً** — الشرط 3 في [`ADR-0024`]:
+  /// ★ **البصمةُ تفتح دخولاً** ⛔ **لا تكشف سرّاً** — ⟵ **وحقلُ كلمةِ مرورٍ
+  /// مملوءٌ بها يجعلها مقروءةً بضغطةٍ على «إظهار».**
+  ///
+  /// ⛔⛔ **والنجاحُ لا يُنقِل الشاشةَ يدوياً** — ★ **تدفّقُ الجلسة حيّ**،
+  /// ⟵ **فالموجّه يُخرجها من تلقائه** (`router.dart`) ⛔ **بلا ملاحةٍ هنا.**
+  Future<void> _biometricSignIn() async {
+    setState(() {
+      _biometricBusy = true;
+      _biometricStatus = null;
+    });
+    final BiometricOutcome outcome =
+        await ref.read(biometricLoginControllerProvider).signIn();
+    if (!mounted) return;
+    setState(() {
+      _biometricBusy = false;
+      _biometricStatus =
+          outcome == BiometricOutcome.success ? null : _statusFor(outcome);
+    });
+  }
+
+  /// ★ نصٌّ لكل تعذُّر — ⛔ **ولا رسالةَ واحدة لحالاتٍ مختلفة.**
+  static String _statusFor(BiometricOutcome outcome) => switch (outcome) {
+        BiometricOutcome.rejected => '❌ تعذّر التحقق من البصمة.',
+        BiometricOutcome.notEnrolled =>
+          '⚠️ لا توجد بصمة مسجَّلة على هذا الجهاز.',
+        BiometricOutcome.unsupported =>
+          '⚠️ هذا الجهاز لا يدعم بصمة الإصبع.',
+        // ⛔⛔★★★ **والمسحُ وقع فعلاً قبل هذه الرسالة** — الشرطان 7 و[Outcome]:
+        //    ★ **فالنصُّ يوجّه إلى كلمة المرور صراحةً** ⛔ **ولا يترك المستخدم
+        //    يعيد المحاولة على بياناتٍ لم تعد موجودة.**
+        BiometricOutcome.badPassword ||
+        BiometricOutcome.noCredentials =>
+          '❌ تعذّر الدخول ببيانات هذا الجهاز — أدخل بريدك وكلمة مرورك، '
+              'ثم أعد تفعيل البصمة من الملف الشخصي.',
+        BiometricOutcome.success => '',
+      };
 }
 
 /// شريط الرفض — ★ **نصّه من الكتالوج حرفياً** ⛔ **ولا صياغة هنا.**

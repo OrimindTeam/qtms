@@ -46,6 +46,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../app/top_bar.dart';
 
+import '../../../core/device/device_preference_providers.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -534,7 +535,11 @@ class _DistributionFormSheetState
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
     // ⛔★★ **ولا يظهر مقوتٌ معطَّل** — `FR-M10-12`.
     final List<DealerCard> dealers = ref.watch(distributionDealersProvider);
-    final List<ItemCard> items = ref.watch(distributionItemsProvider(_sourceId));
+    // ⛔⛔★★★ **والخياراتُ من أرصدة الدفتر لا من كتالوج الأنواع** —
+    //    [`DEBT-86`] · `ADR-0007`: راجع [stockOptionsProvider].
+    final List<StockOption> items = ref.watch(
+      stockOptionsProvider(StockQuery(sourceId: _sourceId, stockDate: today)),
+    );
     final DistributionQuery query =
         DistributionQuery(sourceId: _sourceId, stockDate: today);
     // ⛔⛔★★★ **ويُراقَب لا يُقرأ لحظة الحفظ** — ⟵ **فالقراءة المتأخرة كانت
@@ -542,11 +547,6 @@ class _DistributionFormSheetState
     //   وينشأ ضمارٌ بصفر لمقوتٍ استلم بضاعة** (`FR-M10-07`).
     final Map<String, Money> suggested =
         ref.watch(suggestedDistributionPricesProvider(query));
-    final Map<String, StockQuantity> remaining = ref.watch(
-      remainingStockProvider(
-        StockQuery(sourceId: _sourceId, stockDate: today),
-      ),
-    );
 
     final bool canSeePrices =
         ref.watch(hasPermissionProvider(Permission.distributionPriceView));
@@ -572,21 +572,37 @@ class _DistributionFormSheetState
           .value,
       null => null,
     };
-    _seedFrom(existing);
+    // ★★★ **والأسعارُ من مستندها الفرعي وحدَه** — [`ADR-0011`] · `ت-12`:
+    //    ⟵ **`DistributionCard.lines[].unitPrice` فارغٌ دائماً بالتصميم**،
+    //    ⛔ **فبذرُ السعر منه كان لا يقع أبداً** (`DEBT-87`).
+    final AsyncValue<DistributionPricingCard?> existingPricing =
+        existing == null
+            ? const AsyncValue<DistributionPricingCard?>.data(null)
+            : ref.watch(distributionPricingProvider(existing.distributionId));
+    _seedFrom(existing, existingPricing);
 
     final bool isAmend = existing != null;
     final bool isCancelled = existing?.status == DistributionStatus.cancelled;
 
+    // ★★ **تفضيلُ إظهار وزن الحبة** — `AM-012` §4.4: ⛔ **عرضٌ محضٌ**
+    //    ⟵ **ولا يمسّ وحدةَ الكمية ولا أي حساب.**
+    final bool showPieceWeight = ref.watch(showPieceWeightProvider);
     final List<QtmsItemOption> options = <QtmsItemOption>[
-      for (final ItemCard item in items)
+      for (final StockOption item in items)
         QtmsItemOption(
-          id: item.itemId,
+          id: item.itemKey,
           // ⑥ ★★★ **«اسم النوع (المتبقّي منه)»** — `FR-M10-06` حرفياً.
-          label: itemOptionLabel(item.name, remaining[item.itemId]),
+          // ★★ **ووزنُ الحبة عند تفعيل الخيار** — `AM-012` §4.4.
+          label: itemOptionLabel(
+            item.itemName,
+            item.balance,
+            showPieceWeight: showPieceWeight,
+            pieceWeightGrams: item.pieceWeightGrams,
+          ),
         ),
     ];
-    final Map<String, ItemCard> itemsById = <String, ItemCard>{
-      for (final ItemCard item in items) item.itemId: item,
+    final Map<String, StockOption> itemsById = <String, StockOption>{
+      for (final StockOption item in items) item.itemKey: item,
     };
 
     return SafeArea(
@@ -690,7 +706,9 @@ class _DistributionFormSheetState
                       ),
                     if (items.isEmpty)
                       Text(
-                        'لا توجد أنواع مرتبطة بهذا المصدر.',
+                        // ★ **والعلّةُ رصيدٌ لا ربطٌ** — [`DEBT-86`]:
+                        //   ⟵ **فالخياراتُ من دفتر اليوم.**
+                        'لا مخزون في هذا المصدر اليوم.',
                         style: TypeScale.bodyMd
                             .copyWith(color: SemanticColors.textSecondary),
                       ),
@@ -760,7 +778,7 @@ class _DistributionFormSheetState
   /// ★ نسبةُ ارتفاع الورقة — ⛔ **ولا رقمَ عارٍ في التخطيط**.
   static const double _sheetHeightRatio = 0.9;
 
-  Widget _quantityField(_DistLine line, ItemCard? item) => TextField(
+  Widget _quantityField(_DistLine line, StockOption? item) => TextField(
         controller: line.quantity,
         keyboardType: TextInputType.numberWithOptions(
           decimal: item?.unit == ItemUnit.kilogram,
@@ -806,8 +824,31 @@ class _DistributionFormSheetState
       );
 
   /// ★★ يملأ الحقول من التوزيعة القائمة **مرةً واحدة لكل مستند** — `E-04`.
-  void _seedFrom(DistributionCard? card) {
+  /// ★★ يملأ النموذج من المستند القائم — **للتعديل**.
+  ///
+  /// ⛔⛔★★★ **والسعرُ يُبذَر معها — `DEBT-87` (مقيسٌ على المحاكي 2026-09-02):**
+  /// ★ **كان النوعُ والكميةُ وحدَهما يُبذَران** ⟵ **فيُفتَح النموذجُ بحقلِ
+  /// سعرٍ فارغ**، ⛔⛔ **وحفظُه يُرسِل `unitPrice: null`** ⟹ **فيُقرأ
+  /// «تفريغَ سعرٍ قائم»** (`distributionPriceClear`) ★ **فتنهار قيمةُ الضمار
+  /// إلى صفر بلا أن يقصد المستخدم شيئاً** — ⛔ **ومن عدّل الكمية وحدَها
+  /// خسِر السعر.**
+  ///
+  /// ★ **و`unitPrice` غائبٌ أصلاً لمن لا يملك `distributionPriceView`**
+  /// (`ت-12`) — ⟵ **فيبقى الحقلُ فارغاً له كما كان**، ⛔ **ولا يُكشَف سعرٌ
+  /// لمن لا يراه.**
+  void _seedFrom(
+    DistributionCard? card,
+    AsyncValue<DistributionPricingCard?> pricing,
+  ) {
     if (card == null || _seededId == card.distributionId) return;
+    // ⛔⛔★★ **ولا يُبذَر ومستندُ الأسعار ما يزال يُحمَّل** — ⟵ **وإلا بُذر
+    //    الحقلُ فارغاً ثم قُفل البذرُ بـ`_seededId`** ⟹ **فيضيع السعر
+    //    كما لو لم يُصلَح شيء** (`DEBT-87`).
+    //
+    // ⛔ **و«لا يوجد» ليست «لم تصل بعد»** — ★ **ومستندٌ غائبٌ يصل `data(null)`
+    //    فيُبذَر فارغاً وهو الصواب** (`FR-M10-08`: **مستندٌ بلا سعرٍ بعد**)،
+    //    ⟵ **ومن لا يملك `distributionPriceView` يصله `null` كذلك** (`ت-12`).
+    if (pricing.isLoading) return;
     _seededId = card.distributionId;
     for (final _DistLine line in _lines) {
       line.dispose();
@@ -822,8 +863,18 @@ class _DistributionFormSheetState
               PieceQuantity(:final PieceCount count) => '${count.pieces}',
               WeightQuantity(:final WeightKg weight) => weight.formatted(),
             },
+            price: _priceTextAt(pricing.value, card.lines.indexOf(line)),
           ),
       ]);
+  }
+
+  /// ★ نصُّ سعرِ السطر من مستند الأسعار — ⛔ **والفارغ «تسعيرٌ لاحق»**.
+  static String _priceTextAt(DistributionPricingCard? pricing, int index) {
+    if (pricing == null || index < 0 || index >= pricing.unitPrices.length) {
+      return '';
+    }
+    final Money? price = pricing.unitPrices[index];
+    return price == null ? '' : '${price.riyals}';
   }
 
   void _onDealerChanged(String id) {
@@ -857,21 +908,23 @@ class _DistributionFormSheetState
 
   /// ★ السطور المكتوبة فعلاً — ⛔ **والفارغ ليس سطراً**.
   List<DistributionLineInput> _linesFor(
-    Map<String, ItemCard> itemsById,
+    Map<String, StockOption> itemsById,
     Map<String, Money> suggested,
     bool canSeePrices,
   ) {
     final List<DistributionLineInput> lines = <DistributionLineInput>[];
     for (final _DistLine line in _lines) {
-      final ItemCard? item = itemsById[line.itemId];
+      final StockOption? item = itemsById[line.itemId];
       if (item == null) continue;
       final StockQuantity? quantity =
           _quantityOf(item.unit, line.quantity.text.trim());
       if (quantity == null) continue;
       lines.add(
         DistributionLineInput(
-          itemId: item.itemId,
-          itemName: item.name,
+          // ★★ **ومفتاحُ الدفتر هو المُرسَل** — `ADR-0007`: ⟵ **مركّباً كان
+          //    أو مجرَّداً**، ⛔ **ولا معرّفَ سجلِ نوعٍ يُشتقّ منه.**
+          itemId: item.itemKey,
+          itemName: item.itemName,
           unit: item.unit,
           quantity: quantity,
           // ★★★ **ويُرسَل حتى لمن لا يراه** — راجع ترويسة الملف (`ت-12`):
@@ -879,7 +932,7 @@ class _DistributionFormSheetState
           //    كاملاً**، ⛔ **ولا يُرسَل غياباً فيُنشأ ضمارٌ بصفر.**
           unitPrice: canSeePrices
               ? Money.tryParseInput(line.price.text.trim())
-              : suggested[item.itemId],
+              : suggested[item.itemKey],
         ),
       );
     }
@@ -901,7 +954,7 @@ class _DistributionFormSheetState
 
   Future<void> _submit(
     DistributionCard? card,
-    Map<String, ItemCard> itemsById,
+    Map<String, StockOption> itemsById,
     Map<String, Money> suggested,
     bool canSeePrices,
   ) async {

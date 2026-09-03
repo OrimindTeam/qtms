@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
+import 'package:qtms/capabilities/inventory/presentation/supply_intake_screen.dart';
 import 'package:qtms/capabilities/identity_access/presentation/home_shell.dart';
 import 'package:qtms/core/ui/avatar.dart';
 import 'package:qtms_domain/qtms_domain.dart';
@@ -107,9 +108,10 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 20));
 
+      // ★★★ **ومدخلٌ واحدٌ للتوريد منذ `AM-012` §2** — ⟵ **«الوارد عدداً»
+      //    و«الوارد جواني» تبويبان داخله** ⛔ **لا مدخلان في الصدَفة.**
       for (final String label in <String>[
-        'الوارد عدداً',
-        'الوارد جواني',
+        supplyIntakeScreenTitle,
         'مخزون اليوم',
         'التسعير اليومي',
       ]) {

@@ -342,8 +342,10 @@ const MATRIX = [
     data: () => ({ dealerId: 'MQT-0001', sourceId: SRC, date: todayUtc(), amount: 200 }),
   },
   {
+    // ⛔ DEBT-70: المستندُ يحمل sourceId كما تكتبه السحابةُ فعلاً — وبدونه
+    //    كان الشرطُ يمرّ بلا فحصِ نطاقٍ إطلاقاً.
     key: 'dealerBalanceView', mode: 'read', path: 'dealer_balances/MQT-0001',
-    seed: () => ({ dealerId: 'MQT-0001', balance: 1000 }),
+    seed: () => ({ dealerId: 'MQT-0001', sourceId: SRC, balance: 1000 }),
   },
 
   // ---- 2.6 السحبيات والخرجيات (5) ----
@@ -390,13 +392,18 @@ const MATRIX = [
     seed: () => ({ sourceId: SRC, supplierId: 'SUP-001', balance: 900 }),
   },
   {
+    // ★ وصفٌّ واحدٌ لكل مفتاح — ⛔ ولا تكرار (حارسُ المصفوفة أدناه).
+    //   ⟵ و`owner_ledger_trends` بنفس هذا المفتاح تماماً، ★ وتغطيتُها
+    //   السلوكية الكاملة في `rules.test.js` (WU-016 · IQ-030 §2.1 القاعدة 4).
     key: 'ownerLedgerView', mode: 'read', path: 'daily_summaries/SRC-001_D1',
     seed: () => ({ sourceId: SRC, netCash: 100 }),
   },
   {
     // ★ بطاقة «كل المصادر» — صلاحية مستقلة فوق `ownerLedgerView`.
+    //   ⛔⛔ ونطاقٌ شاملٌ معها بعد WU-016 — ★ فالمستند التجميعي يحمل أرقام
+    //   كل المصادر، ⟵ وقراءتُه بنطاقٍ ضيّق نقضُ E-36 (يُختبَر أدناه صراحةً).
     key: 'allSourcesCardView', mode: 'read', extra: { ownerLedgerView: true },
-    path: 'daily_summaries/all_D1',
+    path: 'daily_summaries/all_D1', scope: 'all',
     seed: () => ({ sourceId: 'all', netCash: 500 }),
   },
   {
@@ -478,7 +485,10 @@ async function prepare(row) {
 
 /** ينفّذ عملية الصفّ بصلاحيات محددة ويعيد الوعد كما هو. */
 async function run(row, permissions) {
-  const db = await as(permissions);
+  // ★★ ونطاقُ المصادر من الصفِّ متى ذكره — ⛔ وإلا فالنطاق الضيّق كما كان.
+  //   ⟵ وصفُّ «بطاقة كل المصادر» وحدَه يحتاج نطاقاً شاملاً بعد WU-016:
+  //   ★ فالقاعدة صارت تفحص النطاق في الفرعين معاً (FR-M15-09 · E-36).
+  const db = await as(permissions, row.scope ?? ['SRC-001']);
   const ref = doc(db, row.path);
   if (row.mode === 'read') return getDoc(ref);
   if (row.mode === 'update') return updateDoc(ref, row.data());

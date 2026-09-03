@@ -4,7 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.provider.ContactsContract
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -26,7 +26,22 @@ import io.flutter.plugin.common.MethodChannel
  *      بيانات شخصية لرعية ومقاوته (security-requirements.md §2).
  * ═══════════════════════════════════════════════════════════════════════
  */
-class MainActivity : FlutterActivity() {
+/**
+ * ★★★ AM-012 §5.2 و§6 (ADR-0024 ⏳ مقترح) — ولماذا FlutterFragmentActivity:
+ *
+ *   ⛔⛔ `local_auth` تفرضه صراحةً في README الرسمي للحزمة:
+ *     BiometricPrompt من AndroidX تحتاج FragmentManager، ⟵ ولا يملكه
+ *     FlutterActivity العادي.
+ *
+ *   ⚠️⚠️ والعطلُ صامتٌ لا فشلُ بناء: ★ التطبيقُ يُبنى ويعمل،
+ *     ⟵ ثم يرمي عند أول استدعاءٍ لمصادقةٍ بيومترية وحده — ⛔ أي في
+ *     يد المستخدم لا في المترجم.
+ *
+ *   ✅ ولا أثرَ على ما كان: ★ FlutterFragmentActivity يرث FlutterActivity
+ *     في سلوك المحرّك كلِّه، ⟵ وجسرُ جهات الاتصال أدناه يعمل كما هو
+ *     (startActivityForResult و onActivityResult متاحتان في كليهما).
+ */
+class MainActivity : FlutterFragmentActivity() {
 
     /** المُستدعي المعلَّق حتى تعود نتيجة المُنتقي — ⛔ وواحدٌ لا قائمة. */
     private var pending: MethodChannel.Result? = null

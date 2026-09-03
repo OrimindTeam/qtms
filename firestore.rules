@@ -666,13 +666,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ⛔⛔ DEBT-70 — نطاقُ المصادر يسري هنا كما يسري على supplier_balances.
+    //    كان الشرط `perm('dealerBalanceView')` وحدَه، ⟵ فمستخدمٌ نطاقُه مصدرٌ
+    //    واحد يقرأ رصيدَ المقوت في مصدرٍ خارج نطاقه — وهو ما يمنعه GR-23
+    //    وFR-M19-02 نصّاً. وكل مستند هنا `{dealerId}_{sourceId}` يحمل sourceId.
     match /dealer_balances/{balanceId} {
-      allow read: if isSignedIn() && perm('dealerBalanceView');
+      allow read: if isSignedIn() && storedInScope() && perm('dealerBalanceView');
       allow write: if false;
     }
 
+    // ⛔⛔ والفائضُ نوعان: فائضُ مصدرٍ يحمل sourceId فيخضع للنطاق، وفائضٌ
+    //    **عام** يُكتب sourceId فيه `null` عمداً (FR-M12-12 · AT-32) — وهو
+    //    عابرٌ للمصادر بتعريفه فيُحرَس بالصلاحية وحدها.
+    //    ⛔ ولا يُستعمل storedInScope() هنا: الحقلُ موجودٌ بقيمة null،
+    //    ⟵ فالشرطُ كان سيصدُق على وجوده ثم يسقط في inScope(null) فيحجب
+    //    الفائضَ العام عن الجميع — وهو نقضُ FR-M12-12 لا تطبيقُه.
     match /dealer_surplus/{surplusId} {
-      allow read: if isSignedIn() && perm('dealerBalanceView');
+      allow read: if isSignedIn()
+        && perm('dealerBalanceView')
+        && (resource.data.sourceId == null || inScope(resource.data.sourceId));
       allow write: if false;
     }
 
@@ -682,11 +694,35 @@ service cloud.firestore {
     }
 
     // بطاقة ضمار المالك — النطاق + بطاقة "كل المصادر" بصلاحيتها المستقلة.
+    //
+    // ⛔⛔★★★ WU-016: **النطاق يُفحَص في الفرعين معاً** — ★ وكان الفرع
+    //   التجميعي يتخطّاه: ⟵ فمن نطاقه «رداع» ويملك allSourcesCardView كان
+    //   يقرأ مستند all_{date} **الحاملَ أرقامَ كل المصادر** — ⛔ وهو نقضٌ
+    //   صريح لـFR-M15-09 وE-36 («من نطاقه رداع لا تدخل أرقام ماوية في
+    //   بطاقة الكل عنده»). ★ والعلاج `storedInScope()` نفسُها بلا حارسٍ
+    //   جديد يُخترَع: قيمة sourceId في المستند التجميعي هي 'all'،
+    //   ⟵ فـ inScope('all') تصدُق لصاحب النطاق الشامل وحده.
+    // ★ ومن نطاقه مصادرُ بعينها يبني «الكل» عنده **بجمع بطاقات مصادره**
+    //   في طبقة النطاق (aggregateOwnerLedgerSummaries) — ⛔ لا بقراءة هذا
+    //   المستند.
     match /daily_summaries/{summaryId} {
       allow read: if perm('ownerLedgerView')
+                  && storedInScope()
                   && (resource.data.get('sourceId', '') == 'all'
                         ? perm('allSourcesCardView')
-                        : storedInScope());
+                        : true);
+      allow write: if false;
+    }
+
+    // ✅★★ سلسلة آخر سبعة أيام — IQ-030 الخيار أ.
+    //   ⛔ **شرطُ قراءتها هو شرطُ البطاقة نفسُه** (owner-ledger-summary-design
+    //   §2.1 القاعدة 4) — ★ ولا شرطٌ جديد يُخترَع. ⛅ والكتابة للسحابة حصراً.
+    match /owner_ledger_trends/{trendId} {
+      allow read: if perm('ownerLedgerView')
+                  && storedInScope()
+                  && (resource.data.get('sourceId', '') == 'all'
+                        ? perm('allSourcesCardView')
+                        : true);
       allow write: if false;
     }
 

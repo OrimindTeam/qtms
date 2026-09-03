@@ -22,6 +22,7 @@ import 'package:qtms/capabilities/master_data/application/master_data_providers.
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
+import '../../../support/fake_inventory.dart';
 import '../../../support/fake_master_data.dart';
 import '../../../support/fake_outflow.dart';
 
@@ -31,6 +32,7 @@ final CalendarDay fixedDay = CalendarDay(2026, 9, 1);
 late FakeOutflowDirectory directory;
 late FakeOutflowAdminRepository admin;
 late FakeMasterDataDirectory masterData;
+late FakeInventoryDirectory inventory;
 
 const Set<Permission> fullPermissions = <Permission>{
   Permission.withdrawalCreate,
@@ -75,6 +77,10 @@ Future<void> pumpOutflow(
         masterDataDirectoryProvider.overrideWithValue(masterData),
         masterDataAdminProvider.overrideWithValue(FakeMasterDataAdmin()),
         contactPickerProvider.overrideWithValue(null),
+        // ⛔⛔★★★ **ودليلُ المخزون إلزاميٌّ بعد [`DEBT-86`]** — ★ **خياراتُ
+        //    النوع من أرصدة الدفتر**: ⟵ **وبلا بثٍّ لا خيارَ في المنسدل.**
+        inventoryDirectoryProvider.overrideWithValue(inventory),
+        inventoryAdminProvider.overrideWithValue(FakeInventoryAdmin()),
         outflowDirectoryProvider.overrideWithValue(directory),
         outflowAdminProvider.overrideWithValue(admin),
         todayProvider.overrideWithValue(fixedDay),
@@ -151,9 +157,17 @@ void main() {
     masterData.emitItems(<ItemCard>[
       testItem(itemId: 'ITM-0001', name: 'عوارض'),
     ]);
+    inventory = FakeInventoryDirectory();
+    // ★★ **ورصيدُ اليوم هو مصدرُ الخيارات** — [`DEBT-86`].
+    inventory.emitStock(<ItemDailyBalanceCard>[
+      testBalance(itemKey: 'ITM-0001', itemName: 'عوارض'),
+    ]);
   });
 
-  tearDown(() => directory.dispose());
+  tearDown(() {
+    directory.dispose();
+    inventory.dispose();
+  });
 
   // ═══════════════════════════════════════════════════════════════════════
   // ⛔⛔★★★ `GR-43` — لا يرى المستخدمُ سجلاً لا يملك مفتاحَه
@@ -256,7 +270,7 @@ void main() {
 
       await tapAddLine(tester, 'outflow-add-qat');
       await tapVisible(tester, find.text('النوع').last);
-      await tapVisible(tester, find.text('عوارض').last);
+      await tapVisible(tester, find.text('عوارض (100 حبة)').last);
       await tester.enterText(find.byKey(const Key('outflow-qty-0')), '5');
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('outflow-price-0')), '1500');
@@ -292,7 +306,7 @@ void main() {
       await chooseSource(tester);
       await tapAddLine(tester, 'outflow-add-qat');
       await tapVisible(tester, find.text('النوع').last);
-      await tapVisible(tester, find.text('عوارض').last);
+      await tapVisible(tester, find.text('عوارض (100 حبة)').last);
       await tester.enterText(find.byKey(const Key('outflow-qty-0')), '5');
       await tester.pumpAndSettle();
 

@@ -20,15 +20,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
-import '../../../app/top_bar.dart';
-
 import '../../../core/design/design_tokens.dart';
+import '../../../core/device/device_preference_providers.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/context_header.dart';
 import '../../../core/ui/item_line_editor.dart';
 import '../../../core/ui/destructive_sheet.dart';
 import '../../../core/ui/inline_banner.dart';
+import '../../../core/ui/item_labels.dart';
 import '../../../core/ui/live_summary.dart';
 import '../../../core/ui/status_pill.dart';
 import '../../../core/ui/sticky_action_bar.dart';
@@ -40,58 +40,65 @@ import '../../../core/ui/entity_tile.dart';
 import 'inventory_widgets.dart';
 import '../../../core/ui/optional_reason.dart';
 
-/// قائمة جواني اليوم.
-class SackIntakeScreen extends ConsumerWidget {
-  /// ينشئ الشاشة.
-  const SackIntakeScreen({super.key});
+/// ★★★ **تبويبُ «الوارد جواني» داخل شاشة «التوريد مخزني»** — `AM-012` §2.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **وكان شاشةً قائمةً بذاتها حتى 2026-09-02** — ★ **ودُمج بطلب
+/// المالك مع «الوارد عدداً»** (`SupplyIntakeScreen`).
+///
+/// ⛔⛔★★★ **وأخطرُ ما تغيّر: المرشِّحُ صار يقبل «كل المصادر»** — ★ **وكان
+/// يشترط مصدراً واحداً** (`A-01`):
+///
+/// ⚠️⚠️ **وهو تعارضٌ حقيقيٌّ عُرض على المالك ولم يُحسَم اجتهاداً** (`AM-012`
+/// §2 السؤال ②) — ★ **فاختار «الكل في التبويبين + حقلُ مصدرٍ في نموذج
+/// الجونية»**، ⛔ **لا إسقاطَ «الكل» من التبويب الأول.**
+///
+/// ★★★ **و`A-01` مصونٌ بحرفه** — «⛔ **لا يُجمَع بين مصدرين في أي عملية**»:
+/// ⟵ **والاتّساعُ في *القراءة* وحدها** ⛔ **لا في الكتابة:** ★ **وكلُّ جونيةٍ
+/// تُكتَب على مصدرٍ واحدٍ يُختار في نموذجها** (`_SackHeaderFormSheetState`)،
+/// ⛔ **ولا استعلامَ يجمع مصدرين في قائمةٍ واحدة** — ★ **بل استعلامٌ مقيَّدٌ
+/// لكلٍّ ثم دمج** (`sackListProvider` · درسُ `IQ-024`).
+/// ═══════════════════════════════════════════════════════════════════════
+class SackIntakeTab extends ConsumerWidget {
+  /// ينشئ التبويب.
+  const SackIntakeTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final CalendarDay today = ref.watch(todayProvider);
-    final String? sourceId = ref.watch(selectedSourceProvider);
+    // ★★★ **والمرشِّحُ مشتركٌ مع التبويب الآخر** — `AM-012` §2.
+    final String? filterId = ref.watch(sourceListFilterProvider);
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
 
-    return Scaffold(
-      appBar: QtmsTopBar(screenTitle: 'الوارد جواني'),
-      floatingActionButton: sourceId == null
-          ? null
-          : PermissionGate(
-              // ★★★ `IQ-021` الخيار أ — ⛔ **ولا مفتاح حقلي بديلاً عنه**.
-              permission: Permission.sackCreate,
-              child: _NewSackButton(sourceId: sourceId),
-            ),
-      body: Column(
-        children: <Widget>[
-          // ★★★ **رأس السياق الموحّد** — `MASTER.md` §5b نمط `P3` (`ADR-0021`).
-          //
-          // ⛔⛔ **ويستبدل `SourcePicker` + `LockedDayBanner` معاً** — ★ **صفٌّ
-          //    واحد بدل صفّين وفراغٍ بينهما.**
-          //
-          // ⚠️ **و`LockedDayBanner` باقٍ داخل نموذج رأس الجونية** — ★ **موضعٌ
-          //    آخر بوظيفةٍ أخرى:** ⟵ **إفصاحٌ عن قفل التاريخ لحظة الكتابة**
-          //    (`FR-M7-02`)، ⛔ **لا رأسُ سياقٍ للشاشة.**
-          QtmsContextHeader(
-            sources: sources,
-            selectedSourceId: sourceId,
-            // ⛔ **وشاشةُ عمليةٍ على مصدرٍ واحد** — ★ **بلا خيار «الكل»**
-            //   (`AM-009` ③ · `A-01`): ⟵ **و`null` لا تصل هنا أبداً.**
-            onSourceSelected: (String? id) {
-              if (id != null) ref.read(selectedSourceProvider.notifier).select(id);
-            },
-            day: today,
-          ),
-          Expanded(
-            // ⛔⛔★★★ **ولا `SizedBox.shrink` حالةً لغياب المصدر** — §5b نمط
-            //    `P3` قاعدةُ الفراغ الصامت (`design-system.md` §هـ).
-            child: sourceId == null
-                ? QtmsEmptyState(
-                    spec: sources.isEmpty
-                        ? noSourceInScopeEmpty
-                        : chooseSourceEmpty(),
-                  )
-                : _SackList(sourceId: sourceId, day: today),
-          ),
-        ],
+    if (sources.isEmpty) {
+      return const QtmsEmptyState(spec: noSourceInScopeEmpty);
+    }
+    return _SackList(
+      sourceId: filterId,
+      day: today,
+      showSource: filterId == null,
+    );
+  }
+}
+
+/// ★★ **زرُّ إضافة جونية** — ★ **تستدعيه الشاشةُ الحاوية.**
+///
+/// ⛔⛔★★ **ولا يشترط مرشِّحاً بعد `AM-012` §2** — ★ **المصدرُ حقلٌ في نموذج
+/// الرأس**، ⟵ **فيعمل و«كل المصادر» معروضة** ⛔ **ولا تسقط قدرةُ الإضافة.**
+class SackIntakeFab extends ConsumerWidget {
+  /// ينشئ الزرّ.
+  const SackIntakeFab({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final String? filterId = ref.watch(sourceListFilterProvider);
+    final List<SourceCard> sources = ref.watch(activeSourcesProvider);
+    if (sources.isEmpty) return const SizedBox.shrink();
+    return PermissionGate(
+      // ★★★ `IQ-021` الخيار أ — ⛔ **ولا مفتاح حقلي بديلاً عنه**.
+      permission: Permission.sackCreate,
+      child: _NewSackButton(
+        sourceId: filterId ?? sources.first.sourceId,
       ),
     );
   }
@@ -111,15 +118,26 @@ class _NewSackButton extends StatelessWidget {
 }
 
 class _SackList extends ConsumerWidget {
-  const _SackList({required this.sourceId, required this.day});
+  const _SackList({
+    required this.sourceId,
+    required this.day,
+    this.showSource = false,
+  });
 
-  final String sourceId;
+  /// المصدر — ★ **و`null` تعني «كل المصادر»** (`AM-012` §2).
+  final String? sourceId;
   final CalendarDay day;
+
+  /// ★ هل يُسمّى المصدر في كل بطاقة؟ — ⛔⛔ **وإلزاميٌّ في وضع «الكل»**:
+  /// ⟵ **فصفٌّ بلا مصدرٍ في قائمةٍ تجمع مصادرَ لا يُقرأ** (`A-01`).
+  final bool showSource;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // ★★★ **واستعلامٌ مقيَّدٌ لكل مصدرٍ ثم دمج** — `sackListProvider`:
+    //    ⛔ **لا استعلامٌ واحدٌ غيرُ مقيَّد يُرفَض كاملاً** (`IQ-024`).
     final AsyncValue<List<SackCard>> sacks = ref.watch(
-      sacksProvider(StockQuery(sourceId: sourceId, stockDate: day)),
+      sackListProvider(SourceListQuery(sourceId: sourceId, stockDate: day)),
     );
 
     return InventoryAsyncView<SackCard>(
@@ -130,16 +148,19 @@ class _SackList extends ConsumerWidget {
       builder: (List<SackCard> list) => EntityList(
         itemCount: list.length,
         itemBuilder: (BuildContext context, int index) =>
-            _SackTile(sack: list[index]),
+            _SackTile(sack: list[index], showSource: showSource),
       ),
     );
   }
 }
 
 class _SackTile extends ConsumerWidget {
-  const _SackTile({required this.sack});
+  const _SackTile({required this.sack, this.showSource = false});
 
   final SackCard sack;
+
+  /// ★ يُسمّي المصدر في وضع «كل المصادر» — `AM-012` §2.
+  final bool showSource;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => InventoryTile(
@@ -160,9 +181,15 @@ class _SackTile extends ConsumerWidget {
           title: sack.displayName,
           sourceId: sack.sourceId,
         ),
-        subtitle: '${sack.documentNumber} · '
-            'المطالب به ${sack.weights.claimableWeight.formatted()} كجم · '
-            '${sack.lines.length} نوع',
+        // ★★ **واسمُ المصدر أولَ السطر الثاني في وضع «الكل»** —
+        //    `AM-012` §2 (نظيرُ `AM-009` ③ في «الوارد عدداً» حرفياً):
+        //    ⛔⛔ **وصفٌّ بلا مصدرٍ في قائمةٍ تجمع مصادرَ لا يُقرأ** (`A-01`).
+        subtitle: <String>[
+          if (showSource) ref.watch(sourceDisplayNameProvider(sack.sourceId)),
+          sack.documentNumber,
+          'المطالب به ${sack.weights.claimableWeight.formatted()} كجم',
+          '${sack.lines.length} نوع',
+        ].join(' · '),
         badges: <Widget>[
           if (sack.isCancelled) const CancelledBadge(),
           if (sack.amendCount > 0) const AmendedBadge(),
@@ -288,7 +315,8 @@ class SackHeaderFormSheet extends ConsumerStatefulWidget {
   /// ينشئ الورقة.
   const SackHeaderFormSheet({required this.sourceId, super.key});
 
-  /// المصدر.
+  /// ★ **المصدر المبدئي** — ⛔ **لا مُدخَلٌ ثابت بعد `AM-012` §2:**
+  /// ⟵ **يُملأ به الحقلُ عند الفتح، ثم يُغيِّره المستخدم فيه** (`_sourceId`).
   final String sourceId;
 
   @override
@@ -301,6 +329,21 @@ class _SackHeaderFormSheetState extends ConsumerState<SackHeaderFormSheet> {
   final TextEditingController _ice = TextEditingController(text: '0');
   final TextEditingController _scrap = TextEditingController(text: '0');
   final TextEditingController _notes = TextEditingController();
+
+  /// ★★★ **المصدرُ حالةٌ في النموذج لا مُدخَلٌ ثابت** — `AM-012` §2.
+  ///
+  /// ═══════════════════════════════════════════════════════════════════════
+  /// ⛔⛔★★★ **ولماذا صار حقلاً — وهو لازمُ الدمج لا تحسينٌ عابر:**
+  /// ★ **الشاشتان دُمجتا بمرشِّحٍ مشترك يقبل «كل المصادر»** (`AM-012` §2 ·
+  /// قرارُ المالك في §2 السؤال ②) — ⟹ ⛔ **فلم يعد للمرشِّح مصدرٌ واحد
+  /// يُشتقّ منه سياقُ الكتابة**، ★ **وزرُّ «جونية جديدة» كان سيختفي على
+  /// «الكل»** ⟵ **فتسقط قدرةٌ قائمة.**
+  ///
+  /// ★★ **وهو نظيرُ `AM-009` ⑤ حرفياً** — ★ **الذي فعل الشيءَ نفسَه بـ«الوارد
+  /// عدداً»**: ⟵ **فالمصدرُ يُختار حيث يُكتَب المستند** ⛔ **لا في مرشِّح عرض**،
+  /// ★ **و`A-01` مصونٌ: مستندٌ واحدٌ على مصدرٍ واحد** ⛔ **ولا جمعَ بين اثنين.**
+  /// ═══════════════════════════════════════════════════════════════════════
+  late String _sourceId = widget.sourceId;
 
   String? _supplierId;
   CatalogMessage? _rejection;
@@ -325,9 +368,10 @@ class _SackHeaderFormSheetState extends ConsumerState<SackHeaderFormSheet> {
   @override
   Widget build(BuildContext context) {
     final CalendarDay today = ref.watch(todayProvider);
+    final List<SourceCard> sources = ref.watch(activeSourcesProvider);
     final List<SupplierCard> suppliers =
-        ref.watch(intakeSuppliersProvider(widget.sourceId));
-    final bool requiresSupplier = _requiresSupplier(ref, widget.sourceId);
+        ref.watch(intakeSuppliersProvider(_sourceId));
+    final bool requiresSupplier = _requiresSupplier(ref, _sourceId);
 
     // ★★★ **الحاسبة الحيّة** — ⟵ **تُعاد مع كل ضغطة مفتاح** (`FR-M7-29`).
     final Outcome<ValidatedSackWeights> checked =
@@ -382,6 +426,33 @@ class _SackHeaderFormSheetState extends ConsumerState<SackHeaderFormSheet> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
+                    // ★★★ **حقلُ المصدر** — `AM-012` §2 (نظيرُ `AM-009` ⑤).
+                    //
+                    // ⛔⛔ **وقبل الرعوي لا بعده** — ★ **والرعويُّ مشروطٌ به**
+                    //    (`FR-M7-03`): ⟵ **فترتيبُ الحقلين يتبع تبعيّتهما**،
+                    //    ⛔ **وحقلٌ يُعيد بناء ما فوقه يُربك القارئ.**
+                    _FieldLabel('المصدر'),
+                    const SizedBox(height: Spacing.space8),
+                    DropdownButtonFormField<String>(
+                      initialValue:
+                          sources.any((SourceCard s) => s.sourceId == _sourceId)
+                              ? _sourceId
+                              : null,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'المصدر'),
+                      items: <DropdownMenuItem<String>>[
+                        for (final SourceCard source in sources)
+                          DropdownMenuItem<String>(
+                            value: source.sourceId,
+                            child: Text(
+                              source.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: _onSourceChanged,
+                    ),
+                    const SizedBox(height: Spacing.space16),
                     // ★★ **الرعوي مشروطٌ بالمصدر** — `FR-M7-03`.
                     if (requiresSupplier) ...<Widget>[
                       _FieldLabel('الرعوي'),
@@ -481,6 +552,24 @@ class _SackHeaderFormSheetState extends ConsumerState<SackHeaderFormSheet> {
           ),
       };
 
+  /// ★★★ **تبديلُ المصدر يُسقِط الرعويَّ المختار** — ⛔ **ولا يبقى معلَّقاً.**
+  ///
+  /// ⛔⛔★★ **وهو حارسٌ لا تنظيف:** ★ **الرعية مقصورةٌ على مصادرها**
+  /// (`intakeSuppliersProvider`) — ⟵ **فرعويٌّ اختير لمصدرٍ ثم بُدِّل المصدر
+  /// يصير معرّفاً خارجَ قائمة الخيارات المعروضة**: ⛔ **فتُرسَل جونيةٌ برعويٍّ
+  /// لا يظهر في شاشتها** — ★ **والسحابةُ ترفضه**، ⟵ **لكنّ الرفضَ يقع بعد
+  /// ملء النموذج كلِّه** ⛔ **بلا أن يفهم المستخدم لماذا.**
+  ///
+  /// ★ **وهو نظيرُ `_onSourceChanged` في «الوارد عدداً» حرفياً.**
+  void _onSourceChanged(String? id) {
+    if (id == null || id == _sourceId) return;
+    setState(() {
+      _sourceId = id;
+      _supplierId = null;
+      _rejection = null;
+    });
+  }
+
   static bool _requiresSupplier(WidgetRef ref, String sourceId) {
     for (final SourceCard source in ref.watch(activeSourcesProvider)) {
       if (source.sourceId == sourceId) return source.requiresSupplierOnIntake;
@@ -491,7 +580,7 @@ class _SackHeaderFormSheetState extends ConsumerState<SackHeaderFormSheet> {
   Future<void> _submit(bool requiresSupplier) async {
     final Outcome<ValidatedSackIntake> validated = validateSackIntake(
       SackIntakeInput(
-        sourceId: widget.sourceId,
+        sourceId: _sourceId,
         sourceRequiresSupplier: requiresSupplier,
         supplierId: requiresSupplier ? _supplierId : null,
         weights: _weights,
@@ -592,6 +681,10 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
     final List<ItemCard> items =
         ref.watch(sackLineItemsProvider(widget.sack.sourceId));
 
+    // ★★ **تفضيلُ إظهار وزن الحبة** — `AM-012` §4.4: ⛔ **عرضٌ محضٌ**
+    //    ⟵ **ولا يمسّ وحدةَ الكمية ولا أي حساب ولا ما يُخزَّن** (`DEBT-84`).
+    final bool showPieceWeight = ref.watch(showPieceWeightProvider);
+
     // ★★★ **الحاسبة الحيّة** — ⟵ **تستدعي دوال النطاق ولا تحسب بنفسها**
     //    (`ADR-0010` القاعدة 5).
     final List<ValidatedSackLine> resolved = _resolvedLines(items);
@@ -654,7 +747,10 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
                         key: ValueKey<int>(row.seed),
                         item: _itemOf(items, row.itemId),
                         options: optionsForRow(
-                          all: _optionsFor(items),
+                          all: _optionsFor(
+                            items,
+                            showPieceWeight: showPieceWeight,
+                          ),
                           takenIds: <String?>[
                             for (final _SackDraftRow other in _rows)
                               other.itemId,
@@ -791,10 +887,30 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
 
   /// ★ خياراتُ القائمة المنسدلة — ⛔ **بلا رصيدٍ هنا**: ⟵ **الجونيةُ *تُورِد*
   /// لا تصرف**، ★ **والمتبقّي شأنُ شاشات الصرف** (`FR-M10-06`).
-  static List<QtmsItemOption> _optionsFor(List<ItemCard> items) =>
+  ///
+  /// ★★ **ووزنُ الحبة عند تفعيل الخيار** — `AM-012` §4.4: «**يظهر اسمه في
+  /// كل الأماكن**». ⛔⛔★★ **وكانت هذه القائمةُ وحدَها من بين خمسٍ لا
+  /// تُطبِّقه** (`DEBT-84` — **مقيسٌ على المحاكي 2026-09-02**): ⟵ **فيقرأ
+  /// المستخدم «عتود» هنا و«عتود وزن (200 جرام)» في الوارد عدداً للنوع
+  /// نفسِه.** ⛔ **وعرضٌ لا يتّسق مع نفسه أسوأ من عرضٍ لا يُظهر شيئاً.**
+  ///
+  /// ⛔⛔★★★ **وعرضٌ محضٌ لا يمسّ ما يُخزَّن** — ★ **`SackLineInput.itemName`
+  /// يبقى الاسمَ المجرَّد** (راجع `toInput`): ⟵ **وتفضيلُ جهازٍ واحد لا
+  /// يدخل دفتراً ولا قيدَ تدقيقٍ ولا رسالةً تصل يدَ العميل.**
+  static List<QtmsItemOption> _optionsFor(
+    List<ItemCard> items, {
+    required bool showPieceWeight,
+  }) =>
       <QtmsItemOption>[
         for (final ItemCard item in items)
-          QtmsItemOption(id: item.itemId, label: item.name),
+          QtmsItemOption(
+            id: item.itemId,
+            label: itemDisplayName(
+              item.name,
+              showPieceWeight: showPieceWeight,
+              pieceWeightGrams: item.pieceWeightGrams,
+            ),
+          ),
       ];
 
   Future<void> _submit(List<ItemCard> items) async {

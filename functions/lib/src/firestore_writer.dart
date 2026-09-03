@@ -30,6 +30,37 @@ final class StoredDocument {
   final Map<String, Object?> fields;
 }
 
+/// ★ كتابةٌ واحدة في دفعةِ التزام — **بحقولها وقناعها وتحويلاتها الزمنية**.
+///
+/// ★★ **ونوعٌ مستقلٌّ عن `InventoryWrite` عمداً:** ⟵ **فهذا الملف بنيةٌ
+/// تحتية عامة**، ⛔ **وربطُه بنوعٍ يخصّ عمليةً بعينها يقلب اتجاه الاعتماد**
+/// (نفسُ منطق `FirestoreProvisioningStore`: «**الكاتب لا يعرف التهيئة**»).
+final class CommittedWrite {
+  /// ينشئ الكتابة.
+  const CommittedWrite({
+    required this.collectionId,
+    required this.documentId,
+    required this.fields,
+    required this.updateMask,
+    this.serverTimestampFields = const <String>[],
+  });
+
+  /// المجموعة — ★ **وقد تكون مساراً فرعياً** (`sacks/{id}/finance`).
+  final String collectionId;
+
+  /// معرّف المستند.
+  final String documentId;
+
+  /// الحقول بقيم Dart عادية.
+  final Map<String, Object?> fields;
+
+  /// ★ **قناع الكتابة** — ⛔ **وبدونه تُمحى بقية الحقول**.
+  final List<String> updateMask;
+
+  /// ★ حقول **وقت الخادم** — ⛔ **ولا تدخل [fields] ولا [updateMask]**.
+  final List<String> serverTimestampFields;
+}
+
 /// عميل كتابة رفيع على قاعدة بيانات مشروع واحد.
 final class FirestoreWriter {
   FirestoreWriter({
@@ -154,6 +185,158 @@ final class FirestoreWriter {
       );
     }
     return null;
+  }
+
+  /// ★ المسار الكامل لمستند — ★ **يُبنى هنا وحده** (⛔ لا نصٌّ محفور).
+  String documentPath(String collectionId, String documentId) =>
+      '$_documentsRoot/$collectionId/$documentId';
+
+  /// ★★ يقرأ عدّة مستندات **في نداءٍ واحد** — و`null` تعني **غياب المستند**.
+  ///
+  /// ⚠️ **ولماذا نداءٌ واحد لا نداءٌ لكل مستند:** المُحتسِب يقرأ ماليةَ كل
+  /// جونيةٍ وسطرَ دفترها معاً (`WU-015`) — ⟵ **ونداءٌ لكل واحدٍ منها يجعل
+  /// زمنَ العملية يتضاعف بعدد الجواني**، ⛔ **وهو ما يمنعه قيدُ الأداء في
+  /// `sack-valuation-design.md` §6.**
+  Future<Map<String, Map<String, Object?>?>> readDocuments(
+    Iterable<String> paths,
+  ) async {
+    final List<String> unique = paths.toSet().toList(growable: false);
+    if (unique.isEmpty) return <String, Map<String, Object?>?>{};
+    final firestore.BatchGetDocumentsResponse response =
+        await _api.projects.databases.documents.batchGet(
+      firestore.BatchGetDocumentsRequest()..documents = unique,
+      'projects/$projectId/databases/$databaseId',
+    );
+    final Map<String, Map<String, Object?>?> reads =
+        <String, Map<String, Object?>?>{};
+    for (final firestore.BatchGetDocumentsResponseElement element in response) {
+      if (element.found?.name case final String name) {
+        // ★★★ **فكٌّ مُصنَّف** — ⛔ **لا `toJson()`** (`DEBT-24`).
+        reads[name] = decodeDocumentFields(element.found?.fields);
+      } else if (element.missing case final String name) {
+        reads[name] = null;
+      }
+    }
+    for (final String path in unique) {
+      reads.putIfAbsent(path, () => null);
+    }
+    return reads;
+  }
+
+  /// ★★ يلتزم بدفعةٍ من الكتابات **معاً** — ⛔ **بلا معاملة**.
+  ///
+  /// ⚠️⚠️ **ولماذا بلا معاملة:** هذه **كتاباتُ ملخّصٍ مشتقّ** (`ADR-0008`) لا
+  /// كتابةُ مستخدم — ★ **ومعرّفاتُها حتمية**، ⟵ **فالتشغيل الجزئي ثم إعادة
+  /// التشغيل يُكملان الناقص بلا ازدواج** (نفسُ تعليل `account_provisioning_handler.dart`
+  /// حرفياً). ⛔ **و`ADR-0013` القاعدة 1 تحكم كتابة المستخدم وقيدها** لا هذه.
+  ///
+  /// ★ **والدفعةُ تُقسَّم على [_commitBatchLimit]** — ⟵ **فحدُّ المنصّة 500
+  /// كتابةٍ لكل التزام**، ⛔ **وتجاوزُه يُسقِط الدفعة كلَّها.**
+  Future<void> commitWrites(List<CommittedWrite> writes) async {
+    for (int start = 0; start < writes.length; start += _commitBatchLimit) {
+      final int end = (start + _commitBatchLimit).clamp(0, writes.length);
+      await _api.projects.databases.documents.commit(
+        firestore.CommitRequest()
+          ..writes = <firestore.Write>[
+            for (final CommittedWrite write in writes.sublist(start, end))
+              _toWrite(write),
+          ],
+        'projects/$projectId/databases/$databaseId',
+      );
+    }
+  }
+
+  /// حدّ المنصّة لعدد الكتابات في التزامٍ واحد.
+  static const int _commitBatchLimit = 500;
+
+  firestore.Write _toWrite(CommittedWrite write) {
+    final firestore.Write encoded = firestore.Write()
+      ..update = (firestore.Document()
+        ..fields = encodeFirestoreFields(write.fields).map(
+          (String key, Object? value) => MapEntry<String, firestore.Value>(
+            key,
+            firestore.Value.fromJson(value! as Map<String, Object?>),
+          ),
+        )
+        ..name = documentPath(write.collectionId, write.documentId))
+      ..updateMask = (firestore.DocumentMask()..fieldPaths = write.updateMask);
+    if (write.serverTimestampFields.isNotEmpty) {
+      // ⛔ لا ساعة حاوية — `coding-standards.md` §2.3 · `GR-54`.
+      encoded.updateTransforms = <firestore.FieldTransform>[
+        for (final String field in write.serverTimestampFields)
+          firestore.FieldTransform()
+            ..fieldPath = field
+            ..setToServerValue = 'REQUEST_TIME',
+      ];
+    }
+    return encoded;
+  }
+
+  /// ★★ يقرأ مستندات مجموعة **بمرشّح مساواةٍ واحدٍ أو أكثر** — ⛔ **لا مسحاً**.
+  ///
+  /// ⚠️⚠️ **ولماذا خارج المعاملة:** المُحتسِب **بناءُ ملخّصٍ مشتقّ**
+  /// (`ADR-0008`) لا كتابةُ مستخدم — ★ **ومستنداتُه تُكتشَف بالاستعلام ثم
+  /// تُقرأ حقولُها في النداء نفسِه**: ⟵ **وهو ما لا تسمح به `AuditedTransaction`
+  /// التي تقرأ مسارات معروفةً مقدَّماً.** ★ **والذرّية غير مطلوبة هنا
+  /// أصلاً** — راجع ترويسة `sack_valuation_handler.dart`.
+  ///
+  /// ⛔★★ **ولا شرط مدى ولا ترتيب** — ★ **مساواةٌ فقط**، ⟵ **فكلُّ استعلامٍ
+  /// هنا يقابله فهرسٌ قائم في `firestore.indexes.json`** ⛔ **ولا فهرسَ
+  /// يُكتشَف نقصُه في التشغيل.**
+  Future<List<StoredDocument>> queryDocuments({
+    required String collectionId,
+    required Map<String, Object?> equals,
+    int? limit,
+  }) async {
+    final firestore.RunQueryResponse rows =
+        await _api.projects.databases.documents.runQuery(
+      firestore.RunQueryRequest()
+        ..structuredQuery = (firestore.StructuredQuery()
+          ..from = <firestore.CollectionSelector>[
+            firestore.CollectionSelector()..collectionId = collectionId,
+          ]
+          ..where = _equalityFilter(equals)
+          ..limit = limit),
+      _documentsRoot,
+    );
+    final List<StoredDocument> found = <StoredDocument>[];
+    for (final firestore.RunQueryResponseElement row in rows) {
+      final firestore.Document? doc = row.document;
+      final String? name = doc?.name;
+      if (doc == null || name == null) continue;
+      found.add(
+        StoredDocument(
+          id: name.split('/').last,
+          // ★★★ **فكٌّ مُصنَّف** — ⛔ **لا `toJson()`** (`DEBT-24`).
+          fields: decodeDocumentFields(doc.fields),
+        ),
+      );
+    }
+    return found;
+  }
+
+  static firestore.Filter _equalityFilter(Map<String, Object?> equals) {
+    if (equals.isEmpty) {
+      throw ArgumentError.value(equals, 'equals', 'استعلامٌ بلا مرشّح مسحٌ كامل');
+    }
+    firestore.Filter single(String fieldPath, Object? value) =>
+        firestore.Filter()
+          ..fieldFilter = (firestore.FieldFilter()
+            ..field = (firestore.FieldReference()..fieldPath = fieldPath)
+            ..op = 'EQUAL'
+            ..value = firestore.Value.fromJson(encodeFirestoreValue(value)));
+
+    if (equals.length == 1) {
+      final MapEntry<String, Object?> only = equals.entries.first;
+      return single(only.key, only.value);
+    }
+    return firestore.Filter()
+      ..compositeFilter = (firestore.CompositeFilter()
+        ..op = 'AND'
+        ..filters = <firestore.Filter>[
+          for (final MapEntry<String, Object?> entry in equals.entries)
+            single(entry.key, entry.value),
+        ]);
   }
 
   /// يقرأ مستنداً، أو `null` إن لم يكن موجوداً.

@@ -26,8 +26,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
-import '../../../app/top_bar.dart';
-
+import '../../../core/device/device_preference_providers.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -42,65 +41,70 @@ import '../application/inventory_providers.dart';
 import 'inventory_widgets.dart';
 import '../../../core/ui/optional_reason.dart';
 
-/// قائمة الوارد عدداً لليوم.
-class CountedIntakeScreen extends ConsumerWidget {
-  /// ينشئ الشاشة.
-  const CountedIntakeScreen({super.key});
+/// ★★★ **تبويبُ «الوارد عدداً» داخل شاشة «التوريد مخزني»** — `AM-012` §2.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **وكان شاشةً قائمةً بذاتها حتى 2026-09-02** — ★ **ودُمج بطلب
+/// المالك مع «الوارد جواني» في شاشةٍ واحدة بتبويبين** (`SupplyIntakeScreen`).
+///
+/// ★★ **وما سقط منه هنا ثلاثةُ أشياء انتقلت إلى الشاشة الحاوية** ⛔ **لا
+/// أُلغيت:** **الشريطُ العلوي** · **رأسُ السياق (مرشِّحُ المصدر واليوم)** ·
+/// **وزرُّ الإضافة** — ⟵ **لأنها مشتركةٌ بين التبويبين بنصِّ الطلب:**
+/// «**حقلُ فلترة المصدر مشتركٌ بين التبويبين … ولا يوجد فلتر مصدر مستقل
+/// لكل تبويب**».
+///
+/// ⛔⛔★★ **وما بقي كما هو حرفياً: القائمةُ ونموذجُها وكلُّ وظائفهما** —
+/// ★ **بنصِّ الطلب: «بكامل محتواه ووظائفه الحالية دون أي نقصان».**
+/// ═══════════════════════════════════════════════════════════════════════
+class CountedIntakeTab extends ConsumerWidget {
+  /// ينشئ التبويب.
+  const CountedIntakeTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final CalendarDay today = ref.watch(todayProvider);
     // ★★ **مرشِّحُ عرضٍ لا سياقُ عملية** — `AM-009` ③ (راجع
     //    [sourceListFilterProvider]): ⟵ **و`null` تعني «كل المصادر».**
+    // ★★★ **وهو نفسُه في التبويبين** — `AM-012` §2: ⟵ **فتغييرُه من أيٍّ
+    //    منهما ينعكس على الآخر فوراً** ⛔ **بلا مزامنةٍ يدوية.**
     final String? filterId = ref.watch(sourceListFilterProvider);
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
 
-    return Scaffold(
-      appBar: QtmsTopBar(screenTitle: 'الوارد عدداً'),
-      // ⛔⛔★★ **والزرُّ لا يشترط مرشِّحاً بعد اليوم** — `AM-009` ⑤: ★ **المصدرُ
-      //    حقلٌ في النموذج**، ⟵ **فزرُّ الإضافة يعمل و«كل المصادر» معروضة.**
-      //    ⛔ **ويبقى محجوباً عمّن لا مصدرَ في نطاقه أصلاً** — ★ **فنموذجٌ
-      //    بحقلِ مصدرٍ خاوٍ لا يُنتج شيئاً** (`E-35`).
-      floatingActionButton: sources.isEmpty
-          ? null
-          : PermissionGate(
-              permission: Permission.incomingCountWrite,
-              child: _NewIntakeButton(sourceId: filterId ?? sources.first.sourceId),
-            ),
-      body: Column(
-        children: <Widget>[
-          // ★★★ **رأس السياق الموحّد** — `MASTER.md` §5b نمط `P3` (`ADR-0021`).
-          //
-          // ⛔⛔ **ويستبدل `SourcePicker` + `LockedDayBanner` معاً** — ★ **صفٌّ
-          //    واحد بدل صفّين وفراغٍ بينهما.**
-          //
-          // ⚠️ **و`LockedDayBanner` باقٍ داخل نموذج الإدخال** — ★ **موضعٌ
-          //    آخر بوظيفةٍ أخرى:** ⟵ **إفصاحٌ عن قفل التاريخ لحظة الكتابة**
-          //    (`FR-M6-02` · `E-40`)، ⛔ **لا رأسُ سياقٍ للشاشة.**
-          QtmsContextHeader(
-            sources: sources,
-            selectedSourceId: filterId,
-            // ★★★ **وخيارُ «كل المصادر» هنا** — `AM-009` ③.
-            allowAllSources: true,
-            onSourceSelected: (String? id) =>
-                ref.read(sourceListFilterProvider.notifier).select(id),
-            day: today,
-          ),
-          Expanded(
-            // ⛔⛔★★★ **ولا `SizedBox.shrink` حالةً لغياب المصدر** — §5b نمط
-            //    `P3` قاعدةُ الفراغ الصامت (`design-system.md` §هـ).
-            //
-            // ⚠️★★ **و«اختر مصدراً» سقطت حالةً** — ★ **فالافتراض «الكل»**:
-            //    ⟵ **ولم يبقَ إلا نطاقٌ فارغ** (`E-35`).
-            child: sources.isEmpty
-                ? const QtmsEmptyState(spec: noSourceInScopeEmpty)
-                : _IntakeList(
-                    sourceId: filterId,
-                    day: today,
-                    showSource: filterId == null,
-                  ),
-          ),
-        ],
+    // ⛔⛔★★★ **ولا `SizedBox.shrink` حالةً لغياب المصدر** — §5b نمط
+    //    `P3` قاعدةُ الفراغ الصامت (`design-system.md` §هـ).
+    //
+    // ⚠️★★ **و«اختر مصدراً» سقطت حالةً** — ★ **فالافتراض «الكل»**:
+    //    ⟵ **ولم يبقَ إلا نطاقٌ فارغ** (`E-35`).
+    if (sources.isEmpty) {
+      return const QtmsEmptyState(spec: noSourceInScopeEmpty);
+    }
+    return _IntakeList(
+      sourceId: filterId,
+      day: today,
+      showSource: filterId == null,
+    );
+  }
+}
+
+/// ★★ **زرُّ إضافة وارد عدداً** — ★ **تستدعيه الشاشةُ الحاوية.**
+///
+/// ⛔⛔★★ **والزرُّ لا يشترط مرشِّحاً** — `AM-009` ⑤: ★ **المصدرُ حقلٌ في
+/// النموذج**، ⟵ **فيعمل و«كل المصادر» معروضة.** ⛔ **ويبقى محجوباً عمّن
+/// لا مصدرَ في نطاقه أصلاً** — ★ **فنموذجٌ بحقلِ مصدرٍ خاوٍ لا يُنتج شيئاً**
+/// (`E-35`).
+class CountedIntakeFab extends ConsumerWidget {
+  /// ينشئ الزرّ.
+  const CountedIntakeFab({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final String? filterId = ref.watch(sourceListFilterProvider);
+    final List<SourceCard> sources = ref.watch(activeSourcesProvider);
+    if (sources.isEmpty) return const SizedBox.shrink();
+    return PermissionGate(
+      permission: Permission.incomingCountWrite,
+      child: _NewIntakeButton(
+        sourceId: filterId ?? sources.first.sourceId,
       ),
     );
   }
@@ -318,11 +322,20 @@ class _CountedIntakeFormSheetState
         StockQuery(sourceId: _sourceId, stockDate: today),
       ),
     );
+    // ★★ **تفضيلُ إظهار وزن الحبة** — `AM-012` §4.4: ⛔ **عرضٌ محضٌ**
+    //    ⟵ **ولا يمسّ وحدةَ الكمية ولا أي حساب.**
+    final bool showPieceWeight = ref.watch(showPieceWeightProvider);
     final List<QtmsItemOption> options = <QtmsItemOption>[
       for (final ItemCard item in items)
         QtmsItemOption(
           id: item.itemId,
-          label: itemOptionLabel(item.name, remaining[item.itemId]),
+          // ★★ **ووزنُ الحبة عند تفعيل الخيار** — `AM-012` §4.4.
+          label: itemOptionLabel(
+            item.name,
+            remaining[item.itemId],
+            showPieceWeight: showPieceWeight,
+            pieceWeightGrams: item.pieceWeightGrams,
+          ),
         ),
     ];
 

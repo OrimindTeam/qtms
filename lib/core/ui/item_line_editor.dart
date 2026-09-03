@@ -155,6 +155,19 @@ class _ItemDropdown extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) =>
             DropdownMenu<String>(
+          // ⛔⛔★★★ **ومفتاحٌ يتبدّل بتبدّل الخيارات** — `DEBT-88`
+          //    (**مقيسٌ على `Pixel_6_API_36` — 2026-09-02**):
+          //    ★ **[DropdownMenu] يقرأ `initialSelection` عند إنشائه**،
+          //    ⟵ **وقائمةٌ تصل بعده لا تُحدِّث النصَّ المعروض**
+          //    ⟹ ⛔⛔ **فيُفتَح نموذجُ التعديل بحقل نوعٍ يبدو فارغاً
+          //    والنوعُ مختارٌ فعلاً** — ★ **والمستخدم يُعيد اختياره أو
+          //    يحفظ ظانّاً أنه فارغ.**
+          //
+          // ★ **والمفتاح يجمع المختارَ وعددَ الخيارات وحدَهما** —
+          //    ⛔ **لا نصَّ الفلترة**: ⟵ **فلا يُهدَم المنسدلُ وهو يُكتَب
+          //    فيه** (**عددُ الخيارات لا يتبدّل بالكتابة** — `enableFilter`
+          //    يُصفّي داخلياً).
+          key: ValueKey<String>('$selectedId:${options.length}'),
           // ⛔⛔★★★ **وعرضٌ محدودٌ صريح** — `DEBT-63`: ★ **[DropdownMenu]
           //    بلا `width` يطلب عرضَه من محتواه**، ⟵ **وابنٌ غيرُ مرنٍ
           //    في `Row` بعرضٍ غير محدود قيدٌ مستحيل** ⛔ **لا يُخطَّط.**

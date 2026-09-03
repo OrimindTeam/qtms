@@ -33,6 +33,7 @@ import '../../../core/ui/filter_bar.dart';
 import '../../../core/ui/inline_banner.dart';
 import '../../../core/ui/status_pill.dart';
 import '../../inventory/application/inventory_providers.dart';
+import '../../inventory/presentation/supply_intake_screen.dart';
 import '../application/pending_entries_providers.dart';
 
 /// شاشة مركز الإدخالات المعلّقة.
@@ -255,6 +256,9 @@ class _PendingTile extends ConsumerWidget {
                 field: e.field!,
               ),
             );
+      // ★★★ **والجونيةُ تبويبٌ في «التوريد مخزني» منذ `AM-012` §2** —
+      //    ⟵ **فتُفتَح الشاشةُ على تبويبها** ⛔ **لا على «الوارد عدداً»**:
+      //    ★ **وبندٌ يصل تبويباً لا يخصّه يُقرأ عطلاً في الوجهة.**
       case PendingDocumentKind.sack:
         break;
       // ★★ **وبندُ `M22` يفتح شاشةَ السحبيات على مصدره** (`WU-014`) —
@@ -266,6 +270,11 @@ class _PendingTile extends ConsumerWidget {
         break;
     }
 
-    context.go(pendingScreenRoute(kind.screen));
+    // ★★ **والتبويبُ يُمرَّر حالةَ ملاحةٍ لا معاملاً في الرابط** — `router.dart`:
+    //    ⟵ **فلا رابطٌ يُشارَك يفتح نصفَ الشاشة** (نفسُ علّة `auditLogRoute`).
+    context.go(
+      pendingScreenRoute(kind.screen),
+      extra: kind == PendingDocumentKind.sack ? supplyIntakeSackTab : null,
+    );
   }
 }

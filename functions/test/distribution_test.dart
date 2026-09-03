@@ -1384,15 +1384,92 @@ void main() {
       );
     });
 
-    test('⛔ ولا سجلَ فائض ⟵ لا كتابةَ تسوية إطلاقاً', () {
+    test(
+      '⛔⛔★★★ DEBT-85: والتعديلُ يُعيد بناء المتبقّي ⛔ ولا يمحو قبضاً وصل',
+      () {
+        // ⛔⛔★★★ **وهذا أخطرُ ما في العلاج:** ★ **كتابةُ التسوية في كل
+        // تعديلٍ كانت تُصفِّر `settledAmount` لو بُنيت من الصفر** —
+        // ⟵ **فيعود دينٌ سُدِّد نصفُه كاملاً على المقوت.**
+        final DistributionAccepted plan = planDistribution(
+          request(
+            distribution: payload(),
+            storedDocument: stored(),
+            storedSettlement: computeDebtSettlement(
+              debtValue: const Money(120000),
+              settledAmount: const Money(40000),
+              discountedAmount: const Money(1852),
+            ),
+          ),
+          DistributionOperation.amendDistribution,
+        ) as DistributionAccepted;
+
+        final InventoryWrite pricing = plan.writes.firstWhere(
+          (InventoryWrite w) => w.fields.containsKey('remaining'),
+        );
+        // ★★ **المُسدَّد والمخصوم يُصانان كما هما.**
+        expect(pricing.fields['settledAmount'], 40000);
+        expect(pricing.fields['discountedAmount'], 1852);
+        // ★ **والمتبقّي يُعاد بناؤه على القيمة الجديدة** — `ADR-0008`:
+        //   ★ **80 حبة × 1,500 = 120,000** ⟵ **− 40,000 − 1,852.**
+        expect(pricing.fields['remaining'], 120000 - 40000 - 1852);
+
+        final InventoryWrite parent = plan.writes.firstWhere(
+          (InventoryWrite w) => w.fields.containsKey('settlementStatus'),
+        );
+        expect(
+          parent.fields['settlementStatus'],
+          SettlementStatus.partiallyOpen.name,
+        );
+      },
+    );
+
+    test('⛔ ولا سجلَ فائض ⟵ لا حركةَ تطبيقٍ في دفتر المقوت', () {
       final DistributionAccepted plan =
           accepted(create(const <SurplusPoolRead>[]));
       expect(
         plan.writes.any(
-          (InventoryWrite w) => w.fields.containsKey('settlementStatus'),
+          (InventoryWrite w) =>
+              w.collectionId == dealerLedgerCollection &&
+              w.fields['entryType'] ==
+                  DealerLedgerEntryType.surplusApplication.name,
         ),
         isFalse,
       );
     });
+
+    test(
+      '⛔⛔★★★ DEBT-85: ومع ذلك تُكتَب التسوية — ⛔ وإلا لم يُقبَض من الضمار أبداً',
+      () {
+        // ═══════════════════════════════════════════════════════════════
+        // ⛔⛔★★★ **وكان هذا الاختبار يؤكّد عكسَه حتى 2026-09-02** —
+        // ★ **«⛔ ولا سجلَ فائض ⟵ لا كتابةَ تسوية إطلاقاً»**: ⟵ **فكان
+        // يُثبِّت العطل لا يمنعه.**
+        //
+        // ★ **والعطلُ مقيسٌ على التجريبية:** **استعلامُ الضمارات المفتوحة
+        // يُقيّد `settlementStatus whereIn [open, partiallyOpen]`**،
+        // ⟵ **والحقلُ الغائب لا يطابق شرطاً** ⟹ ⛔⛔ **فضمارٌ أُنشئ عادةً
+        // (بلا فائض) لا يظهر في شاشتَي المقبوضات والخصومات إطلاقاً**:
+        // ★ **`dealer_balances` = 62,600 ريال بينما الشاشة تقول 350.**
+        // ═══════════════════════════════════════════════════════════════
+        final DistributionAccepted plan =
+            accepted(create(const <SurplusPoolRead>[]));
+
+        final InventoryWrite parent = plan.writes.firstWhere(
+          (InventoryWrite w) => w.fields.containsKey('settlementStatus'),
+        );
+        expect(parent.collectionId, distributionsCollection);
+        expect(parent.fields['settlementStatus'], SettlementStatus.open.name);
+
+        // ★★ **والمبالغ في `pricing/current` وحدها** — [`ADR-0011`].
+        final InventoryWrite pricing = plan.writes.firstWhere(
+          (InventoryWrite w) => w.fields.containsKey('remaining'),
+        );
+        expect(pricing.fields['settledAmount'], 0);
+        expect(pricing.fields['discountedAmount'], 0);
+        // ⛔ **والمتبقّي كلُّ قيمة الضمار** — ★ **فلا شيء سُدِّد بعد.**
+        expect(pricing.fields['remaining'], isA<int>());
+        expect((pricing.fields['remaining']! as int) > 0, isTrue);
+      },
+    );
   });
 }

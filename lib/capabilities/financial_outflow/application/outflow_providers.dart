@@ -15,7 +15,6 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
-import '../../master_data/application/master_data_providers.dart';
 
 /// دليل السحبيات والخرجيات — ⛔ **يُحقَن في الجذر**.
 final Provider<OutflowDirectory> outflowDirectoryProvider =
@@ -65,16 +64,14 @@ final outflowsProvider =
           ),
 );
 
-/// ★ أنواعُ المصدر النشطة — **لبنود القات** (`FR-M5-10`).
-///
-/// ⚠️⚠️ **وهذه تصفيةُ عرضٍ لا حماية** — ★ **والدالة السحابية تُعيد الفحص
-/// نفسه على سجل النوع** (`outflow.dart` `_planOutflow`).
-final outflowItemsProvider =
-    Provider.family<List<ItemCard>, String>((Ref ref, String sourceId) {
-  final List<ItemCard> all =
-      ref.watch(itemsProvider).value ?? const <ItemCard>[];
-  return <ItemCard>[
-    for (final ItemCard item in all)
-      if (item.isActive && item.sourceIds.contains(sourceId)) item,
-  ];
-});
+// ═════════════════════════════════════════════════════════════════════════
+// ⛔⛔★★★ **ولا مزوّدَ أنواعٍ من الكتالوج هنا بعد [`DEBT-86`]** (2026-09-02)
+//
+// ★ **كان `outflowItemsProvider` يرشِّح `items` بالمصدر والحالة** — ⟹ ⛔⛔ **فلم
+// يكن المفتاحُ المركّب للجونية يظهر في أي منسدل قطّ** (`ADR-0007`)، ★ **ولا
+// رصيدَ يقابل معرّفَ النوع المجرَّد**: ⟵ **فتُرفَض العمليةُ بـ«الكمية غير
+// كافية».** ★★ **والخياراتُ اليومَ من أرصدة الدفتر** —
+// `inventory_providers.dart` · `stockOptionsProvider`: ⟵ **وفيه شرحُ العطل
+// ولماذا الدفترُ هو المصدر** (`ADR-0008`).
+// ═════════════════════════════════════════════════════════════════════════
+

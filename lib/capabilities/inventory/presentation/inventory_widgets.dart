@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/design/design_tokens.dart';
+import '../../../core/ui/item_labels.dart';
 import '../../../core/design/theme_extensions.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/date_labels.dart';
@@ -43,8 +44,27 @@ String unitName(ItemUnit unit) => switch (unit) {
 /// ⚠️ **و[remaining] الغائبة تعني رصيداً صفراً** — `ADR-0008` القاعدة 5،
 /// ⛔ **لا «رصيداً مجهولاً»**: ★ **والصفرُ يُعرَض صريحاً** ⟵ **فلا يُخفى
 /// عن المستخدم أن النوع نفد.**
-String itemOptionLabel(String name, StockQuantity? remaining) =>
-    remaining == null ? name : '$name (${quantityLabel(remaining)})';
+///
+/// ★★★ **وتقبل وزنَ الحبة والتفضيل منذ `AM-012` §4.4** — ⛔ **ولا تقرأ
+/// مزوّداً بنفسها:** ⟵ **فتبقى دالةً خالصةً تُختبَر بلا شجرة**، ★ **والقراءةُ
+/// في الشاشة المُستدعية** (`ADR-0010` القاعدة 5).
+///
+/// ⛔⛔ **وترتيبُ اللاحقتين مقصود:** **الاسمُ ⟵ وزنُ الحبة ⟵ المتبقّي** —
+/// ★ **فالوزنُ جزءٌ من هوية النوع** (لاحقةُ اسم)، ⛔ **والمتبقّي حالةٌ لحظية**:
+/// ⟵ **«بطّوه وزن (200 جرام) (80 حبة)»** ★ **يُقرأ من اليمين هويةً ثم حالة.**
+String itemOptionLabel(
+  String name,
+  StockQuantity? remaining, {
+  bool showPieceWeight = false,
+  double? pieceWeightGrams,
+}) {
+  final String label = itemDisplayName(
+    name,
+    showPieceWeight: showPieceWeight,
+    pieceWeightGrams: pieceWeightGrams,
+  );
+  return remaining == null ? label : '$label (${quantityLabel(remaining)})';
+}
 
 
 /// ★ عارض تدفّق شاشات المخزون — ★ **يفوّض لمبدّل الحالات المشترك.**

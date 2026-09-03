@@ -20,6 +20,9 @@ import 'package:http/http.dart' as http;
 import 'app/router.dart';
 import 'capabilities/identity_access/application/admin_providers.dart';
 import 'capabilities/financial_outflow/application/outflow_providers.dart';
+import 'capabilities/financial_outflow/application/owner_ledger_providers.dart';
+import 'capabilities/financial_outflow/infrastructure/firestore_cash_movement_directory.dart';
+import 'capabilities/financial_outflow/infrastructure/firestore_owner_ledger_directory.dart';
 import 'capabilities/financial_outflow/infrastructure/firestore_outflow_directory.dart';
 import 'capabilities/financial_outflow/infrastructure/functions_outflow_repository.dart';
 import 'capabilities/identity_access/application/session_providers.dart';
@@ -28,9 +31,11 @@ import 'capabilities/identity_access/infrastructure/firestore_user_card_reposito
 import 'capabilities/identity_access/infrastructure/firestore_user_directory_repository.dart';
 import 'capabilities/identity_access/infrastructure/functions_user_admin_repository.dart';
 import 'capabilities/inventory/application/inventory_providers.dart';
+import 'capabilities/inventory/application/sack_valuation_providers.dart';
 import 'capabilities/inventory/infrastructure/firestore_daily_pricing_directory.dart';
 import 'capabilities/inventory/infrastructure/firestore_inventory_directory.dart';
 import 'capabilities/inventory/infrastructure/firestore_sack_directory.dart';
+import 'capabilities/inventory/infrastructure/firestore_sack_valuation_directory.dart';
 import 'capabilities/inventory/infrastructure/functions_daily_pricing_repository.dart';
 import 'capabilities/inventory/infrastructure/functions_inventory_repository.dart';
 import 'capabilities/inventory/infrastructure/functions_sack_repository.dart';
@@ -61,6 +66,13 @@ import 'capabilities/sales_receivables/infrastructure/functions_discount_reposit
 import 'capabilities/sales_receivables/application/receipt_providers.dart';
 import 'capabilities/sales_receivables/infrastructure/firestore_receipt_directory.dart';
 import 'capabilities/sales_receivables/infrastructure/functions_receipt_repository.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:local_auth/local_auth.dart';
+
+import 'capabilities/identity_access/application/biometric_providers.dart';
+import 'core/device/device_preference_providers.dart';
+import 'core/device/local_auth_biometric_gateway.dart';
+import 'core/device/secure_credential_vault.dart';
 import 'core/callable/callable_client.dart';
 import 'core/connectivity/connection_providers.dart';
 import 'core/connectivity/firestore_connection_monitor.dart';
@@ -79,6 +91,27 @@ Future<void> main() async {
     configureFirestore: applyFirestoreSettings,
   );
 
+  // ★★★ **تفضيلُ العرض يُقرأ من القرص مرةً واحدة قبل `runApp`** — `AM-012` §4.4.
+  //
+  // ⛔⛔★★★ **وقبلَه لا بعده** — ★ **فالقوائمُ تُبنى بالقيمة الصحيحة من أول
+  //    إطار**: ⟵ **وقراءتُه بعد الإقلاع كانت تُعيد بناءَ كلِّ قائمةٍ تعرض
+  //    اسمَ نوعٍ مرةً ثانية** ⛔ **فيومض الاسمُ أمام المستخدم عند كل فتح.**
+  //
+  // ⚠️ **وفشلُ القراءة يُقرأ `false`** — ⛔ **ولا يُوقِف الإقلاع:** ★ **تفضيلُ
+  //    عرضٍ تجميليٌّ لا يستحق شاشةَ خطأ**، ⟵ **والمستخدم يُبدِّله من الإعدادات.**
+  const FlutterSecureStorage secureStorage = FlutterSecureStorage();
+  const SecureDevicePreferences preferences =
+      SecureDevicePreferences(secureStorage);
+  bool showPieceWeight = false;
+  if (outcome is StartupReady) {
+    try {
+      showPieceWeight = await preferences.showPieceWeightWithItemName();
+    } on Object {
+      // ⛔ ولا يُبتلَع صامتاً بلا سبب — القيمة الافتراضية مُعلَنة أعلاه.
+      showPieceWeight = false;
+    }
+  }
+
   runApp(
     ProviderScope(
       // ★ الحقن عند الجذر وحده — فالاختبار يستبدل المستودعين بلا سحابة.
@@ -87,6 +120,22 @@ Future<void> main() async {
               authRepositoryProvider.overrideWithValue(
                 FirebaseAuthRepository(FirebaseAuth.instance),
               ),
+              // ★★★ **بوابةُ البصمة وخزنةُ الجهاز وتفضيلاتُه** — [`ADR-0024`]
+              //    ⏳ **مقترح** · `AM-012` §4.4 و§5.2 و§6.
+              //
+              // ⛔⛔★★ **ومخزنٌ واحدٌ للثلاثة** — ★ **ولا حزمةَ ثالثة لقيمةٍ
+              //    منطقيةٍ واحدة** (`dependency-management-policy.md` §1
+              //    البند 2): ⟵ **والتشفيرُ على تفضيلِ عرضٍ فائضٌ لا ضارّ.**
+              biometricGatewayProvider.overrideWithValue(
+                LocalAuthBiometricGateway(LocalAuthentication()),
+              ),
+              credentialVaultProvider.overrideWithValue(
+                const SecureCredentialVault(secureStorage),
+              ),
+              devicePreferencesProvider.overrideWithValue(preferences),
+              // ★ **والقيمةُ المقروءة تُحقَن مبدئيةً** — راجع أعلاه.
+              initialShowPieceWeightProvider
+                  .overrideWithValue(showPieceWeight),
               userCardRepositoryProvider.overrideWithValue(
                 FirestoreUserCardRepository(FirebaseFirestore.instance),
               ),
@@ -151,6 +200,12 @@ Future<void> main() async {
               // ★★ `WU-004` — الجواني: **القراءة مباشرة والكتابة عبر
               //   العمليات المستدعاة السبع** (`ADR-0013` القاعدتان 2 و4).
               //   ⛔★★ **ولا كتابة مباشرة على `sacks` ولا على ماليتها.**
+              // ⛅★★ **دليلُ مالية الجواني** (`WU-015`) — ★ **قراءةً فقط**:
+              //    ⛔ **ولا مستودعَ كتابةٍ له** — **يكتبه المُحتسِب السحابي**
+              //    (`schema/supplier-ledger.md` القاعدة 5).
+              sackValuationDirectoryProvider.overrideWithValue(
+                FirestoreSackValuationDirectory(FirebaseFirestore.instance),
+              ),
               sackDirectoryProvider.overrideWithValue(
                 FirestoreSackDirectory(FirebaseFirestore.instance),
               ),
@@ -227,6 +282,18 @@ Future<void> main() async {
                   client: _callableClient(),
                   newRequestId: _newRequestId,
                 ),
+              ),
+              // ⛅★★★ `WU-016` — ضمار المالك وحركة النقد: **قراءةٌ مباشرة
+              //   وحدها** (`ADR-0013` القاعدة 4). ⛔⛔ **ولا نظيرَ كاتبٍ له
+              //   هنا ولا في أي مكان**: `daily_summaries` و`owner_ledger_trends`
+              //   **`allow write: if false` للجميع** — ★ **والملخصاتُ تبنيها
+              //   `buildDailySummaries` داخل حاوية العمليات بعد كل التزام**
+              //   (`api-overview.md` §3.2).
+              ownerLedgerDirectoryProvider.overrideWithValue(
+                FirestoreOwnerLedgerDirectory(FirebaseFirestore.instance),
+              ),
+              cashMovementReaderProvider.overrideWithValue(
+                FirestoreCashMovementDirectory(FirebaseFirestore.instance),
               ),
               // ★★ `WU-007` — المقبوضات: **القراءة مباشرة والكتابة عبر
               //   العمليات المستدعاة الأربع** (`ADR-0013` القاعدتان 2 و4).

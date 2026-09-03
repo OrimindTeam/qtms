@@ -36,6 +36,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../app/top_bar.dart';
+import '../../../core/device/device_preference_providers.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -453,7 +454,11 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
   Widget build(BuildContext context) {
     final CalendarDay today = ref.watch(todayProvider);
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
-    final List<ItemCard> items = ref.watch(cashSaleItemsProvider(_sourceId));
+    // ⛔⛔★★★ **والخياراتُ من أرصدة الدفتر لا من كتالوج الأنواع** —
+    //    [`DEBT-86`] · `ADR-0007`: راجع [stockOptionsProvider].
+    final List<StockOption> items = ref.watch(
+      stockOptionsProvider(StockQuery(sourceId: _sourceId, stockDate: today)),
+    );
     final CashSaleQuery query =
         CashSaleQuery(sourceId: _sourceId, stockDate: today);
     // ★★ **الحدود الدنيا تُراقَب لا تُقرأ لحظة الحفظ** — ⟵ **فالقراءة
@@ -461,11 +466,6 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
     //    التنبيه كلُّه** (نفس درسِ الأسعار المقترَحة في `WU-006`).
     final Map<String, Money> minimums =
         ref.watch(minimumCashPricesProvider(query));
-    final Map<String, StockQuantity> remaining = ref.watch(
-      remainingStockProvider(
-        StockQuery(sourceId: _sourceId, stockDate: today),
-      ),
-    );
 
     final CashSaleCard? existing = switch (widget.documentNumber) {
       final String number => ref
@@ -486,17 +486,26 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
     final bool isAmend = widget.documentNumber != null;
     final bool isCancelled = existing?.isCancelled ?? false;
 
+    // ★★ **تفضيلُ إظهار وزن الحبة** — `AM-012` §4.4: ⛔ **عرضٌ محضٌ**
+    //    ⟵ **ولا يمسّ وحدةَ الكمية ولا أي حساب.**
+    final bool showPieceWeight = ref.watch(showPieceWeightProvider);
     final List<QtmsItemOption> options = <QtmsItemOption>[
-      for (final ItemCard item in items)
+      for (final StockOption item in items)
         QtmsItemOption(
-          id: item.itemId,
+          id: item.itemKey,
           // ★★★ **«اسم النوع (المتبقّي منه)»** — ⟵ **فمن يختار نوعاً يرى كم
           //    بقي منه *في لحظة الاختيار*** ⛔ **لا بعد أن يكتب رقماً يُرفَض.**
-          label: itemOptionLabel(item.name, remaining[item.itemId]),
+          // ★★ **ووزنُ الحبة عند تفعيل الخيار** — `AM-012` §4.4.
+          label: itemOptionLabel(
+            item.itemName,
+            item.balance,
+            showPieceWeight: showPieceWeight,
+            pieceWeightGrams: item.pieceWeightGrams,
+          ),
         ),
     ];
-    final Map<String, ItemCard> itemsById = <String, ItemCard>{
-      for (final ItemCard item in items) item.itemId: item,
+    final Map<String, StockOption> itemsById = <String, StockOption>{
+      for (final StockOption item in items) item.itemKey: item,
     };
 
     return SafeArea(
@@ -588,7 +597,8 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
                       ),
                     if (items.isEmpty)
                       Text(
-                        'لا توجد أنواع مرتبطة بهذا المصدر.',
+                        // ★ **والعلّةُ رصيدٌ لا ربطٌ** — [`DEBT-86`].
+                        'لا مخزون في هذا المصدر اليوم.',
                         style: TypeScale.bodyMd
                             .copyWith(color: SemanticColors.textSecondary),
                       ),
@@ -662,7 +672,7 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
     );
   }
 
-  Widget _quantityField(_CashLine line, ItemCard? item) => TextField(
+  Widget _quantityField(_CashLine line, StockOption? item) => TextField(
         controller: line.quantity,
         keyboardType: TextInputType.numberWithOptions(
           decimal: item?.unit == ItemUnit.kilogram,
@@ -755,10 +765,10 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
   ///
   /// ⛔⛔★★ **وسطرٌ بلا سعرٍ لا يُبنى إطلاقاً** (`FR-M11-04`) — ⟵ **فلا يمرّ
   /// إلى التحقق سطرٌ «غير مسعَّر»**: ★ **والزرُّ يبقى بلا أثرٍ حتى يكتمل.**
-  List<CashSaleLineInput> _linesFor(Map<String, ItemCard> itemsById) {
+  List<CashSaleLineInput> _linesFor(Map<String, StockOption> itemsById) {
     final List<CashSaleLineInput> lines = <CashSaleLineInput>[];
     for (final _CashLine line in _lines) {
-      final ItemCard? item = itemsById[line.itemId];
+      final StockOption? item = itemsById[line.itemId];
       if (item == null) continue;
       final StockQuantity? quantity =
           _quantityOf(item.unit, line.quantity.text.trim());
@@ -767,8 +777,9 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
       if (unitPrice == null) continue;
       lines.add(
         CashSaleLineInput(
-          itemId: item.itemId,
-          itemName: item.name,
+          // ★★ **ومفتاحُ الدفتر هو المُرسَل** — `ADR-0007` · [`DEBT-86`].
+          itemId: item.itemKey,
+          itemName: item.itemName,
           unit: item.unit,
           quantity: quantity,
           unitPrice: unitPrice,
@@ -793,7 +804,7 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
 
   Future<void> _submit(
     CashSaleCard? card,
-    Map<String, ItemCard> itemsById,
+    Map<String, StockOption> itemsById,
   ) async {
     final Outcome<ValidatedCashSale> validated = validateCashSale(
       CashSaleInput(sourceId: _sourceId, lines: _linesFor(itemsById)),

@@ -15,7 +15,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import 'package:go_router/go_router.dart';
+
+import 'router.dart';
 import '../capabilities/identity_access/application/session_providers.dart';
+import '../capabilities/identity_access/presentation/profile_screen.dart';
+import '../capabilities/master_data/presentation/settings_screen.dart';
 import '../capabilities/inventory/application/inventory_providers.dart';
 import '../core/connectivity/connection_providers.dart';
 import '../core/design/design_tokens.dart';
@@ -75,6 +80,33 @@ Future<void> showQtmsSessionSheet(BuildContext context, WidgetRef ref) =>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            // ★★★ **ومدخلا «الملف الشخصي» و«الإعدادات» هنا** — `AM-012`
+            //    §4.4 و§5: ⟵ **والصورةُ الرمزية عنصرُ الهوية في الشريط**،
+            //    ★ **فما يخصّ حسابَ صاحبها وجهازَه موضعُه قائمتُها** —
+            //    ⛔ **ولا مدخلَ لهما في الصدَفة بين مداخل العمل اليومي:**
+            //    ★ **تلك مداخلُ عمليات** (`P1` · `ADR-0021`)، ⟵ **وهذان
+            //    إعدادان يُفتحان مرةً في الشهر لا كلَّ يوم.**
+            //
+            // ⛔⛔★★ **والخروجُ يبقى آخرَ القائمة** — ★ **وهو الفعلُ الوحيد
+            //    الذي لا رجعةَ عنه فيها**: ⟵ **فلا يقع سهواً بإصبعٍ يبحث
+            //    عن «الإعدادات»** (`AM-009` ①).
+            ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: const Text(profileScreenTitle),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.go(profileRoute);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text(settingsScreenTitle),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.go(settingsRoute);
+              },
+            ),
+            const Divider(height: Sizes.borderWidth),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('تسجيل الخروج'),

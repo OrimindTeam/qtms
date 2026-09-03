@@ -85,7 +85,17 @@ void main() {
         }
       }
       // ⛔⛔ **ولا سعرَ يتسرّب إلى ملف القالب ①** (`ت-12`).
-      expect(document.totals.map((ExportField f) => f.label), <String>['الإجمالي']);
+      // ★★★ **وسطرُ السكرب ثانياً منذ `AM-012` §4.3** — ⛔ **وليس سعراً:**
+      //    ⟵ **والحارسُ المقصود هو غيابُ «ضمار اليوم» و«الرصيد»**،
+      //    ★ **وهو ما يُفحَص صراحةً أدناه.**
+      expect(
+        document.totals.map((ExportField f) => f.label),
+        <String>['الإجمالي', 'إجمالي السكرب'],
+      );
+      for (final ExportField total in document.totals) {
+        expect(total.value, isNot(contains('1,500')));
+        expect(total.value, isNot(contains('92,000')));
+      }
     });
 
     test('⛔⛔ والسطر غير المسعَّر «غير مسعَّر» في الملف كما في الرسالة', () {

@@ -35,18 +35,21 @@ import 'package:shelf/shelf.dart';
 
 import 'audited_transaction.dart';
 import 'callable.dart';
+import 'sack_valuation_handler.dart';
 import 'counter_allocator.dart' show counterValueField;
 import 'identity_gateway.dart';
 import 'inventory.dart';
 import 'inventory_handler.dart'
     show
         inventoryLedgerQuery,
+        ledgerSackIds,
         platformDayOf,
         readInt,
         readItemRecords,
         readLedgerMovements,
         withLedgerItems;
 import 'outflow.dart';
+import 'owner_ledger_summary_handler.dart';
 import 'pending_entries.dart';
 import 'permission_sync_handler.dart' show requestIdField;
 
@@ -60,12 +63,30 @@ final class OutflowHandler {
     required IdentityGateway identity,
     required AuditedTransaction transaction,
     DateTime Function()? clock,
+    SackValuationHandler? valuation,
+    OwnerLedgerSummaryHandler? summaries,
   })  : _identity = identity,
         _transaction = transaction,
+        _valuation = valuation,
+        _summaries = summaries,
         _clock = clock;
 
   final IdentityGateway _identity;
   final AuditedTransaction _transaction;
+
+  /// ⛅★★ **مُحتسِبُ مالية الجواني** (`WU-015`) — ★ **يُطلَق بعد الالتزام**.
+  ///
+  /// ⛔⛔ **و`null` في الاختبار تعني «لا احتساب»** — ★ **فالمُحتسِب عمليةٌ
+  /// مشغَّلةٌ مستقلة لها اختبارُها**، ⟵ **وفشلُه لا يُبطل هذه العملية أصلاً**
+  /// (`api-overview.md` §3.3).
+  final SackValuationHandler? _valuation;
+
+  /// ⛅★★★ **باني ملخصات ضمار المالك** (`WU-016`) — ★ **يُطلَق بعد الالتزام**.
+  ///
+  /// ⛔⛔★★ **وعلى `documentDate` لا `stockDate`** — `GR-49`: ⟵ **فالسحبيةُ
+  /// أثرُها ماليٌّ في تاريخ سندها**، ⛔ **وبناؤها على يوم المخزون كان
+  /// يُدخِلها في بطاقةِ يومٍ آخر.**
+  final OwnerLedgerSummaryHandler? _summaries;
 
   /// ★ ساعةُ **الاقتراح** وحدها — ⛔ **ولا تُكتب قيمتها في أي حقل** بلا
   /// موافقة المنصّة (راجع ترويسة الملف). تُحقَن في الاختبار.
@@ -171,6 +192,23 @@ final class OutflowHandler {
         onAllocated: (String allocated) => number = allocated,
       );
       if (drift == null) {
+        // ⛅★★★ **ويُعاد احتساب مالية جواني هذا اليوم** — `FR-M14-05`:
+        //    ★ **بعد الالتزام لا داخله** (`api-overview.md` §3.2 و§3.3)،
+        //    ⛔ **وفشلُه لا يُبطل هذه العملية.**
+        await revalueSacksAfterCommit(
+          _valuation,
+          sourceId: sourceId,
+          stockDate: day,
+        );
+        // ⛅★★★ **وتُعاد بناءُ بطاقة ضمار المالك ليوم السند** — `FR-M15-13`:
+        //    ⛔ **على `documentDate` لا `stockDate`** (`GR-49`).
+        await buildDailySummariesAfterCommit(
+          _summaries,
+          days: <OwnerLedgerDay>{
+            OwnerLedgerDay(sourceId: sourceId, date: payload.date),
+          },
+          today: day,
+        );
         return callableSuccess(<String, Object?>{
           'documentNumber': number,
           'documentDate': payload.date.format(),
@@ -267,6 +305,8 @@ final class OutflowHandler {
           ledgerType: ledgerType,
           payload: payload,
           items: items,
+          // ★★★ **ومرجعُ الجونية يُقاس من الدفتر** — [`DEBT-86`].
+          sackIds: ledgerSackIds(reads: reads, itemKeys: itemPaths.keys),
         );
         if (validated is Failure<ValidatedOutflow>) {
           throw AbortTransaction(_mapValidation(validated.error));
@@ -407,6 +447,13 @@ final class OutflowHandler {
         ),
     };
 
+    // ★★ **ويومُ المنصّة يُلتقَط من المعاملة نفسِها** — ⛔ **لا من ساعة
+    //    الحاوية** (`GR-54`): ⟵ **وبه وحدَه يُقرَّر أنّ اليومَ المبنيَّ ماضٍ
+    //    فيُوسَم «⟳ مُحدَّث بأثر رجعي»** (`FR-M15-12`).
+    CalendarDay? platformToday;
+    // ★ **وتاريخُ السند قبل التعديل** — ⟵ **فتعديلُ التاريخ يمسّ بطاقتين.**
+    final CalendarDay storedDate = _storedDocumentDate(preview, day);
+
     await _transaction.run<void>(
       readPaths: <String>[
         documentPath,
@@ -423,6 +470,7 @@ final class OutflowHandler {
         if (observed == null) {
           throw const AbortTransaction(CallableError.internal);
         }
+        platformToday = observed;
         final Map<String, ItemRead> items = withLedgerItems(
           readItemRecords(reads, itemPaths),
           reads: reads,
@@ -437,6 +485,8 @@ final class OutflowHandler {
             ledgerType: ledgerType,
             payload: payload,
             items: items,
+            // ★★★ **ومرجعُ الجونية يُقاس من الدفتر** — [`DEBT-86`].
+            sackIds: ledgerSackIds(reads: reads, itemKeys: itemPaths.keys),
           );
           if (validated is Failure<ValidatedOutflow>) {
             throw AbortTransaction(_mapValidation(validated.error));
@@ -453,7 +503,7 @@ final class OutflowHandler {
             documentNumber: number,
             // ★ **تاريخُ السند من الحمولة عند التعديل** — ⟵ **ومن المخزَّن
             //   عند الإلغاء**: ⛔ **فالإلغاءُ لا يُغيِّر تاريخاً.**
-            documentDate: payload?.date ?? _storedDocumentDate(preview, day),
+            documentDate: payload?.date ?? storedDate,
             stockDate: day,
             today: observed,
             outflow: outflow,
@@ -495,6 +545,27 @@ final class OutflowHandler {
           result: null,
         );
       },
+    );
+
+    // ⛅★★★ **ويُعاد احتساب مالية جواني هذا اليوم** — `FR-M14-05`:
+    //    ★ **بعد الالتزام لا داخله** (`api-overview.md` §3.2 و§3.3)،
+    //    ⛔ **وفشلُه لا يُبطل هذه العملية** (راجع `revalueSacksAfterCommit`).
+    await revalueSacksAfterCommit(
+      _valuation,
+      sourceId: sourceId,
+      stockDate: day,
+    );
+    // ⛅★★★ **وبطاقتان لا واحدة متى غيّر التعديلُ تاريخَ السند** —
+    //    ⟵ **فاليومُ القديم يفقد المبلغ واليومُ الجديد يكسبه**: ⛔ **وبناءُ
+    //    الجديد وحدَه كان يترك رقماً ميتاً في بطاقةِ أمس إلى الأبد.**
+    await buildDailySummariesAfterCommit(
+      _summaries,
+      days: <OwnerLedgerDay>{
+        OwnerLedgerDay(sourceId: sourceId, date: storedDate),
+        if (payload?.date case final CalendarDay amended)
+          OwnerLedgerDay(sourceId: sourceId, date: amended),
+      },
+      today: platformToday ?? day,
     );
 
     return callableSuccess(<String, Object?>{
@@ -592,6 +663,7 @@ final class OutflowHandler {
     required OutflowLedgerType ledgerType,
     required _OutflowPayload payload,
     required Map<String, ItemRead> items,
+    required Map<String, String> sackIds,
   }) {
     final List<OutflowQatLineInput> qatLines = <OutflowQatLineInput>[];
     for (final _QatLineRequest line in payload.qatLines) {
@@ -611,7 +683,9 @@ final class OutflowHandler {
           quantity: quantity,
           // ★★★ **والسعر اختياريٌّ** — `FR-M22-07`: ⛔ **بخلاف البيع النقدي**.
           unitPrice: line.unitPrice,
-          sackId: line.sackId,
+          // ★★★ **والمقيسُ يسبق المُرسَل** — [`DEBT-86`] · `ADR-0007` ⑤:
+          //    ⟵ **فحركةُ الخروج تحمل مرجعَ جونيتها ولو لم تُرسِله الشاشة.**
+          sackId: sackIds[line.itemId] ?? line.sackId,
         ),
       );
     }

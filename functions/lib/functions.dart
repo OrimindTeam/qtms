@@ -44,12 +44,14 @@ import 'src/inventory.dart';
 import 'src/inventory_handler.dart';
 import 'src/outflow.dart';
 import 'src/outflow_handler.dart';
+import 'src/owner_ledger_summary_handler.dart';
 import 'src/owner_bootstrap_handler.dart';
 import 'src/permission_sync.dart';
 import 'src/receipt.dart';
 import 'src/receipt_handler.dart';
 import 'src/sack_intake.dart';
 import 'src/sack_intake_handler.dart';
+import 'src/sack_valuation_handler.dart';
 import 'src/permission_sync_handler.dart';
 import 'src/master_data.dart';
 import 'src/master_data_handler.dart';
@@ -265,9 +267,18 @@ Future<Response> _cashSale(
 }
 
 Future<CashSaleHandler> _buildCashSale() async {
-  final (IdentityGateway identity, AuditedTransaction transaction) =
-      await _connectDependencies();
-  return CashSaleHandler(identity: identity, transaction: transaction);
+  final (
+    IdentityGateway identity,
+    AuditedTransaction transaction,
+    SackValuationHandler valuation,
+    OwnerLedgerSummaryHandler summaries,
+  ) = await _connectWritingDependencies();
+  return CashSaleHandler(
+    identity: identity,
+    transaction: transaction,
+    valuation: valuation,
+    summaries: summaries,
+  );
 }
 
 /// ★ المسار المشترك لعمليات السحبيات والخرجيات الثلاث (`WU-014`).
@@ -285,9 +296,18 @@ Future<Response> _outflow(Request request, OutflowOperation operation) async {
 }
 
 Future<OutflowHandler> _buildOutflow() async {
-  final (IdentityGateway identity, AuditedTransaction transaction) =
-      await _connectDependencies();
-  return OutflowHandler(identity: identity, transaction: transaction);
+  final (
+    IdentityGateway identity,
+    AuditedTransaction transaction,
+    SackValuationHandler valuation,
+    OwnerLedgerSummaryHandler summaries,
+  ) = await _connectWritingDependencies();
+  return OutflowHandler(
+    identity: identity,
+    transaction: transaction,
+    valuation: valuation,
+    summaries: summaries,
+  );
 }
 
 /// ★ المسار المشترك لعمليات القبض الأربع (`WU-007`).
@@ -303,9 +323,16 @@ Future<Response> _receipt(Request request, ReceiptOperation operation) async {
 }
 
 Future<ReceiptHandler> _buildReceipt() async {
-  final (IdentityGateway identity, AuditedTransaction transaction) =
-      await _connectDependencies();
-  return ReceiptHandler(identity: identity, transaction: transaction);
+  final (
+    IdentityGateway identity,
+    AuditedTransaction transaction,
+    OwnerLedgerSummaryHandler summaries,
+  ) = await _connectSettlementDependencies();
+  return ReceiptHandler(
+    identity: identity,
+    transaction: transaction,
+    summaries: summaries,
+  );
 }
 
 /// ★ المسار المشترك لعمليات الخصم الثلاث (`WU-013`).
@@ -322,9 +349,16 @@ Future<Response> _discount(Request request, DiscountOperation operation) async {
 }
 
 Future<DiscountHandler> _buildDiscount() async {
-  final (IdentityGateway identity, AuditedTransaction transaction) =
-      await _connectDependencies();
-  return DiscountHandler(identity: identity, transaction: transaction);
+  final (
+    IdentityGateway identity,
+    AuditedTransaction transaction,
+    OwnerLedgerSummaryHandler summaries,
+  ) = await _connectSettlementDependencies();
+  return DiscountHandler(
+    identity: identity,
+    transaction: transaction,
+    summaries: summaries,
+  );
 }
 
 /// ★ المسار المشترك لعمليات المخزون الثلاث (`WU-003`).
@@ -565,15 +599,33 @@ Future<DailyPricingHandler> _buildDailyPricing() async {
 }
 
 Future<DistributionHandler> _buildDistribution() async {
-  final (IdentityGateway identity, AuditedTransaction transaction) =
-      await _connectDependencies();
-  return DistributionHandler(identity: identity, transaction: transaction);
+  final (
+    IdentityGateway identity,
+    AuditedTransaction transaction,
+    SackValuationHandler valuation,
+    OwnerLedgerSummaryHandler summaries,
+  ) = await _connectWritingDependencies();
+  return DistributionHandler(
+    identity: identity,
+    transaction: transaction,
+    valuation: valuation,
+    summaries: summaries,
+  );
 }
 
 Future<SackIntakeHandler> _buildSack() async {
-  final (IdentityGateway identity, AuditedTransaction transaction) =
-      await _connectDependencies();
-  return SackIntakeHandler(identity: identity, transaction: transaction);
+  final (
+    IdentityGateway identity,
+    AuditedTransaction transaction,
+    SackValuationHandler valuation,
+    OwnerLedgerSummaryHandler summaries,
+  ) = await _connectWritingDependencies();
+  return SackIntakeHandler(
+    identity: identity,
+    transaction: transaction,
+    valuation: valuation,
+    summaries: summaries,
+  );
 }
 
 Future<MasterDataHandler> _buildMasterData() async {
@@ -593,6 +645,60 @@ Future<OwnerBootstrapHandler> _buildBootstrap(String ownerUserId) async {
 }
 
 /// يفتح بوابة الهوية ومُنفِّذ المعاملات معاً — ★ **ببيانات الاعتماد الافتراضية**.
+/// ⛅★★★ **تبعيات العمليات التي تمسّ جونية** — ★ **ومعها المُحتسِب** (`WU-015`).
+///
+/// ⚠️ **وأربعُ عملياتٍ وحدها تحتاجه:** **التوزيع** و**البيع النقدي**
+/// و**السحبيات والخرجيات** و**الجواني نفسُها** — ⟵ **وهي كلُّ ما يُغيّر
+/// سعرَ جونيةٍ أو ضريبتَها** (`FR-M14-05`). ⛔ **والباقي لا يُحمَّل مُحتسِباً
+/// لا يستدعيه** (`api-overview.md` §3.2).
+///
+/// ★ **ويشارك المُحتسِبُ نفسَ [FirestoreWriter]** الذي تُبنى عليه بوابةُ
+/// الهوية — ⛔ **فلا جلسةَ اعتمادٍ ثالثة** (نفسُ منطق `CounterAllocator`).
+Future<
+    (
+      IdentityGateway,
+      AuditedTransaction,
+      SackValuationHandler,
+      OwnerLedgerSummaryHandler,
+    )> _connectWritingDependencies() async {
+  final String? projectId = _resolveProjectId();
+  if (projectId == null) {
+    throw StateError('متغيّر $_projectIdVariable غائب — تعذّر تحديد المشروع');
+  }
+  final FirestoreWriter store =
+      await FirestoreWriter.connect(projectId: projectId);
+  return (
+    await IdentityGateway.connect(
+      readUserCard: (String userId) => _readUserCard(store, userId),
+    ),
+    await AuditedTransaction.connect(projectId: projectId),
+    SackValuationHandler(store),
+    OwnerLedgerSummaryHandler(store),
+  );
+}
+
+/// ⛅★★★ **تبعيات العمليات التي تمسّ ضماراً بلا جونية** — **القبضُ والخصم**.
+///
+/// ⚠️ **ولا مُحتسِبَ جوانٍ معها** — ★ **فالقبضُ والخصمُ لا يُغيّران وزناً ولا
+/// سعرَ جونية** (`FR-M14-05`)، ⛔ **وتحميلُها مُحتسِباً لا تستدعيه كلفةُ
+/// اتصالٍ بلا مقابل** (`api-overview.md` §3.2).
+Future<(IdentityGateway, AuditedTransaction, OwnerLedgerSummaryHandler)>
+    _connectSettlementDependencies() async {
+  final String? projectId = _resolveProjectId();
+  if (projectId == null) {
+    throw StateError('متغيّر $_projectIdVariable غائب — تعذّر تحديد المشروع');
+  }
+  final FirestoreWriter store =
+      await FirestoreWriter.connect(projectId: projectId);
+  return (
+    await IdentityGateway.connect(
+      readUserCard: (String userId) => _readUserCard(store, userId),
+    ),
+    await AuditedTransaction.connect(projectId: projectId),
+    OwnerLedgerSummaryHandler(store),
+  );
+}
+
 Future<(IdentityGateway, AuditedTransaction)> _connectDependencies() async {
   final String? projectId = _resolveProjectId();
   if (projectId == null) {

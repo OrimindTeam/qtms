@@ -1,0 +1,23 @@
+{
+  "developer_name": "فريق أوريمايند",
+  "website": "https://orimind.dev",
+  "email": "support@orimind.dev",
+  "phone": "+967715177718",
+  "phone_is_whatsapp": true,
+  "social": {
+    "instagram": "https://www.instagram.com/orimind.dev1",
+    "facebook": "https://www.facebook.com/Orimind.dev"
+  },
+  "logo_files": {
+    "full": "assets/logo-full.svg",
+    "full_png": "assets/logo-full.png",
+    "mark": "assets/logo-mark.svg",
+    "mark_png": "assets/logo-mark.png"
+  },
+  "attribution_text": {
+    "ar": "تطوير وتنفيذ: فريق أوريمايند",
+    "en": "Developed by Orimind Team"
+  },
+  "copyright_start_year": 2026,
+  "last_updated": "2026-08-21"
+}

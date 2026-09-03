@@ -920,6 +920,8 @@ AuditEntry _entry({
       actor: AuditActor(
         userId: request.actor.userId,
         userName: request.actor.userName,
+        // ★★★ **والبريد منسوخٌ وقت الحدث** — `AM-012` §3.
+        userEmail: request.actor.userEmail,
       ),
       action: action,
       reason: reason,

@@ -139,12 +139,19 @@ ExportableDocument buildDistributionExport({
         ]),
     ],
     totals: <ExportField>[
-      ExportField(
-        'الإجمالي',
-        formatTotals(<StockQuantity>[
-          for (final MessageLine line in data.lines) line.quantity,
-        ]),
-      ),
+      // ★★★ **والإجماليُّ يتبع الرسالة حرفياً** — `AM-012` §4.3 · [`CR-011`]:
+      //
+      // ⛔⛔★★★ **ومعيارُ قبول `WU-010` هو السبب لا الذوق:** «**المستندُ
+      //    المُصدَّر يطابق الرسالة رقماً برقم**» — ⟵ **وبقاؤه على
+      //    `formatTotals` كان يجعل المستندَ يقول «60 حبة + 0.500 كجم»
+      //    والرسالةَ تقول سطرين مسمَّيين** ⛔ **فيفترق ما يقرؤه العميل**
+      //    (⚠️ **رصده اختبارُ المطابقة فعلاً لحظةَ التنفيذ**).
+      //
+      // ★ **والمحصّلةُ واحدة يقرؤها الاثنان** ⛔ **لا حلقةُ جمعٍ ثانية.**
+      ExportField('الإجمالي', _lineTotals(data).countLabel),
+      // ⛔ **وسطرُ السكرب عند وجوده وحده** — ★ **كما في الرسالة تماماً.**
+      if (_lineTotals(data).hasScrap)
+        ExportField(scrapTotalLabel, _lineTotals(data).scrapLabel),
       if (withPricing) ...<ExportField>[
         ExportField(
           'ضمار اليوم',
@@ -165,6 +172,12 @@ ExportableDocument buildDistributionExport({
     sourceId: sourceId,
   );
 }
+
+/// ★ محصّلةُ كميات سطور التوزيعة — ⛔ **ولا حلقةَ جمعٍ في بناء المستند**.
+QuantityTotals _lineTotals(DistributionMessageData data) =>
+    accumulateTotals(<StockQuantity>[
+      for (final MessageLine line in data.lines) line.quantity,
+    ]);
 
 /// ★ يبني سند القبض القابل للتصدير.
 ExportableDocument buildReceiptExport({

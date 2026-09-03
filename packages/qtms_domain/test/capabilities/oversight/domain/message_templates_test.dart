@@ -122,11 +122,12 @@ void main() {
         text,
         'وكالة محمد المحامي\n'
         'تاريخ المخزون: 2026/08/30\n'
-        'الأخ/ أحمد صالح — تفاصيل ما استلمته اليوم:\n'
+        'الأخ / أحمد صالح — تفاصيل ما استلمته اليوم:\n'
         '\n'
         'شامي — 60 حبة\n'
         'سكرب — 0.500 كجم\n'
-        'الإجمالي: 60 حبة + 0.500 كجم',
+        'الإجمالي: 60 حبة\n'
+        'إجمالي السكرب: 0.500 كجم',
       );
     });
 
@@ -292,8 +293,12 @@ void main() {
         data: _distribution(),
       );
       expect(text, isNot(contains('شامي')));
-      expect(text, isNot(contains('سكرب')));
-      expect(text, contains('الإجمالي: 60 حبة + 0.500 كجم'));
+      // ⛔⛔★★ **و«سكرب» لم تعد ممنوعةً مطلقاً بعد `CR-011`** — ★ **الممنوعُ
+      //    سطرٌ صنفيّ** (`سكرب — 0.500 كجم`)، ⟵ **وسطرُ الإجمالي يحمل الكلمةَ
+      //    عنواناً لا صنفاً**: ★ **فالنفيُ يُشدَّد على السطر الصنفي نفسِه.**
+      expect(text, isNot(contains('سكرب — ')));
+      expect(text, contains('الإجمالي: 60 حبة'));
+      expect(text, contains('إجمالي السكرب: 0.500 كجم'));
       expect(text, contains('ضمار اليوم: 92,000'));
       expect(text, contains('الرصيد الحالي: 100,000'));
     });
@@ -357,6 +362,96 @@ void main() {
       for (final String text in outputs) {
         expect(text.toLowerCase(), isNot(contains('orimind')));
         expect(text.toLowerCase(), isNot(contains('qtms')));
+      }
+    });
+  });
+
+  group('★★★ `CR-011` — إجمالي العدد الشامل وإجمالي السكرب (`AM-012` §4.3)', () {
+    test('⛔ بلا سكرب ⟵ سطرٌ واحد ⛔ ولا «0.000 كجم»', () {
+      expect(
+        distributionTotalsLines(const <StockQuantity>[
+          PieceQuantity(PieceCount(40)),
+          PieceQuantity(PieceCount(20)),
+        ]),
+        <String>['الإجمالي: 60 حبة'],
+      );
+    });
+
+    test('★ وبسكربٍ ⟵ سطران مسمّيان ⛔ ولا جمعَ بينهما', () {
+      expect(
+        distributionTotalsLines(const <StockQuantity>[
+          PieceQuantity(PieceCount(60)),
+          WeightQuantity(WeightKg(0.5)),
+        ]),
+        <String>['الإجمالي: 60 حبة', 'إجمالي السكرب: 0.500 كجم'],
+      );
+    });
+
+    test('★★ وسكربٌ وحدَه ⟵ سطرُ العدد يبقى صفراً ⛔ ولا يُحذف', () {
+      // ★★ **`FR-M20-10`: الإجمالي حاضرٌ دائماً** — ⟵ **ورسالةٌ بلا سطر
+      //    إجمالي تُقرأ ناقصةً لا مختصرة.**
+      expect(
+        distributionTotalsLines(const <StockQuantity>[
+          WeightQuantity(WeightKg(1.25)),
+        ]),
+        <String>['الإجمالي: 0 حبة', 'إجمالي السكرب: 1.250 كجم'],
+      );
+    });
+
+    test('★ ورسالةٌ بلا سطور ⟵ سطرٌ صفريٌّ واحد', () {
+      expect(
+        distributionTotalsLines(const <StockQuantity>[]),
+        <String>['الإجمالي: 0 حبة'],
+      );
+    });
+
+    test('⛔⛔★★ وسكربٌ بوزنٍ صفري لا يُنتج سطراً — القيمةُ هي الحكم', () {
+      // ⛔ **والمقارنة على الكيلوجرامات لا على وجود عنصرٍ وزني** — ⟵ **وإلا
+      //    ظهر «إجمالي السكرب: 0.000 كجم» وهو ما يُلغيه `CR-011` نصّاً.**
+      expect(
+        distributionTotalsLines(const <StockQuantity>[
+          PieceQuantity(PieceCount(5)),
+          WeightQuantity(WeightKg(0)),
+        ]),
+        <String>['الإجمالي: 5 حبة'],
+      );
+    });
+
+    test(
+      '⛔⛔★★★ و[formatTotals] خارج نطاق `CR-011` — التقاريرُ والمستنداتُ كما هي',
+      () {
+        // ★★ **حدُّ الطلب مقصورٌ على `FR-M20-10`** — ⟵ **وخلايا الجداول
+        //    تبقى ثابتةَ الشطرين** (نفسُ منطق `CR-004` §2.1).
+        expect(
+          formatTotals(const <StockQuantity>[PieceQuantity(PieceCount(60))]),
+          '60 حبة + 0.000 كجم',
+        );
+      },
+    );
+  });
+
+  group('★★ `AM-012` §4.1 — بادئة «الأخ /» قبل اسم المقوت في كل قالب', () {
+    test('★ في القوالب الأربعة والنسخة المختصرة معاً', () {
+      final List<String> outputs = <String>[
+        renderDistributionMessage(
+          business: _business,
+          data: _distribution(),
+          template: MessageTemplate.distributionOnly,
+        ),
+        renderDistributionMessage(
+          business: _business,
+          data: _distribution(),
+          template: MessageTemplate.distributionWithPricing,
+        ),
+        renderShortDistributionMessage(
+          business: _business,
+          data: _distribution(),
+        ),
+      ];
+      for (final String text in outputs) {
+        expect(text, contains('الأخ / أحمد صالح'));
+        // ⛔ **ولا تبقى الصيغةُ القديمة الملتصقة في أي مخرَج.**
+        expect(text, isNot(contains('الأخ/ ')));
       }
     });
   });

@@ -25,6 +25,10 @@ final class FirebaseAuthRepository implements AuthRepository {
     final IdTokenResult token = await user.getIdTokenResult();
     return AuthenticatedIdentity(
       userId: user.uid,
+      // ★★★ **بريدُ الدخول من خدمة المصادقة** — `AM-012` §5.1:
+      //    ⟵ **وهو ما تحتاجه إعادةُ المصادقة** ([`ADR-0024`] الشرط 4).
+      // ⛔ **والفراغُ يُقرأ غياباً لا نصّاً فارغاً.**
+      email: (user.email?.trim().isEmpty ?? true) ? null : user.email!.trim(),
       sourceScope: parseSourceScopeClaim(token.claims?[sourceScopeClaimKey]),
     );
   }
@@ -50,6 +54,38 @@ final class FirebaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() => _auth.signOut();
+
+  /// ★★★ **تغييرُ كلمة المرور** — [`CR-012`] · `AM-012` §5.3.
+  ///
+  /// ⛔⛔★★★ **وإعادةُ المصادقة أولاً بالكلمة الحالية** — ★ **`reauthenticateWithCredential`:**
+  /// ⟵ **وخدمةُ المصادقة ترفض `updatePassword` على جلسةٍ قديمة أصلاً**
+  /// (`requires-recent-login`)، ★ **وإعادتُها هنا تجعل الرفضَ مصنَّفاً
+  /// «الحالية غير صحيحة»** ⛔ **بدل خطأٍ غامضٍ يقرؤه المستخدم عطلاً.**
+  @override
+  Future<SignInResult> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final User? user = _auth.currentUser;
+    final String? email = user?.email;
+    // ⛔ **ولا جلسةَ ولا بريد ⟵ رفضٌ مصنَّف** — ★ **ولا انهيار**، ⟵ **والحارسُ
+    //   الحقيقي أن الشاشة لا تُفتَح بلا جلسة** (`router.dart`).
+    if (user == null || email == null || email.isEmpty) {
+      return const SignInRejected(SignInRejection.unexpected);
+    }
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: currentPassword),
+      );
+      await user.updatePassword(newPassword);
+      return const SignInAccepted();
+    } on FirebaseAuthException catch (error) {
+      return SignInRejected(mapSignInError(error.code));
+    } on Object {
+      // ⛔ لا يُبتلَع استثناء صامتاً (coding-standards §2.5) — يُصنَّف ويُبلَّغ.
+      return const SignInRejected(SignInRejection.unexpected);
+    }
+  }
 }
 
 /// يُصنِّف رمز خطأ خدمة المصادقة إلى سبب رفض من طبقة النطاق.
@@ -66,6 +102,11 @@ SignInRejection mapSignInError(String code) {
     case 'invalid-email':
     case 'user-not-found':
     case 'wrong-password':
+    // ★★ **وثلاثةٌ تخصّ تغييرَ كلمة المرور** — [`CR-012`]:
+    //    ★ **وكلُّها تُقرأ «الحالية غير صحيحة أو الجلسة قديمة»** — ⟵ **وهي
+    //    رسالةٌ واحدة للمستخدم: أعد إدخال كلمتك الحالية.**
+    case 'requires-recent-login':
+    case 'invalid-login-credentials':
       return SignInRejection.invalidCredentials;
     case 'user-disabled':
       return SignInRejection.accountDisabled;

@@ -187,7 +187,8 @@ DistributionCard testDistributionCard({
         itemName: 'عود',
         quantity: PieceQuantity(PieceCount(quantity)),
         sackId: null,
-        // ⛔★★ **ولا سعرٌ في المستند الأب** — `ADR-0011`.
+        // ⛔★★ **ولا سعرٌ في المستند الأب** — `ADR-0011`:
+        //   ★ **ويصل الشاشةَ من `pricing/current` وحدَه** (`DEBT-87`).
         unitPrice: null,
         note: null,
       ),

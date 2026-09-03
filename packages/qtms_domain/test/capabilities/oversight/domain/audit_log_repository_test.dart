@@ -120,16 +120,56 @@ void main() {
       expect(rows, isEmpty, reason: '⛔ فرقُ تمثيلٍ ليس تغييراً');
     });
 
-    test('★ الإنشاء يعرض «بعد» وحدها بلا «قبل» — والغياب null صريح', () {
-      final List<AuditFieldChange> rows = describeAuditChanges(
-        buildCard(
+    test(
+      '⛔⛔★★★ والإنشاءُ بلا صفٍّ واحد — AM-012 §3.1 (2026-09-02)',
+      () {
+        // ★★★ **وكان يعرض «بعد» وحدها بـ«قبل» فارغة** — ⟵ **أي «لا قيمة ⟵ س»
+        //    لكل حقل**: ⛔ **وهو تكرارُ محتوى المستند بصيغةِ تغييرٍ لم يقع.**
+        final List<AuditFieldChange> rows = describeAuditChanges(
+          buildCard(
+            action: AuditAction.create,
+            after: <String, Object?>{
+              'documentNumber': 'INC-20260827-0001',
+              'quantity': 60,
+            },
+          ),
+        );
+        expect(rows, isEmpty);
+      },
+    );
+
+    test(
+      '⛔⛔★★ و`valuesAfter` تبقى مخزَّنةً كما هي — إسقاطُ عرضٍ لا تخزين',
+      () {
+        // ★★ **فالتحقيقُ يقرأ لقطةَ الإنشاء كاملةً من القاعدة** — ⟵ **والشاشةُ
+        //    وحدَها هي ما تغيّر** (`AM-012` §3.1).
+        final AuditLogEntryCard card = buildCard(
           action: AuditAction.create,
           after: <String, Object?>{'documentNumber': 'INC-20260827-0001'},
-        ),
-      );
-      expect(rows.single.before, isNull);
-      expect(rows.single.after, 'INC-20260827-0001');
-    });
+        );
+        expect(card.valuesAfter, <String, Object?>{
+          'documentNumber': 'INC-20260827-0001',
+        });
+      },
+    );
+
+    test(
+      '★★ وبقيةُ الأفعال بلا مساس — التعديلُ يعرض ما تغيّر فعلاً وحدَه',
+      () {
+        // ⛔⛔ **والحدُّ على الفعل `create` وحدَه** — ★ **ولا يُقاس عليه غيرُه:**
+        //    ⟵ **`AM-012` §3.2 يفرض عرضَ الحقول المتغيّرة في «بقية الأحداث».**
+        final List<AuditFieldChange> rows = describeAuditChanges(
+          buildCard(
+            action: AuditAction.amend,
+            before: <String, Object?>{'quantity': 60, 'note': 'ثابت'},
+            after: <String, Object?>{'quantity': 80, 'note': 'ثابت'},
+          ),
+        );
+        expect(rows.single.field, 'quantity');
+        expect(rows.single.before, 60);
+        expect(rows.single.after, 80);
+      },
+    );
 
     test('★★ وحذفُ قالب الدور يعرض «قبل» كاملةً — IQ-018', () {
       final List<AuditFieldChange> rows = describeAuditChanges(

@@ -30,14 +30,17 @@ import 'package:shelf/shelf.dart';
 
 import 'audited_transaction.dart';
 import 'callable.dart';
+import 'sack_valuation_handler.dart';
 import 'counter_allocator.dart' show counterValueField;
 import 'distribution.dart';
+import 'owner_ledger_summary_handler.dart';
 import 'pending_entries.dart';
 import 'identity_gateway.dart';
 import 'inventory.dart';
 import 'inventory_handler.dart'
     show
         inventoryLedgerQuery,
+        ledgerSackIds,
         platformDayOf,
         readInt,
         readItemRecords,
@@ -71,12 +74,29 @@ final class DistributionHandler {
     required IdentityGateway identity,
     required AuditedTransaction transaction,
     DateTime Function()? clock,
+    SackValuationHandler? valuation,
+    OwnerLedgerSummaryHandler? summaries,
   })  : _identity = identity,
         _transaction = transaction,
+        _valuation = valuation,
+        _summaries = summaries,
         _clock = clock;
 
   final IdentityGateway _identity;
   final AuditedTransaction _transaction;
+
+  /// ⛅★★ **مُحتسِبُ مالية الجواني** (`WU-015`) — ★ **يُطلَق بعد الالتزام**.
+  ///
+  /// ⛔⛔ **و`null` في الاختبار تعني «لا احتساب»** — ★ **فالمُحتسِب عمليةٌ
+  /// مشغَّلةٌ مستقلة لها اختبارُها**، ⟵ **وفشلُه لا يُبطل هذه العملية أصلاً**
+  /// (`api-overview.md` §3.3).
+  final SackValuationHandler? _valuation;
+
+  /// ⛅★★★ **باني ملخصات ضمار المالك** (`WU-016`) — ★ **يُطلَق بعد الالتزام**.
+  ///
+  /// ★★ **والتوزيعةُ بندُ «منه آجل» في البطاقة** (`FR-M15-01`)، ★ **ومبالغُ
+  /// تسويتها بندا «الواصل» و«الخصومات»** — ⟵ **فكلُّ مساسٍ بها يُعيد بناءها.**
+  final OwnerLedgerSummaryHandler? _summaries;
 
   /// ★ ساعةُ **الاقتراح** وحدها — ⛔ **ولا تُكتب قيمتها في أي حقل** بلا
   /// موافقة المنصّة (راجع ترويسة الملف). تُحقَن في الاختبار.
@@ -173,6 +193,22 @@ final class DistributionHandler {
         },
       );
       if (drift == null) {
+        // ⛅★★★ **ويُعاد احتساب مالية جواني هذا اليوم** — `FR-M14-05`:
+        //    ★ **بعد الالتزام لا داخله** (`api-overview.md` §3.2 و§3.3)،
+        //    ⛔ **وفشلُه لا يُبطل هذه العملية.**
+        await revalueSacksAfterCommit(
+          _valuation,
+          sourceId: sourceId,
+          stockDate: day,
+        );
+        // ⛅★★★ **وتُعاد بناءُ بطاقة ضمار المالك** — `FR-M15-13`.
+        await buildDailySummariesAfterCommit(
+          _summaries,
+          days: <OwnerLedgerDay>{
+            OwnerLedgerDay(sourceId: sourceId, date: day),
+          },
+          today: day,
+        );
         return callableSuccess(<String, Object?>{
           'documentNumber': number,
           'distributionId': id,
@@ -298,6 +334,8 @@ final class DistributionHandler {
           dealerId: dealerId,
           lines: lines,
           items: items,
+          // ★★★ **ومرجعُ الجونية يُقاس من الدفتر** — [`DEBT-86`].
+          sackIds: ledgerSackIds(reads: reads, itemKeys: itemPaths.keys),
           notes: call.readString('notes'),
         );
         if (validated is Failure<ValidatedDistribution>) {
@@ -458,6 +496,11 @@ final class DistributionHandler {
         ),
     };
 
+    // ★★ **ويومُ المنصّة يُلتقَط من المعاملة نفسِها** — ⛔ **لا من ساعة
+    //    الحاوية** (`GR-54`): ⟵ **وبه وحدَه يُوسَم اليومُ الماضي «⟳ مُحدَّث
+    //    بأثر رجعي»** (`FR-M15-12`).
+    CalendarDay? platformToday;
+
     await _transaction.run<void>(
       readPaths: <String>[
         documentPath,
@@ -473,6 +516,7 @@ final class DistributionHandler {
         _dealerLedgerQuery(dealerId: dealerId, sourceId: sourceId),
       ],
       plan: (TransactionReads reads) {
+        platformToday = platformDayOf(reads);
         // ★★★ **والمفتاح المركّب نوعٌ لا سجل له** — راجع [withLedgerItems]:
         //    ⛔ **بلا هذا لا يُوزَّع سطرُ جونيةٍ إطلاقاً** — ★ **وهي مقايسةُ
         //    `DEBT-55` نفسُها في هذا المسار** (`FR-M10-13`).
@@ -492,6 +536,8 @@ final class DistributionHandler {
             dealerId: dealerId,
             lines: lines,
             items: items,
+            // ★★★ **ومرجعُ الجونية يُقاس من الدفتر** — [`DEBT-86`].
+            sackIds: ledgerSackIds(reads: reads, itemKeys: itemPaths.keys),
             notes: call.readString('notes'),
           );
           if (validated is Failure<ValidatedDistribution>) {
@@ -564,6 +610,20 @@ final class DistributionHandler {
       },
     );
 
+    // ⛅★★★ **ويُعاد احتساب مالية جواني هذا اليوم** — `FR-M14-05`:
+    //    ★ **بعد الالتزام لا داخله** (`api-overview.md` §3.2 و§3.3)،
+    //    ⛔ **وفشلُه لا يُبطل هذه العملية** (راجع `revalueSacksAfterCommit`).
+    await revalueSacksAfterCommit(
+      _valuation,
+      sourceId: sourceId,
+      stockDate: day,
+    );
+    await buildDailySummariesAfterCommit(
+      _summaries,
+      days: <OwnerLedgerDay>{OwnerLedgerDay(sourceId: sourceId, date: day)},
+      today: platformToday ?? day,
+    );
+
     return callableSuccess(<String, Object?>{
       'documentNumber': number,
       'distributionId': compositeId,
@@ -587,6 +647,7 @@ final class DistributionHandler {
     required String dealerId,
     required List<_LineRequest> lines,
     required Map<String, ItemRead> items,
+    required Map<String, String> sackIds,
     required String? notes,
   }) {
     final List<DistributionLineInput> inputs = <DistributionLineInput>[];
@@ -609,7 +670,9 @@ final class DistributionHandler {
           itemName: item.name,
           unit: item.unit,
           quantity: quantity,
-          sackId: line.sackId,
+          // ★★★ **والمقيسُ يسبق المُرسَل** — [`DEBT-86`] · `ADR-0007` ⑤:
+          //    ⟵ **فحركةُ الخروج تحمل مرجعَ جونيتها ولو لم تُرسِله الشاشة.**
+          sackId: sackIds[line.itemId] ?? line.sackId,
           unitPrice: line.unitPrice,
           note: line.note,
         ),

@@ -54,3 +54,15 @@ cd functions && dart analyze && dart test
 ```bash
 cd test/security-rules && npm test
 ```
+
+---
+
+## طُوِّر بواسطة
+
+**فريق أوريمايند**
+
+> ★ **الموضع 4** من مواضع بصمة جهة التطوير المعتمدة في وضع `discreet`
+> (`docs/19-assets/developer-identity.md` §2 · `DI-001`).
+> ⛔ **ولا بريدَ ولا هاتفَ هنا:** ★ **بياناتٌ شخصية مصدرُها الوحيد**
+> `assets/branding/developer-identity.json` — ★ **وتُعرَض في شاشة «حول
+> التطبيق» التي تقرأ منه** (`FR-SYS-29`).

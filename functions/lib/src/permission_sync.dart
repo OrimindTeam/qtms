@@ -255,6 +255,8 @@ PermissionSyncAccepted _buildPlan(
       actor: AuditActor(
         userId: request.actor.userId,
         userName: request.actor.userName,
+        // ★★★ **والبريد منسوخٌ وقت الحدث** — `AM-012` §3.
+        userEmail: request.actor.userEmail,
       ),
       action: AuditAction.permissionChange,
       target: AuditTarget(

@@ -87,6 +87,7 @@
 | 18 | [`../18-ux-ui/design-system.md`](../18-ux-ui/design-system.md) |
 | 19 | [`../18-ux-ui/ui-guidelines.md`](../18-ux-ui/ui-guidelines.md) |
 | 20 | [`../16-accessibility/a11y-checklist.md`](../16-accessibility/a11y-checklist.md) |
+| 21 | ★★ [`../19-assets/developer-identity.md`](../19-assets/developer-identity.md) — ⛔⛔ **إن كانت الشاشةُ تعرض إسنادَ جهة التطوير** (`FR-SYS-28`…`30` · `WU-028`): ★ **مواضعُها الخمسة وممنوعاتُها الثمانية وقاعدةُ التبعية البصرية** — ⛔ **ولا قيمةَ تواصلٍ محفورةٌ في أي شاشة**، ★ **تحرسها ثلاثُ بوابات آلية.** |
 
 ## 3. ★ أخطاء يقع فيها كل قادم جديد
 

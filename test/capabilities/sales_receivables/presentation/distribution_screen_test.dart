@@ -171,7 +171,9 @@ Future<void> scrollFormTo(WidgetTester tester, Finder target) async {
 /// يُصفّي ثم الكمية** ⛔ **لا صفوفَ كتالوجٍ جاهزة.**
 Future<void> addLine(
   WidgetTester tester, {
-  String item = 'عود',
+  /// ★★ **والنصُّ يحمل المتبقّي** — `FR-M10-06` · [`DEBT-86`]: ⟵ **فالخيارُ
+  ///    من رصيد الدفتر**، ⛔ **ولا اسمٌ مجرَّدٌ في القائمة.**
+  String item = 'عود (100 حبة)',
   required String quantity,
 }) async {
   await tester.tap(find.text('إضافة نوع'));
@@ -197,6 +199,8 @@ void main() {
     masterData.emitSources(<SourceCard>[testSource()]);
     masterData.emitItems(<ItemCard>[testItem()]);
     masterData.emitDealers(<DealerCard>[testDealer()]);
+    // ★★ **ورصيدُ اليوم هو مصدرُ الخيارات** — [`DEBT-86`].
+    inventory.emitStock(<ItemDailyBalanceCard>[testBalance()]);
     distributions.emitList(const <DistributionCard>[]);
   });
 
@@ -508,6 +512,72 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
+  group('⛔⛔★★★ DEBT-87 — التعديل يبذر السعر ⛔ ولا يُفرِّغه صامتاً', () {
+    // ═════════════════════════════════════════════════════════════════════
+    // ★ **العطل مقيسٌ على `Pixel_6_API_36` (2026-09-02):** ⟵ **فُتح نموذجُ
+    // التعديل بحقلِ سعرٍ فارغ لتوزيعةٍ سعرُها 500** — ⛔⛔ **وحفظُه يُرسِل
+    // `unitPrice: null`** ⟹ **«تفريغُ سعرٍ قائم»**: ★ **فتنهار قيمةُ
+    // الضمار إلى صفر بلا أن يقصد المستخدم شيئاً.**
+    // ═════════════════════════════════════════════════════════════════════
+    testWidgets('★★★ السعرُ القائم يظهر في الحقل عند فتح التعديل', (
+      WidgetTester tester,
+    ) async {
+      distributions.emitOne(testDistributionCard());
+      // ★★ **والسعرُ في مستنده الفرعي وحدَه** — [`ADR-0011`].
+      distributions.emitPricing(
+        DistributionPricingCard(
+          sourceId: 'SRC-001',
+          debtValue: Money(40000),
+          unitPrices: <Money?>[Money(500)],
+          lineTotals: <Money?>[Money(40000)],
+        ),
+      );
+      await pumpDistribution(tester);
+      await openAmendForm(tester);
+
+      final TextField price = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'السعر (أو اتركه لاحقاً)'),
+      );
+      expect(price.controller!.text, '500');
+    });
+
+    testWidgets('⛔⛔ وحفظُ تعديلٍ بلا مساسٍ بالسعر يُرسله كما هو', (
+      WidgetTester tester,
+    ) async {
+      distributions.emitOne(testDistributionCard());
+      distributions.emitPricing(
+        DistributionPricingCard(
+          sourceId: 'SRC-001',
+          debtValue: Money(40000),
+          unitPrices: <Money?>[Money(500)],
+          lineTotals: <Money?>[Money(40000)],
+        ),
+      );
+      await pumpDistribution(tester);
+      await openAmendForm(tester);
+
+      await tester.tap(find.text('حفظ التعديل'));
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(admin.amendCalls, 1);
+      expect(admin.lastDistribution!.lines.single.unitPrice, const Money(500));
+    });
+
+    testWidgets('⛔ وتوزيعةٌ بلا سعر تبقى بحقلٍ فارغ — FR-M10-08', (
+      WidgetTester tester,
+    ) async {
+      distributions.emitOne(testDistributionCard());
+      await pumpDistribution(tester);
+      await openAmendForm(tester);
+
+      final TextField price = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'السعر (أو اتركه لاحقاً)'),
+      );
+      expect(price.controller!.text, isEmpty);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
   group('⛔⛔★★★ ولا يُعبَّئ سبب التعديل نيابةً عن المستخدم', () {
     // ⛔⛔★★★ **وبعد `ADR-0020` صار «الفارغ» يُرسَل غياباً لا نصّاً فارغاً**
     //    — ★ **والسحابة تقبله**، ⟵ **فالحارس الباقي أن التطبيق لا يخترع
@@ -748,5 +818,74 @@ void main() {
       );
       expect(search.controller!.text, isEmpty);
     });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ⛔⛔★★★ [`DEBT-86`] — ما يدخل المخزنَ من جونية يُوزَّع
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // ★ **مقيسٌ على `Pixel_6_API_36` (2026-09-02):** **«عتود» ورد في جونية**
+  //   ⟹ **دخل الدفترَ بمفتاحٍ مركّب** (`ADR-0007`)، ⛔ **والمنسدلُ كان يُبنى
+  //   من `items` بمعرّفاتِ `itemId`** — ⟵ **فلم يظهر المفتاحُ قطّ.**
+  group('⛔⛔★★★ DEBT-86 — سطرُ الجونية يُوزَّع من الشاشة', () {
+    testWidgets(
+      '✅★★★ المفتاحُ المركّب خيارٌ في المنسدل ويُرسَل كما هو في الدفتر',
+      (WidgetTester tester) async {
+        // ★★ **والكتالوجُ يحمل «عتود» بمعرّفه** — ⛔ **والدفترُ يحمل المركّب**:
+        //    ⟵ **وهما مفتاحان مختلفان**، ★ **والدفترُ هو الحَكَم** (`ADR-0008`).
+        masterData.emitItems(<ItemCard>[
+          testItem(itemId: 'ITM-0003', name: 'عتود'),
+        ]);
+        inventory.emitStock(<ItemDailyBalanceCard>[
+          // ⛔⛔★★ **والشكلُ المخزَّن الحقيقي: مفتاحٌ مركّبٌ واسمٌ مجرَّد**
+          //    (مقيسٌ على التجريبية) — ★ **والعرضُ يُركِّبه** (`ADR-0007`).
+          testBalance(
+            itemKey: 'عتود - جونية رقم 1',
+            itemName: 'عتود',
+            incoming: 100,
+            outgoing: 0,
+          ),
+        ]);
+        distributions.emitOne(null);
+        await pumpDistribution(tester);
+        await openNewForm(tester);
+        await pickDealer(tester);
+        await addLine(
+          tester,
+          item: 'عتود - جونية رقم 1 (100 حبة)',
+          quantity: '10',
+        );
+
+        await tester.tap(find.text('حفظ التوزيعة'));
+        await tester.pump(const Duration(milliseconds: 20));
+
+        expect(admin.createCalls, 1);
+        final ValidatedDistributionLine line =
+            admin.lastDistribution!.lines.single;
+        // ⛔⛔★★★ **والمُرسَلُ مفتاحُ الدفتر** — ⛔ **لا `ITM-0003`**:
+        //    ⟵ **وهو حرفياً ما كانت السحابة ترفضه بـ«الكمية غير كافية».**
+        expect(line.itemId, 'عتود - جونية رقم 1');
+        expect(line.itemName, 'عتود - جونية رقم 1');
+        expect(line.quantity, PieceQuantity(const PieceCount(10)));
+      },
+    );
+
+    testWidgets(
+      '⛔⛔★★ ونوعٌ في الكتالوج بلا رصيدٍ اليوم لا يُعرَض خياراً',
+      (WidgetTester tester) async {
+        masterData.emitItems(<ItemCard>[
+          testItem(itemId: 'ITM-0009', name: 'بطّوه'),
+        ]);
+        inventory.emitStock(const <ItemDailyBalanceCard>[]);
+        distributions.emitOne(null);
+        await pumpDistribution(tester);
+        await openNewForm(tester);
+        await pickDealer(tester);
+
+        // ★ **ولا زرَّ إضافةِ سطرٍ أصلاً** — ⟵ **والنصُّ يقول العلّة.**
+        expect(find.text('لا مخزون في هذا المصدر اليوم.'), findsOneWidget);
+        expect(find.text('إضافة نوع'), findsNothing);
+      },
+    );
   });
 }

@@ -41,6 +41,15 @@ final class FakeSackDirectory implements SackDirectory {
     _finance.add(value);
   }
 
+  /// ★★ يبثّ ماليةَ **جونيةٍ بعينها** — ⟵ **فشاشةٌ تعرض عدّة جوانٍ تُقاس
+  /// بأرقامٍ مختلفة لكلٍّ منها** (`WU-015`)، ⛔ **لا برقمٍ واحدٍ للجميع.**
+  void emitFinanceFor(String sackId, SackFinanceCard? value) {
+    _financeBySack[sackId] = value;
+  }
+
+  final Map<String, SackFinanceCard?> _financeBySack =
+      <String, SackFinanceCard?>{};
+
   /// ⚠️ **يُغلِق بلا انتظار عمداً** — بنفس سبب بقية البدائل.
   void dispose() {
     unawaited(_sacks.close());
@@ -63,6 +72,11 @@ final class FakeSackDirectory implements SackDirectory {
 
   @override
   Stream<SackFinanceCard?> watchSackFinance({required String sackId}) async* {
+    // ★ **وماليةُ جونيةٍ بعينها تسبق العامة** — راجع [emitFinanceFor].
+    if (_financeBySack.containsKey(sackId)) {
+      yield _financeBySack[sackId];
+      return;
+    }
     yield _currentFinance;
     yield* _finance.stream;
   }

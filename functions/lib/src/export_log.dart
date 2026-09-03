@@ -186,6 +186,8 @@ ExportLogPlan planExportLog(
         userId: request.actor.userId,
         // ★ **منسوخ لا مرجع** — الشرط 4 في `audit-log-design.md` §2.
         userName: request.actor.userName,
+        // ★★★ **والبريد منسوخٌ وقت الحدث كذلك** — `AM-012` §3.
+        userEmail: request.actor.userEmail,
       ),
       action: AuditAction.export,
       target: AuditTarget(

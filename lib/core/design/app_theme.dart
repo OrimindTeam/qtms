@@ -48,6 +48,28 @@ ThemeData buildQtmsTheme() {
       space: Sizes.borderWidth,
     ),
 
+    // ★★★ **التبويبات** — `design-system.md` §7: «**مؤشّر خط سفلي · ★ يبقى
+    //    موجوداً في الحالتين فلا تقفز التبويبات**» (`AM-012` §2).
+    //
+    // ⛔⛔★★★ **وموضعُه هنا لا في الشاشة** — ★ **بوابةُ «لا استدعاءَ للطبقة
+    //    الأولية خارج طبقة التوكنز»** (`design_gates_test.dart` · `AM-007`):
+    //    ⟵ **ولونُ المؤشّر `primary500` أوليٌّ**، ⛔ **فكتابتُه في شاشة
+    //    تُسقِط البوابة** — ★ **وهو حرفياً ما وقع لحظةَ بناء «التوريد
+    //    مخزني» ورصدتْه البوابة قبل أي مراجعة.**
+    //
+    // ★★ **وأثرُه يعمّ:** ⟵ **أيُّ تبويباتٍ تُضاف لاحقاً ترث الشكل نفسه**
+    //    ⛔ **بلا نسخةٍ ثانية تفترق** (§8 المحظور الحادي عشر).
+    tabBarTheme: const TabBarThemeData(
+      labelColor: SemanticColors.textPrimary,
+      unselectedLabelColor: SemanticColors.textSecondary,
+      indicatorColor: Primitives.primary500,
+      // ★ **وخطٌّ سفليٌّ تحت التسمية وحدها** — ⛔ **لا مستطيلٌ ممتلئ.**
+      indicatorSize: TabBarIndicatorSize.tab,
+      labelStyle: TypeScale.titleSm,
+      unselectedLabelStyle: TypeScale.bodyMd,
+      dividerColor: SemanticColors.divider,
+    ),
+
     textTheme: const TextTheme(
       displayLarge: TypeScale.displayLg,
       displaySmall: TypeScale.displaySm,

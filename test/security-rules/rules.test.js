@@ -483,8 +483,27 @@ describe('صلاحيات العرض — شرط قراءة في القاعدة ل
         sourceId: 'SRC-001',
         net: 120000,
       });
+      // ⛔ DEBT-70: البذرةُ تحمل sourceId كما تكتبه السحابةُ فعلاً
+      //    (`account_provisioning` · `distribution`) — ⟵ وغيابُه هنا سابقاً
+      //    كان يُخفي أن القاعدة لا تفحص النطاق أصلاً.
       await setDoc(doc(db, 'dealer_balances/MQT-0001_SRC-001'), {
+        dealerId: 'MQT-0001',
+        sourceId: 'SRC-001',
         balance: 88000,
+      });
+      // ★ فائضُ مصدرٍ — يحمل sourceId فيخضع للنطاق.
+      await setDoc(doc(db, 'dealer_surplus/MQT-0001_SRC-001'), {
+        dealerId: 'MQT-0001',
+        scope: 'source',
+        sourceId: 'SRC-001',
+        availableAmount: 20000,
+      });
+      // ★★ وفائضٌ عام — sourceId مكتوبٌ null عمداً (FR-M12-12 · AT-32).
+      await setDoc(doc(db, 'dealer_surplus/MQT-0001_general'), {
+        dealerId: 'MQT-0001',
+        scope: 'general',
+        sourceId: null,
+        availableAmount: 15000,
       });
       await setDoc(doc(db, 'daily_summaries/SRC-001_2026-08-21'), {
         sourceId: 'SRC-001',
@@ -493,6 +512,20 @@ describe('صلاحيات العرض — شرط قراءة في القاعدة ل
       await setDoc(doc(db, 'daily_summaries/all_2026-08-21'), {
         sourceId: 'all',
         date: todayUtc(),
+      });
+      // ★ ومصدرٌ خارج نطاق القارئ الضيّق — لإثبات أن النطاق يحرس فعلاً.
+      await setDoc(doc(db, 'daily_summaries/SRC-002_2026-08-21'), {
+        sourceId: 'SRC-002',
+        date: todayUtc(),
+      });
+      // ✅★★ وسلسلتا آخر سبعة أيام — WU-016 · IQ-030.
+      await setDoc(doc(db, 'owner_ledger_trends/SRC-001'), {
+        sourceId: 'SRC-001',
+        points: [],
+      });
+      await setDoc(doc(db, 'owner_ledger_trends/all'), {
+        sourceId: 'all',
+        points: [],
       });
     });
   });
@@ -521,6 +554,40 @@ describe('صلاحيات العرض — شرط قراءة في القاعدة ل
     );
   });
 
+  // ══════════════════════════════════════════════════════════════════
+  // ⛔⛔★★★ DEBT-70 — نطاقُ المصادر على أرصدة المقاوته وفائضهم.
+  //    كان الشرطُ `perm('dealerBalanceView')` وحدَه ⟵ فمستخدمُ مصدرٍ واحد
+  //    يقرأ رصيدَ مصدرٍ آخر (نقضُ GR-23 وFR-M19-02).
+  // ══════════════════════════════════════════════════════════════════
+  it('⛔⛔★★★ DEBT-70 — رصيدُ مقوتٍ خارج النطاق يُرفَض ولو ملك المفتاح', async () => {
+    const outside = await as({ dealerBalanceView: true }, ['SRC-999']);
+    await assertFails(getDoc(doc(outside, 'dealer_balances/MQT-0001_SRC-001')));
+  });
+
+  it('✅ وداخلَ النطاق يُقبَل — فالفرقُ هو النطاق وحده', async () => {
+    const inside = await as({ dealerBalanceView: true }, ['SRC-001']);
+    await assertSucceeds(getDoc(doc(inside, 'dealer_balances/MQT-0001_SRC-001')));
+  });
+
+  it('⛔⛔ وفائضُ مصدرٍ خارج النطاق يُرفَض كذلك', async () => {
+    const outside = await as({ dealerBalanceView: true }, ['SRC-999']);
+    await assertFails(getDoc(doc(outside, 'dealer_surplus/MQT-0001_SRC-001')));
+  });
+
+  it('✅★★★ والفائضُ العام يبقى مقروءاً لصاحب المفتاح — FR-M12-12 · AT-32', async () => {
+    // ⛔⛔ وهذا هو الفخُّ الذي مُنع: `storedInScope()` كانت ستحجبه عن الجميع
+    //    لأن الحقلَ موجودٌ بقيمة null ⟵ فيصدُق `'sourceId' in resource.data`
+    //    ثم يسقط `inScope(null)`. ★ والفائضُ العام عابرٌ للمصادر بتعريفه.
+    const narrow = await as({ dealerBalanceView: true }, ['SRC-999']);
+    await assertSucceeds(getDoc(doc(narrow, 'dealer_surplus/MQT-0001_general')));
+  });
+
+  it('⛔ ولا يُغني النطاقُ عن المفتاح — الاثنان معاً', async () => {
+    const noKey = await as({}, ['SRC-001']);
+    await assertFails(getDoc(doc(noKey, 'dealer_balances/MQT-0001_SRC-001')));
+    await assertFails(getDoc(doc(noKey, 'dealer_surplus/MQT-0001_general')));
+  });
+
   it('★ بطاقة «كل المصادر» تحتاج صلاحيتها المستقلة', async () => {
     const partial = await as({ ownerLedgerView: true }, 'all');
     await assertSucceeds(getDoc(doc(partial, 'daily_summaries/SRC-001_2026-08-21')));
@@ -528,6 +595,120 @@ describe('صلاحيات العرض — شرط قراءة في القاعدة ل
 
     const full = await as({ ownerLedgerView: true, allSourcesCardView: true }, 'all');
     await assertSucceeds(getDoc(doc(full, 'daily_summaries/all_2026-08-21')));
+  });
+
+  // =========================================================================
+  // ⛔⛔★★★ WU-016 — النطاق يعلو على المفتاح في البطاقة التجميعية كذلك
+  //   FR-M15-09 · E-36: «من نطاقه رداع لا يرى بطاقة ماوية ولا تدخل أرقامها
+  //   في بطاقة الكل عنده». ★ وكان الفرع التجميعي يتخطّى فحص النطاق كلياً.
+  // =========================================================================
+
+  it('⛔⛔ ومن نطاقه مصدرٌ واحد لا يقرأ البطاقة التجميعية ولو ملك مفتاحها', async () => {
+    const scoped = await as(
+      { ownerLedgerView: true, allSourcesCardView: true },
+      ['SRC-001'],
+    );
+    await assertSucceeds(getDoc(doc(scoped, 'daily_summaries/SRC-001_2026-08-21')));
+    // ★ المستندُ التجميعي يحمل أرقام كل المصادر — ⛔ فقراءتُه تسريبُ نطاق.
+    await assertFails(getDoc(doc(scoped, 'daily_summaries/all_2026-08-21')));
+  });
+
+  it('⛔ ومصدرٌ خارج النطاق يُرفَض كما كان', async () => {
+    const scoped = await as({ ownerLedgerView: true }, ['SRC-001']);
+    await assertFails(getDoc(doc(scoped, 'daily_summaries/SRC-002_2026-08-21')));
+  });
+
+  // =========================================================================
+  // ✅★★ WU-016 — سلسلة آخر سبعة أيام (IQ-030 · §2.1 القاعدة 4)
+  //   ⛔ شرطُ قراءتها هو شرطُ البطاقة نفسُه — ولا شرطٌ جديد يُخترَع.
+  // =========================================================================
+
+  it('✅ سلسلةُ مصدرٍ في النطاق تُقرأ بمفتاح ضمار المالك', async () => {
+    const reader = await as({ ownerLedgerView: true }, ['SRC-001']);
+    await assertSucceeds(getDoc(doc(reader, 'owner_ledger_trends/SRC-001')));
+  });
+
+  it('⛔ وبلا المفتاح تُرفَض — ولو كان المصدر في النطاق', async () => {
+    const reader = await as({}, ['SRC-001']);
+    await assertFails(getDoc(doc(reader, 'owner_ledger_trends/SRC-001')));
+  });
+
+  it('⛔ وسلسلةُ «الكل» تشترط صلاحيتها ونطاقاً شاملاً معاً', async () => {
+    const partial = await as({ ownerLedgerView: true }, 'all');
+    await assertFails(getDoc(doc(partial, 'owner_ledger_trends/all')));
+
+    const scoped = await as(
+      { ownerLedgerView: true, allSourcesCardView: true },
+      ['SRC-001'],
+    );
+    await assertFails(getDoc(doc(scoped, 'owner_ledger_trends/all')));
+
+    const full = await as(
+      { ownerLedgerView: true, allSourcesCardView: true },
+      'all',
+    );
+    await assertSucceeds(getDoc(doc(full, 'owner_ledger_trends/all')));
+  });
+
+  // =========================================================================
+  // ⛔⛔★★★ WU-016 — حارسُ ارتدادٍ لـ`DEBT-40` في مسار ضمار المالك
+  //   ★ **قراءةُ مستندٍ غائبٍ بمعرّفه تُرفَض** لأن الشرط يقرأ `resource.data`،
+  //   ⟵ **والغيابُ هنا هو الحالة الطبيعية: يومٌ لم تقع فيه عمليةٌ بعد.**
+  //   ★ **والعلاجُ استعلامٌ مقيَّد** ⛔ **لا تخفيفُ القاعدة** — وهذان
+  //   الاختباران يقيسان العطلَ والعلاج معاً لا يصفانهما.
+  // =========================================================================
+
+  it('⛔⛔ ملخّصُ يومٍ غائبٍ يُرفَض بمعرّفه — DEBT-40 حرفياً', async () => {
+    // ⚠️ **والمصدرُ داخل النطاق** — ⟵ **فالرفضُ سببُه الغيابُ وحدَه**،
+    //   ⛔ **لا النطاق** (وذاك مُختبَرٌ مستقلاً أعلاه).
+    const reader = await as({ ownerLedgerView: true }, ['SRC-001']);
+    await assertFails(
+      getDoc(doc(reader, 'daily_summaries/SRC-001_2999-01-01')),
+    );
+  });
+
+  it('✅ والاستعلامُ المقيَّد على اليوم نفسِه يُرجِع صفراً لا رفضاً', async () => {
+    const reader = await as({ ownerLedgerView: true }, ['SRC-001']);
+    const empty = query(
+      collection(reader, 'daily_summaries'),
+      where('sourceId', '==', 'SRC-001'),
+      where('date', '==', new Date(Date.UTC(2999, 0, 1))),
+    );
+    await assertSucceeds(getDocs(empty));
+  });
+
+  it('✅ وسلسلةُ مصدرٍ في النطاق بلا سجلٍّ بعد — استعلامٌ مقيَّد لا قراءةُ معرّف', async () => {
+    // ★ **`SRC-009` داخل النطاق ولا سجلَّ له** — ⟵ **وهي حالُ كل مصدرٍ قبل
+    //   أول بناءِ ملخّص**، ⛔ **وقراءةُ معرّفه تُرفَض لأن `resource` غائب.**
+    const reader = await as({ ownerLedgerView: true }, ['SRC-001', 'SRC-009']);
+    await assertFails(getDoc(doc(reader, 'owner_ledger_trends/SRC-009')));
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(reader, 'owner_ledger_trends'),
+          where('sourceId', '==', 'SRC-009'),
+        ),
+      ),
+    );
+  });
+
+  it('⛅ ولا كتابةَ عليها لأحد — ولو ملك كل المفاتيح', async () => {
+    const owner = await as(
+      { ownerLedgerView: true, allSourcesCardView: true },
+      'all',
+    );
+    await assertFails(
+      setDoc(doc(owner, 'owner_ledger_trends/SRC-001'), {
+        sourceId: 'SRC-001',
+        points: [],
+      }),
+    );
+    await assertFails(
+      setDoc(doc(owner, 'daily_summaries/SRC-001_2026-08-22'), {
+        sourceId: 'SRC-001',
+        netFinal: 1,
+      }),
+    );
   });
 });
 
@@ -1345,5 +1526,105 @@ describe('★★★ WU-008 — سجل التدقيق: الاستعلام لا ا
       updateDoc(doc(all, 'audit_log/AUD-W8-1'), { reason: 'مزوَّر' }),
     );
     await assertFails(deleteDoc(doc(all, 'audit_log/AUD-W8-1')));
+  });
+});
+
+// ===========================================================================
+// ★★★ WU-015 — تفكيك سعر الجونية: سردُ `outflows` كما يستعلمه التطبيق فعلاً
+//
+// ⛔⛔★★★ **ثالثُ وجوه `IQ-024` — ومقيسٌ حيّاً على المحاكي (2026-09-03):**
+//    ★ **ورقةُ تفكيك السعر ردّت «تعذّر عرض البيانات» بحساب QA يملك كلَّ
+//    المفاتيح الخمسة والثمانين** — ⟵ **لأن شرطَ قراءة `outflows` يتفرّع
+//    على `resource.data.ledgerType`** (`withdrawalView` أو `expenseView`)،
+//    ⛔ **واستعلامٌ لا يُقيّد الحقل لا يُثبِته فيُرفَض كاملاً.**
+//
+// ⚠️⚠️★★ **ولم يكشفه اختبارٌ آليٌّ واحد من 2306:** ★ **القارئُ السحابي
+//    يعمل بحساب خدمةٍ يتخطّى القواعد** ⟹ **فالمخزَّن كان صحيحاً والشاشةُ
+//    وحدَها تفشل** — ★ **وهو درس `DEBT-37` حرفياً.**
+// ===========================================================================
+
+describe('★★★ WU-015 — تفكيك سعر الجونية: سردُ الخروجات', () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'outflows/WDR-W15-1'), {
+        sourceId: 'SRC-001',
+        ledgerType: 'withdrawal',
+        stockDate: todayUtc(),
+        date: todayUtc(),
+        lines: [],
+        unpricedItemCount: 0,
+      });
+      await setDoc(doc(db, 'outflows/EXP-W15-1'), {
+        sourceId: 'SRC-001',
+        ledgerType: 'expense',
+        stockDate: todayUtc(),
+        date: todayUtc(),
+        lines: [],
+        unpricedItemCount: 0,
+      });
+    });
+  });
+
+  it('⛔⛔★★★ سردٌ يُقيّد المصدر واليوم وحدهما يُرفَض — ولو ملك القارئ المفتاحين', async () => {
+    // ★★★ **هذا هو القياس الذي أعاد تشكيل `_readMovementDocuments`:**
+    //    ⟵ **استعلامٌ واحد كان يُرفَض** ⛔ **فسقطت الورقةُ كلُّها.**
+    const db = await as(
+      { withdrawalView: true, expenseView: true, sackView: true },
+      ['SRC-001'],
+    );
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, 'outflows'),
+          where('sourceId', '==', 'SRC-001'),
+          where('stockDate', '==', todayUtc()),
+        ),
+      ),
+    );
+  });
+
+  it('✅★★★ وتقييدُ `ledgerType` صراحةً يُنجِح الاستعلامين معاً', async () => {
+    // ★ **العلاجُ تقييدُ الحقل** ⛔ **لا تخفيفُ القاعدة** — `CLAUDE.md`.
+    const db = await as(
+      { withdrawalView: true, expenseView: true, sackView: true },
+      ['SRC-001'],
+    );
+    for (const ledgerType of ['withdrawal', 'expense']) {
+      await assertSucceeds(
+        getDocs(
+          query(
+            collection(db, 'outflows'),
+            where('sourceId', '==', 'SRC-001'),
+            where('stockDate', '==', todayUtc()),
+            where('ledgerType', '==', ledgerType),
+          ),
+        ),
+      );
+    }
+  });
+
+  it('⛔ ومن يملك مفتاحاً واحداً لا يسرد شقَّ الآخر', async () => {
+    // ★★ **والتفرّعُ في القاعدة مقصود** — ⟵ **فالمفتاحان ليسا واحداً.**
+    const db = await as({ withdrawalView: true, sackView: true }, ['SRC-001']);
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(db, 'outflows'),
+          where('sourceId', '==', 'SRC-001'),
+          where('stockDate', '==', todayUtc()),
+          where('ledgerType', '==', 'withdrawal'),
+        ),
+      ),
+    );
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, 'outflows'),
+          where('sourceId', '==', 'SRC-001'),
+          where('stockDate', '==', todayUtc()),
+          where('ledgerType', '==', 'expense'),
+        ),
+      ),
+    );
   });
 });

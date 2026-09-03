@@ -12,7 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/inventory/application/inventory_providers.dart';
-import 'package:qtms/capabilities/inventory/presentation/counted_intake_screen.dart';
+import 'package:qtms/capabilities/inventory/presentation/supply_intake_screen.dart';
 import 'package:qtms/capabilities/inventory/presentation/today_stock_screen.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
 import 'package:qtms/core/messages/error_messages.dart';
@@ -177,7 +177,11 @@ void main() {
         masterData: masterData,
       );
       expect(find.text('إجمالي المعدود: 100 حبة'), findsOneWidget);
-      expect(find.text('إجمالي الوزني: 2.500 كجم'), findsOneWidget);
+      // ★★★ **«إجمالي السكرب» لا «إجمالي الوزني»** — `AM-012` §4.5:
+      //    ⟵ **وكلُّ رصيدٍ وزنيٍّ في المخزن سكربٌ حتماً** (`unitOfItem`).
+      expect(find.text('إجمالي السكرب: 2.500 كجم'), findsOneWidget);
+      // ⛔⛔ **ولا يبقى الاسمُ القديم في أي موضع.**
+      expect(find.textContaining('إجمالي الوزني'), findsNothing);
       // ⛔ **ولا سطرَ «الإجمالي»** — ★ **الجمع بين الوحدتين ممنوع.**
       expect(find.textContaining('الإجمالي:'), findsNothing);
     });
@@ -246,7 +250,7 @@ void main() {
         (WidgetTester t) async {
       await pumpScreen(
         t,
-        screen: const CountedIntakeScreen(),
+        screen: const SupplyIntakeScreen(),
         inventory: inventory,
         admin: admin,
         masterData: masterData,
@@ -267,7 +271,7 @@ void main() {
       masterData.emitSources(const <SourceCard>[]);
       await pumpScreen(
         t,
-        screen: const CountedIntakeScreen(),
+        screen: const SupplyIntakeScreen(),
         inventory: inventory,
         admin: admin,
         masterData: masterData,
@@ -286,7 +290,7 @@ void main() {
       inventory.emitIntakes(<CountedIntakeCard>[testIntake()]);
       await pumpScreen(
         t,
-        screen: const CountedIntakeScreen(),
+        screen: const SupplyIntakeScreen(),
         inventory: inventory,
         admin: admin,
         masterData: masterData,
@@ -302,7 +306,7 @@ void main() {
       inventory.emitIntakes(<CountedIntakeCard>[testIntake()]);
       await pumpScreen(
         t,
-        screen: const CountedIntakeScreen(),
+        screen: const SupplyIntakeScreen(),
         inventory: inventory,
         admin: admin,
         masterData: masterData,
@@ -321,7 +325,7 @@ void main() {
       ]);
       await pumpScreen(
         t,
-        screen: const CountedIntakeScreen(),
+        screen: const SupplyIntakeScreen(),
         inventory: inventory,
         admin: admin,
         masterData: masterData,
@@ -336,7 +340,7 @@ void main() {
       inventory.emitIntakes(<CountedIntakeCard>[testIntake(amendCount: 2)]);
       await pumpScreen(
         t,
-        screen: const CountedIntakeScreen(),
+        screen: const SupplyIntakeScreen(),
         inventory: inventory,
         admin: admin,
         masterData: masterData,
@@ -349,7 +353,7 @@ void main() {
       inventory.emitIntakes(<CountedIntakeCard>[]);
       await pumpScreen(
         t,
-        screen: const CountedIntakeScreen(),
+        screen: const SupplyIntakeScreen(),
         inventory: inventory,
         admin: admin,
         masterData: masterData,
@@ -392,7 +396,7 @@ void main() {
       inventory.emitIntakes(<CountedIntakeCard>[]);
       await pumpScreen(
         t,
-        screen: const CountedIntakeScreen(),
+        screen: const SupplyIntakeScreen(),
         inventory: inventory,
         admin: admin,
         masterData: masterData,
@@ -518,7 +522,7 @@ void main() {
       inventory.emitIntakes(<CountedIntakeCard>[testIntake()]);
       await pumpScreen(
         t,
-        screen: const CountedIntakeScreen(),
+        screen: const SupplyIntakeScreen(),
         inventory: inventory,
         admin: admin,
         masterData: masterData,

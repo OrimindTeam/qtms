@@ -360,6 +360,21 @@ String formatQuantity(StockQuantity quantity) => switch (quantity) {
       WeightQuantity(:final WeightKg weight) => '${weight.formatted()} كجم',
     };
 
+/// ★★★ **اسمُ الإجمالي الوزني كما يقرؤه المستلِم** — `AM-012` §4.2 · [`CR-011`].
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **وهي تسميةُ ما هو قائمٌ في النموذج لا اصطلاحٌ جديد:**
+/// ★ **`unitOfItem` تُرجِع `ItemUnit.kilogram` للنوع الافتراضي وحدَه**
+/// (`FR-M5-03` · `FR-M5-05`)، ★ **والنوعُ الافتراضي الوحيد هو `scrapItemName`**
+/// (`IQ-012`) — ⟹ ★★★ **فكلُّ [WeightQuantity] تصل هنا سكربٌ حتماً**،
+/// ⛔ **ولا حالةَ ثانية ممكنة.**
+///
+/// ★★ **وهذا هو مبدأ `AM-012` §4.2 حرفياً:** «**كلُّ الأصناف تُعامَل كعددية
+/// ما عدا السكرب**» — ★ **مبدأٌ كان مُنفَّذاً في النطاق وغيرَ مسمّىً في
+/// الواجهة**، ⟵ **والطلبُ سمّاه ولم يُنشئه.**
+/// ═══════════════════════════════════════════════════════════════════════
+const String scrapTotalLabel = 'إجمالي السكرب';
+
 /// ★★ الإجمالي **بفصل الحبات عن الأوزان** — `FR-M20-10` · `E-31` · `GR-19`.
 ///
 /// ⛔⛔ **ولا جمعَ بين وحدتين إطلاقاً** — ★ **والصفر يُعرَض إن كان الطرف
@@ -368,6 +383,23 @@ String formatQuantity(StockQuantity quantity) => switch (quantity) {
 ///
 /// ★ **وإن خلا الطرفان معاً فالنصّ «0 حبة + 0.000 كجم»** — ⟵ **فالسطر
 /// موجودٌ دائماً**، ⛔ **ولا رسالةَ بلا سطر إجمالي.**
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **وهذه الدالةُ خارج نطاق [`CR-011`] عمداً — ولا تُقاس على
+/// [distributionTotalsLines]:**
+///
+/// ★ **قارئوها اليوم ثلاثة: التقاريرُ** (`report_builders.dart` **إحدى عشرة
+/// خلية**) **والمستنداتُ المُصدَّرة** (`export_documents.dart`) — ★ **وكلُّها
+/// خلايا جدولٍ لا سطورُ رسالة.**
+///
+/// ⟵ ⛔⛔ **وشكلُ الخلية الثابت ذو الشطرين هو ميزتُها لا عيبُها:** ★ **عمودٌ
+/// يحمل شطرين في صفٍّ وشطراً في آخر يجعل الصفَّين غيرَ قابلين للمقارنة
+/// بالنظر** — ⛔ **وهو ضدُّ ما وُجد الجدولُ لأجله**، ★ **بخلاف الرسالة التي
+/// تُقرأ سطراً سطراً.**
+///
+/// ⚠️ **وحدُّ `CR-011` مقصورٌ على `FR-M20-10` نصّاً** — ⛔ **ولا يُقاس عليه
+/// موضعٌ آخر** (نفسُ منطق [`CR-004`] §2.1 حرفياً).
+/// ═══════════════════════════════════════════════════════════════════════
 String formatTotals(Iterable<StockQuantity> quantities) {
   int pieces = 0;
   double kilograms = 0;
@@ -380,6 +412,95 @@ String formatTotals(Iterable<StockQuantity> quantities) {
     }
   }
   return '$pieces حبة + ${WeightKg(kilograms).formatted()} كجم';
+}
+
+/// ★★★ **سطورُ إجمالي الرسالة** — `AM-012` §4.3 · [`CR-011`] ⏳ **مقترح**.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ★★ **سطرٌ عدديٌّ دائم، وسطرُ سكربٍ عند وجوده وحده:**
+///
+/// ```text
+/// بلا سكرب  ⟶  ['الإجمالي: 60 حبة']
+/// بسكربٍ    ⟶  ['الإجمالي: 60 حبة', 'إجمالي السكرب: 0.500 كجم']
+/// ```
+///
+/// ⛔⛔★★★ **ولا جمعَ بين وحدتين — والفصلُ أقوى مما كان لا أضعف:**
+/// ★ **`E-31` و`GR-19` قائمان بحرفهما** — ⟵ **والرقمان في سطرين مسمَّيَين
+/// لا في سطرٍ بشطرين**، ⛔ **ولا رقمَ ثالثٌ يجمعهما.**
+///
+/// ⚠️⚠️★★ **وثمنُه معلَنٌ في [`CR-011`] §6:** ⛔ **يسقط التمييزُ بين «لا سكرب
+/// في هذه التوزيعة» و«لم يُحسَب السكرب»** — ★ **وكان «0.000 كجم» يقوله.**
+/// ⟵ ★ **ويُقلِّله أن سطورَ الرسالة تُعرَض كلُّها بكمياتها فوق الإجمالي**
+/// ([formatQuantity]) ⟹ **فوجودُ سطرِ سكربٍ من عدمه ظاهرٌ حرفياً.**
+///
+/// ★★ **والسطرُ العددي يبقى ولو كان صفراً** — ⟵ **فلا رسالةَ بلا سطر
+/// إجمالي** ⛔ **ولا تُختصَر إلى سطرِ سكربٍ وحده** (`FR-M20-10`: **الإجمالي
+/// حاضرٌ دائماً**).
+/// ═══════════════════════════════════════════════════════════════════════
+List<String> distributionTotalsLines(Iterable<StockQuantity> quantities) {
+  final QuantityTotals totals = accumulateTotals(quantities);
+  return <String>[
+    'الإجمالي: ${totals.countLabel}',
+    // ⛔ **والصفرُ لا يُطبَع** — [`CR-011`] §2: ★ **والمقارنة على الكيلوجرامات
+    //   لا على وجود عنصرٍ وزني في القائمة**، ⟵ **فسطرُ سكربٍ بوزنٍ صفري
+    //   يقول شيئاً لا مضمون له.**
+    if (totals.hasScrap) '$scrapTotalLabel: ${totals.scrapLabel}',
+  ];
+}
+
+/// ★★★ **محصّلةُ الكميات — حبّاتٌ وسكربٌ منفصلان** (`AM-012` §4.2).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **ولماذا نوعٌ لا حلقتان — وهو عطلٌ مقيسٌ لا احتياط:**
+///
+/// ★ **`WU-010` معيارُ قبولها حرفياً: «المستندُ المُصدَّر يطابق الرسالة رقماً
+/// برقم»** — ⟵ **ويُحرَس باختبارٍ يبحث عن نصِّ إجمالِ المستند داخل نصِّ
+/// الرسالة** (`export_documents_test.dart`).
+///
+/// ⚠️⚠️ **ورصده ذلك الاختبارُ فعلاً لحظةَ تنفيذ [`CR-011`]:** ★ **تغيّرت
+/// صيغةُ الرسالة وبقي المستندُ على [formatTotals]** ⟹ ⛔ **فافترق النصّان
+/// وسقط المعيار** — ★ **والأرقامُ نفسُها لم تتغيّر**، ⟵ **لكنّ «مطابقةً
+/// رقماً برقم» تُقاس على ما يقرؤه العميل لا على ما نعرفه نحن.**
+///
+/// ✅ **والعلاجُ محصّلةٌ واحدة يقرؤها الاثنان** — ⛔ **لا حلقةُ جمعٍ ثالثة:**
+/// ⟵ **فلا موضعَ ثانٍ يُحصي الكميات** (`coding-standards.md` §2.2).
+/// ═══════════════════════════════════════════════════════════════════════
+final class QuantityTotals {
+  /// ينشئ المحصّلة.
+  const QuantityTotals({required this.pieces, required this.scrap});
+
+  /// إجمالي الحبّات — ★ **كلُّ الأنواع** ⛔ **إلا السكرب** (`unitOfItem`).
+  final PieceCount pieces;
+
+  /// إجمالي السكرب بالكيلوجرام — ⛔ **ولا يُجمع مع [pieces] أبداً** (`GR-19`).
+  final WeightKg scrap;
+
+  /// ★ هل في المحصّلة سكربٌ فعلاً؟ — ⛔ **والصفر ليس سكرباً**.
+  bool get hasScrap => scrap.kilograms > 0;
+
+  /// ★ الحبّات بوحدتها — ⛔ **ولا رقمَ بلا وحدته** (`GR-19`).
+  String get countLabel => '${pieces.pieces} حبة';
+
+  /// ★ السكرب بوحدته **بثلاث خانات** — `FR-M20-08`.
+  String get scrapLabel => '${scrap.formatted()} كجم';
+}
+
+/// ★★ يُحصي الكميات في محصّلةٍ واحدة — ⛔ **ولا جمعَ بين وحدتين** (`E-31`).
+QuantityTotals accumulateTotals(Iterable<StockQuantity> quantities) {
+  int pieces = 0;
+  double kilograms = 0;
+  for (final StockQuantity quantity in quantities) {
+    switch (quantity) {
+      case PieceQuantity(:final PieceCount count):
+        pieces += count.pieces;
+      case WeightQuantity(:final WeightKg weight):
+        kilograms += weight.kilograms;
+    }
+  }
+  return QuantityTotals(
+    pieces: PieceCount(pieces),
+    scrap: WeightKg(kilograms),
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -409,7 +530,7 @@ String renderDistributionMessage({
   final StringBuffer out = StringBuffer()
     ..writeln(business.businessName)
     ..writeln('تاريخ المخزون: ${data.stockDate.formatReadable()}')
-    ..writeln('الأخ/ ${data.dealerName} — تفاصيل ما استلمته اليوم:')
+    ..writeln('الأخ / ${data.dealerName} — تفاصيل ما استلمته اليوم:')
     ..writeln();
 
   for (final MessageLine line in data.lines) {
@@ -433,11 +554,13 @@ String renderDistributionMessage({
     );
   }
 
-  out.writeln(
-    'الإجمالي: ${formatTotals(<StockQuantity>[
-          for (final MessageLine line in data.lines) line.quantity,
-        ])}',
-  );
+  // ★★★ **سطرُ عددٍ شامل، وسطرُ سكربٍ عند وجوده** — `AM-012` §4.3 · `CR-011`.
+  //    ⛔ **ولا حلقةَ جمعٍ هنا** — ★ **الحسابُ في طبقته** (`ADR-0010` القاعدة 5).
+  for (final String total in distributionTotalsLines(<StockQuantity>[
+    for (final MessageLine line in data.lines) line.quantity,
+  ])) {
+    out.writeln(total);
+  }
 
   if (priced) {
     out
@@ -461,7 +584,7 @@ String renderReceiptMessage({
     ..writeln(business.businessName)
     ..writeln('سند قبض رقم: ${data.documentNumber}')
     ..writeln('التاريخ: ${data.paidOn.formatReadable()}')
-    ..writeln('الأخ/ ${data.dealerName} — تفاصيل ما سُدِّد:')
+    ..writeln('الأخ / ${data.dealerName} — تفاصيل ما سُدِّد:')
     ..writeln();
 
   for (final SettledDebtLine line in data.settledLines) {
@@ -492,7 +615,7 @@ String renderDiscountMessage({
     ..writeln(business.businessName)
     ..writeln('سند خصم رقم: ${data.documentNumber}')
     ..writeln('التاريخ: ${data.discountedOn.formatReadable()}')
-    ..writeln('الأخ/ ${data.dealerName} — تفاصيل الخصم:')
+    ..writeln('الأخ / ${data.dealerName} — تفاصيل الخصم:')
     ..writeln();
 
   for (final SettledDebtLine line in data.discountedLines) {
@@ -524,10 +647,13 @@ String renderShortDistributionMessage({
   return <String>[
     business.businessName,
     'تاريخ المخزون: ${data.stockDate.formatReadable()}',
-    'الأخ/ ${data.dealerName}',
-    'الإجمالي: ${formatTotals(<StockQuantity>[
-          for (final MessageLine line in data.lines) line.quantity,
-        ])}',
+    'الأخ / ${data.dealerName}',
+    // ★★ **والنسخةُ المختصرة تحمل السطرين نفسَهما** — ⛔ **ولا صيغةَ ثانية**
+    //    (`coding-standards.md` §2.2): ⟵ **واختلافُ إجمالِ الكاملة عن
+    //    المختصرة يجعل المستلِمَ يظنُّ أن أحدهما خطأ.**
+    ...distributionTotalsLines(<StockQuantity>[
+      for (final MessageLine line in data.lines) line.quantity,
+    ]),
     'ضمار اليوم: ${formatRiyals(data.debtValue, thousandsSeparator: separator)}',
     'الرصيد الحالي: '
         '${formatRiyals(data.currentBalance, thousandsSeparator: separator)}',

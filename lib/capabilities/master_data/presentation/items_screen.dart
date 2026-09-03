@@ -18,7 +18,9 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../app/top_bar.dart';
 
+import '../../../core/device/device_preference_providers.dart';
 import '../../../core/design/design_tokens.dart';
+import '../../../core/ui/item_labels.dart';
 import '../../../core/ui/entity_tile.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../identity_access/presentation/permission_gate.dart';
@@ -75,8 +77,16 @@ class _ItemTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => MasterDataTile(
-        title: item.name,
+        // ★★★ **واسمُ النوع بوزن حبته عند تفعيل الخيار** — `AM-012` §4.4:
+        //    ⛔ **عرضٌ محضٌ** ⟵ **والطبيعةُ والوحدةُ في السطر الثاني كما هما.**
+        title: itemCardDisplayName(
+          item,
+          showPieceWeight: ref.watch(showPieceWeightProvider),
+        ),
         // ★★ **أيقونة 🕘 في أول الصفّ** — `FR-M18-10` · `FR-M18-11`.
+        // ⛔⛔ **وعنوانُ السجل الاسمُ الخام** — ★ **ولا لاحقةَ عرضٍ فيه:**
+        //    ⟵ **فالسجلُّ يُقرأ بعد سنةٍ وقد تغيّر التفضيل**، ⛔ **وعنوانٌ
+        //    يتبدّل بتفضيلِ جهازٍ يجعل قيدين لكيانٍ واحد يبدوان لكيانين.**
         leading: auditTrailLeading(
           ref,
           entityType: itemEntityType,

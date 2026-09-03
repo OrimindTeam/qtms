@@ -29,6 +29,8 @@ void main() {
           'occurredAt',
           'userId',
           'userName',
+          // ★★★ **حقلٌ خامسَ عشرَ منذ `AM-012` §3** (2026-09-02).
+          'userEmail',
           'action',
           'entityType',
           'entityId',

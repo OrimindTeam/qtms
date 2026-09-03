@@ -37,6 +37,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../app/top_bar.dart';
+import '../../../core/device/device_preference_providers.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -277,14 +278,21 @@ class _OutflowFormState extends ConsumerState<_OutflowForm> {
     return count;
   }
 
-  Map<String, ItemCard> _itemsById() => <String, ItemCard>{
-        for (final ItemCard item
-            in ref.read(outflowItemsProvider(widget.sourceId)))
-          item.itemId: item,
+  /// ★★ **خياراتُ اليوم بمفاتيحها** — [`DEBT-86`] · راجع [stockOptionsProvider].
+  Map<String, StockOption> _itemsById() => <String, StockOption>{
+        for (final StockOption item in ref.read(
+          stockOptionsProvider(
+            StockQuery(
+              sourceId: widget.sourceId,
+              stockDate: ref.read(todayProvider),
+            ),
+          ),
+        ))
+          item.itemKey: item,
       };
 
   Future<void> _save(CalendarDay today) async {
-    final Map<String, ItemCard> items = _itemsById();
+    final Map<String, StockOption> items = _itemsById();
     final List<OutflowQatLineInput> qatLines = <OutflowQatLineInput>[
       for (final _QatDraft draft in _qat)
         if (draft.toInput(items) case final OutflowQatLineInput line) line,
@@ -339,31 +347,42 @@ class _OutflowFormState extends ConsumerState<_OutflowForm> {
   @override
   Widget build(BuildContext context) {
     final CalendarDay today = ref.watch(todayProvider);
-    final List<ItemCard> items =
-        ref.watch(outflowItemsProvider(widget.sourceId));
-    final Map<String, ItemCard> itemsById = <String, ItemCard>{
-      for (final ItemCard item in items) item.itemId: item,
+    // ⛔⛔★★★ **والخياراتُ من أرصدة الدفتر لا من كتالوج الأنواع** —
+    //    [`DEBT-86`] · `ADR-0007`: راجع [stockOptionsProvider].
+    final List<StockOption> items = ref.watch(
+      stockOptionsProvider(
+        StockQuery(sourceId: widget.sourceId, stockDate: today),
+      ),
+    );
+    final Map<String, StockOption> itemsById = <String, StockOption>{
+      for (final StockOption item in items) item.itemKey: item,
     };
     // ⛔⛔★★★ **والمتبقّي جزءٌ من نصّ الخيار** — `AM-009` ⑥: ⟵ **فمن يسحب
     //    قاتاً يرى كم بقي منه *في لحظة الاختيار*** ⛔ **لا بعد أن يكتب كميةً
     //    تُرفَض بـ`ERR_STOCK_001`.** ★ **ورُصد غيابُه على المحاكي**
     //    (`WU-014` · 2026-09-01) ⛔ **لا في مراجعةٍ نصّية.**
-    final Map<String, StockQuantity> remaining = ref.watch(
-      remainingStockProvider(
-        StockQuery(sourceId: widget.sourceId, stockDate: today),
-      ),
-    );
+    //    ★★ **ويأتي في [StockOption.balance] نفسِه بعد [`DEBT-86`]** —
+    //    ⟵ **فالخيارُ ورصيدُه من سجلٍّ واحد**، ⛔ **ولا خريطةَ ثانية تُقابَل به.**
     final Money qatTotal = _qatTotal();
     final Money cashTotal = _cashTotal();
     final Money grandTotal =
         outflowGrandTotal(totalQatValue: qatTotal, totalCashValue: cashTotal);
     final int unpriced = _unpricedCount();
 
+    // ★★ **تفضيلُ إظهار وزن الحبة** — `AM-012` §4.4: ⛔ **عرضٌ محضٌ**
+    //    ⟵ **ولا يمسّ وحدةَ الكمية ولا أي حساب.**
+    final bool showPieceWeight = ref.watch(showPieceWeightProvider);
     final List<QtmsItemOption> options = <QtmsItemOption>[
-      for (final ItemCard item in items)
+      for (final StockOption item in items)
         QtmsItemOption(
-          id: item.itemId,
-          label: itemOptionLabel(item.name, remaining[item.itemId]),
+          id: item.itemKey,
+          // ★★ **ووزنُ الحبة عند تفعيل الخيار** — `AM-012` §4.4.
+          label: itemOptionLabel(
+            item.itemName,
+            item.balance,
+            showPieceWeight: showPieceWeight,
+            pieceWeightGrams: item.pieceWeightGrams,
+          ),
         ),
     ];
 
@@ -699,7 +718,7 @@ final class _QatDraft {
 
   Money? get unitPrice => Money.tryParseInput(price.text);
 
-  Money? lineValue(Map<String, ItemCard> items) {
+  Money? lineValue(Map<String, StockOption> items) {
     final OutflowQatLineInput? line = toInput(items);
     if (line == null) return null;
     // ★★ **والمعادلة من طبقة النطاق** — ⛔ **ولا نسخة ثانية** (`ADR-0009`).
@@ -709,10 +728,10 @@ final class _QatDraft {
     );
   }
 
-  OutflowQatLineInput? toInput(Map<String, ItemCard> items) {
+  OutflowQatLineInput? toInput(Map<String, StockOption> items) {
     final String? id = itemId;
     if (id == null) return null;
-    final ItemCard? item = items[id];
+    final StockOption? item = items[id];
     if (item == null) return null;
     final num? raw = num.tryParse(quantity.text.trim());
     if (raw == null || raw <= 0) return null;
@@ -721,8 +740,9 @@ final class _QatDraft {
       ItemUnit.kilogram => WeightQuantity(WeightKg(raw.toDouble())),
     };
     return OutflowQatLineInput(
+      // ★★ **ومفتاحُ الدفتر هو المُرسَل** — `ADR-0007` · [`DEBT-86`].
       itemId: id,
-      itemName: item.name,
+      itemName: item.itemName,
       unit: item.unit,
       quantity: value,
       unitPrice: unitPrice,

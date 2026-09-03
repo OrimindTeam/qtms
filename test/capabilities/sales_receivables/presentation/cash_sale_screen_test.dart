@@ -90,7 +90,9 @@ Future<void> openNewForm(WidgetTester tester) async {
 /// ★★★ **يضيف سطرَ نوعٍ** — `AM-009` ④: **زرُّ `+` ثم منسدلٌ يُصفّي.**
 Future<void> addLine(
   WidgetTester tester, {
-  String item = 'عود',
+  /// ★★ **والنصُّ يحمل المتبقّي** — `FR-M10-06` · [`DEBT-86`]: ⟵ **فالخيارُ
+  ///    من رصيد الدفتر**، ⛔ **ولا اسمٌ مجرَّدٌ في القائمة.**
+  String item = 'عود (100 حبة)',
   required String quantity,
   String? price,
 }) async {
@@ -129,6 +131,8 @@ void main() {
     inventory = FakeInventoryDirectory();
     masterData.emitSources(<SourceCard>[testSource()]);
     masterData.emitItems(<ItemCard>[testItem()]);
+    // ★★ **ورصيدُ اليوم هو مصدرُ الخيارات** — [`DEBT-86`].
+    inventory.emitStock(<ItemDailyBalanceCard>[testBalance()]);
     sales.emitList(const <CashSaleCard>[]);
   });
 

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/core/connectivity/connection_status.dart';
 import 'package:qtms/core/design/brand.dart';
+import 'package:qtms/core/design/design_tokens.dart';
 import 'package:qtms/core/ui/app_top_bar.dart';
 import 'package:qtms/core/ui/avatar.dart';
 import 'package:qtms_domain/qtms_domain.dart';
@@ -20,16 +21,24 @@ Future<void> pumpBar(
   String userName = 'محمد',
   CalendarDay? today,
   ConnectionStatus connection = ConnectionStatus.online,
+  VoidCallback? onAvatarTap,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
       locale: const Locale('ar'),
-      home: Scaffold(
-        appBar: QtmsTopBarView(
-          screenTitle: screenTitle,
-          userName: userName,
-          today: today ?? CalendarDay(2026, 8, 20),
-          connection: connection,
+      home: Directionality(
+        // ⛔⛔★★ **واتجاهٌ صريح لا مُستنتَجٌ من `locale`** — ★ **الاختبارُ بلا
+        //    `localizationsDelegates` يقع على `ltr` الافتراضية**، ⟵ **فتُقاس
+        //    الحوافُّ مقلوبةً** ⛔ **ويمرّ اختبارُ محاذاةٍ وهو يقيس الطرف الخطأ.**
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          appBar: QtmsTopBarView(
+            screenTitle: screenTitle,
+            userName: userName,
+            today: today ?? CalendarDay(2026, 8, 20),
+            connection: connection,
+            onAvatarTap: onAvatarTap,
+          ),
         ),
       ),
     ),
@@ -49,7 +58,7 @@ void main() {
       expect(find.text(appDisplayName), findsOneWidget);
       expect(find.text('لوحة اليوم'), findsOneWidget);
       // ③ **التاريخ `يوم / شهر`** — ★ **بصيغة الصورة المرجعية حرفياً.**
-      expect(find.text('20 / 08'), findsOneWidget);
+      expect(find.text('2026 / 08 / 20'), findsOneWidget);
       // ④ **الصورة الرمزية بالحرف الأول.**
       expect(find.byType(QtmsAvatar), findsOneWidget);
       expect(find.text('م'), findsOneWidget);
@@ -79,16 +88,93 @@ void main() {
     });
   });
 
-  group('⛔⛔★★★ التاريخ — يوم / شهر بصفرٍ بادئ', () {
-    test('★ صفرٌ بادئٌ في الطرفين — فعرضُ النصّ ثابتٌ طوال الشهر', () {
-      expect(dayMonthLabel(CalendarDay(2026, 1, 5)), '05 / 01');
-      expect(dayMonthLabel(CalendarDay(2026, 12, 31)), '31 / 12');
+  group('⛔⛔★★★ التاريخ — اليومُ أولاً في اتجاه القراءة العربية (AM-012 ①)', () {
+    test('★ صفرٌ بادئٌ في اليوم والشهر — فعرضُ النصّ ثابتٌ طوال الشهر', () {
+      expect(topBarDayLabel(CalendarDay(2026, 1, 5)), '2026 / 01 / 05');
+      expect(topBarDayLabel(CalendarDay(2026, 12, 31)), '2026 / 12 / 31');
     });
 
-    test('⛔★★ واليومُ أولاً لا الشهر — ⟵ فلا يُقرأ الشهرُ يوماً', () {
-      // ★ **20 / 08 = اليوم العشرون من الشهر الثامن** — ⛔ **لا العكس.**
-      expect(dayMonthLabel(CalendarDay(2026, 8, 20)), '20 / 08');
-    });
+    test(
+      '⛔⛔★★★ واليومُ في آخر النصّ ⟵ فيقع أولَ ما تراه العينُ من اليمين',
+      () {
+        // ★★★ **تصحيحُ خطأٍ أبلغ عنه المالك (2026-09-02):** ★ **نُفِّذ أولاً
+        //    `20 / 08 / 2026`** — ⟵ **فرأى على الجهاز أن *السنةَ* تظهر أولاً**،
+        //    ⛔ **لأن قراءتَه تبدأ من اليمين حيث تقع `2026`.**
+        //    ⟹ ★ **فالخطأ كان في افتراض أن «الأول» هو الطرفُ الأيسر.**
+        final String label = topBarDayLabel(CalendarDay(2026, 8, 20));
+        expect(label, '2026 / 08 / 20');
+        // ⛔⛔ **واليومُ آخرَ النصّ قطعاً** — ★ **وهو ما يجعله أولَ المقروء.**
+        expect(label.endsWith('20'), isTrue);
+        expect(label.startsWith('2026'), isTrue);
+      },
+    );
+
+    test(
+      '⛔⛔★★★ والسنةُ حقلٌ ثالثٌ إلزامي — ⟵ فحقلان يحتملان قراءتين (AM-012 ①)',
+      () {
+        final String label = topBarDayLabel(CalendarDay(2026, 1, 5));
+        expect(label.split(' / ').length, 3);
+      },
+    );
+
+    test(
+      '⛔⛔★★★ و`formatReadable()` لم تُمَسّ — قرارُ المالك في AM-012 §2 ①',
+      () {
+        // ★★ **لها قارئٌ ثانٍ خارج الشاشة** (`FR-M12-11`) — ⟵ **وتغييرُها
+        //    كان يجعل نصّاً مخزَّناً يُقرأ بصيغتين.**
+        expect(CalendarDay(2026, 1, 5).formatReadable(), '2026/01/05');
+      },
+    );
+  });
+
+  group('⛔⛔★★★ المحاذاةُ البصرية على الطرفين (AM-012 · بلاغُ المالك)', () {
+    testWidgets(
+      '★★★ الشعارُ والصورةُ الرمزية على بُعدٍ واحدٍ من حافتَي الشاشة',
+      (WidgetTester tester) async {
+        // ⚠️⚠️★★★ **عطلٌ رآه المالكُ على الجهاز (2026-09-02):** ★ **«مسافة
+        //    فارغة بين يسار الشاشة والأفتار»** — ⟵ **لأن الصورة 36 داخل هدف
+        //    لمسٍ 48**: ⛔ **فكان الفراغُ 22 مقابل 16 عند الشعار.**
+        //
+        // ⛔⛔ **والعلاجُ ليس تصغيرَ هدف اللمس** — ★ **§5 البند 3 يفرض 48**:
+        //    ⟵ **بل طرحُ الفائض من حشو النهاية** ⟹ **فتتساوى المسافةُ المرئية.**
+        await pumpBar(tester, onAvatarTap: () {});
+
+        final Rect logo = tester.getRect(find.byType(BrandLogo));
+        final Rect avatar = tester.getRect(find.byType(QtmsAvatar));
+        final Size screen =
+            tester.view.physicalSize / tester.view.devicePixelRatio;
+
+        // ★ **الشعارُ عند البداية (اليمين في RTL) والصورةُ عند النهاية.**
+        final double logoEdgeGap = screen.width - logo.right;
+        final double avatarEdgeGap = avatar.left;
+
+        expect(
+          avatarEdgeGap,
+          moreOrLessEquals(logoEdgeGap, epsilon: 0.5),
+          reason: '⛔ الفراغُ المرئي يجب أن يتساوى على الطرفين',
+        );
+        // ⛔⛔★★★ **ولا فراغَ ميتاً بين الصورة والحافة** — ★ **وهو العطلُ
+        //    الذي أبلغ عنه المالك:** ⟵ **123 بكسلاً من حصّةٍ حجزتها
+        //    `Flexible` ولم تستعملها.**
+        expect(
+          avatarEdgeGap,
+          lessThanOrEqualTo(Spacing.screenPadding + 0.5),
+          reason: '⛔ فراغٌ ميتٌ عاد — راجع سقفَ عمود التاريخ',
+        );
+      },
+    );
+
+    testWidgets(
+      '⛔⛔★★★ وهدفُ اللمس يبقى 48 كاملاً — §5 البند 3',
+      (WidgetTester tester) async {
+        // ★★★ **وهذا الشرطُ هو ما يمنع «العلاج» الخاطئ:** ⛔ **تصغيرُ الهدف
+        //    كان سيُساوي المسافةَ ويكسر إمكانيةَ الوصول معاً.**
+        await pumpBar(tester, onAvatarTap: () {});
+        final Size hit = tester.getSize(find.byType(IconButton).first);
+        expect(hit.width, greaterThanOrEqualTo(Sizes.minTouch));
+        expect(hit.height, greaterThanOrEqualTo(Sizes.minTouch));
+      },
+    );
   });
 
   group('⛔⛔★★★ حالة الاتصال — مقيسةٌ لا مُدَّعاة', () {
@@ -137,7 +223,7 @@ void main() {
         // ★ **العناصرُ الثلاثة الأخرى باقية.**
         expect(find.text('متصل'), findsOneWidget);
         expect(find.byType(QtmsAvatar), findsOneWidget);
-        expect(find.text('20 / 08'), findsOneWidget);
+        expect(find.text('2026 / 08 / 20'), findsOneWidget);
       },
     );
 

@@ -14,7 +14,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/inventory/application/inventory_providers.dart';
 import 'package:qtms/capabilities/inventory/presentation/sack_intake_screen.dart';
+import 'package:qtms/capabilities/inventory/presentation/supply_intake_screen.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
+import 'package:qtms/core/device/device_preference_providers.dart';
 import 'package:qtms/core/messages/error_messages.dart';
 import 'package:qtms/core/ui/async_state_view.dart';
 import 'package:qtms/core/ui/context_header.dart';
@@ -80,6 +82,7 @@ Future<void> pumpScreen(
   required FakeSackAdmin admin,
   required FakeMasterDataDirectory masterData,
   Set<Permission> actorPermissions = sackKeys,
+  bool showPieceWeight = false,
 }) async {
   final FakeAuthRepository auth = FakeAuthRepository();
   final FakeUserCardRepository cards = FakeUserCardRepository();
@@ -99,6 +102,8 @@ Future<void> pumpScreen(
         sackDirectoryProvider.overrideWithValue(sacks),
         sackAdminProvider.overrideWithValue(admin),
         todayProvider.overrideWithValue(fixedDay),
+        // ★★ **تفضيلُ إظهار وزن الحبة** — `AM-012` §4.4 · `DEBT-84`.
+        initialShowPieceWeightProvider.overrideWithValue(showPieceWeight),
       ],
       // ⚠️ **والأوراق تحتاج سلفاً من `Material`** — ★ **تُقدّمه الصدَفة
       //   في التطبيق الحقيقي** (`showModalBottomSheet`)، ⟵ **ويُقدَّم هنا
@@ -314,6 +319,51 @@ void main() {
       // ★★ **والنصُّ صار إرشاداً على الحقل نفسِه** — `AM-009` ④:
       //    ⟵ **فيُقرأ مع الحقل لا في سطرٍ منفصلٍ تحته.**
       expect(find.text('وزن الحبة يُستنتَج'), findsOneWidget);
+    });
+
+    testWidgets(
+      '⛔⛔★★★ DEBT-84: منسدلُ سطر الجونية يُظهر وزن الحبة عند تفعيل الخيار',
+      (WidgetTester tester) async {
+        // ★★ `AM-012` §4.4 نصّاً: «**يظهر اسمه في كل الأماكن**» —
+        //    ⛔⛔ **وكانت هذه القائمةُ وحدَها من بين خمسٍ لا تُطبِّقه**:
+        //    ⟵ **فيقرأ المستخدم «بطوة» هنا و«بطوة وزن (200 جرام)» في
+        //    الوارد عدداً للنوع نفسِه** — ★ **مقيسٌ على المحاكي.**
+        await pumpScreen(
+          tester,
+          screen: SackLinesFormSheet(sack: testSack(stockDate: fixedDay)),
+          sacks: sacks,
+          admin: admin,
+          masterData: masterData,
+          showPieceWeight: true,
+        );
+
+        await tester.tap(find.text('إضافة نوع'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(DropdownMenu<String>).last);
+        await tester.pumpAndSettle();
+
+        expect(find.text('بطوة وزن (200 جرام)'), findsWidgets);
+      },
+    );
+
+    testWidgets('⛔ والخيارُ مُطفأً ⟵ الاسمُ مجرَّدٌ كما كان', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        screen: SackLinesFormSheet(sack: testSack(stockDate: fixedDay)),
+        sacks: sacks,
+        admin: admin,
+        masterData: masterData,
+      );
+
+      await tester.tap(find.text('إضافة نوع'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownMenu<String>).last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('بطوة وزن (200 جرام)'), findsNothing);
+      expect(find.text('بطوة'), findsWidgets);
     });
 
     testWidgets('★ ① النوع الوزني يعرض وزن الحبة من التهيئة تلقائياً', (
@@ -561,7 +611,7 @@ void main() {
     ) async {
       await pumpScreen(
         tester,
-        screen: const SackIntakeScreen(),
+        screen: const SupplyIntakeScreen(initialTab: supplyIntakeSackTab),
         sacks: sacks,
         admin: admin,
         masterData: masterData,
@@ -583,7 +633,7 @@ void main() {
       masterData.emitSources(const <SourceCard>[]);
       await pumpScreen(
         tester,
-        screen: const SackIntakeScreen(),
+        screen: const SupplyIntakeScreen(initialTab: supplyIntakeSackTab),
         sacks: sacks,
         admin: admin,
         masterData: masterData,
@@ -600,7 +650,7 @@ void main() {
     ) async {
       await pumpScreen(
         tester,
-        screen: const SackIntakeScreen(),
+        screen: const SupplyIntakeScreen(initialTab: supplyIntakeSackTab),
         sacks: sacks,
         admin: admin,
         masterData: masterData,
@@ -615,7 +665,7 @@ void main() {
       sacks.emitSacks(<SackCard>[testSack(stockDate: fixedDay)]);
       await pumpScreen(
         tester,
-        screen: const SackIntakeScreen(),
+        screen: const SupplyIntakeScreen(initialTab: supplyIntakeSackTab),
         sacks: sacks,
         admin: admin,
         masterData: masterData,
@@ -632,7 +682,7 @@ void main() {
       sacks.emitSacks(<SackCard>[testSack(stockDate: fixedDay)]);
       await pumpScreen(
         tester,
-        screen: const SackIntakeScreen(),
+        screen: const SupplyIntakeScreen(initialTab: supplyIntakeSackTab),
         sacks: sacks,
         admin: admin,
         masterData: masterData,
@@ -702,7 +752,7 @@ void main() {
     ) async {
       await pumpScreen(
         tester,
-        screen: const SackIntakeScreen(),
+        screen: const SupplyIntakeScreen(initialTab: supplyIntakeSackTab),
         sacks: sacks,
         admin: admin,
         masterData: masterData,
@@ -715,7 +765,7 @@ void main() {
     testWidgets('✅ ومن يملكه يراه', (WidgetTester tester) async {
       await pumpScreen(
         tester,
-        screen: const SackIntakeScreen(),
+        screen: const SupplyIntakeScreen(initialTab: supplyIntakeSackTab),
         sacks: sacks,
         admin: admin,
         masterData: masterData,

@@ -32,7 +32,8 @@ flutter analyze
 flutter test
 
 # 4) التشغيل على جهاز/محاكٍ (⚠️ بخدمات Google Play)
-flutter run
+#    ⛔⛔ ولا يُشغَّل بلا عَلَمَي التعريفات — راجع §2.1 ①-ب
+flutter run --flavor staging --dart-define-from-file=config/qtms-public-defines.env
 ```
 
 > ⚠️ **التشغيل يستهدف البيئة التجريبية دائماً.** الربط بالإنتاج من جهاز
@@ -68,8 +69,15 @@ flutter run --flavor staging -d emulator-5554 --dart-define-from-file=config/qtm
 **② ★ توجيه `TEMP` قبل البناء — على الأجهزة المصابة بـ`DEBT-11` فقط:**
 
 ```bash
-set TEMP=E:\Projects\qtms\.gradle-tmp && set TMP=E:\Projects\qtms\.gradle-tmp && flutter build apk --debug
+set TEMP=E:\Projects\qtms\.gradle-tmp && set TMP=E:\Projects\qtms\.gradle-tmp && flutter build apk --debug --flavor staging --dart-define-from-file=config/qtms-public-defines.env
 ```
+
+> ⛔⛔★★★ **والعَلَمُ في أمر البناء نفسِه لا في فقرةٍ أعلاه وحدها** —
+> ★ **أُضيف 2026-09-03 بعد أن أهدر غيابُه جولةً كاملة في `WU-015`:**
+> ⟵ **بُني `app-staging-debug.apk` بلا العَلَم فردَّ إنشاءُ المصدر
+> «تعذّر إتمام العملية — `QTMS_FUNCTIONS_BASE_URL` غير مضبوط في هذا البناء»**
+> — ★ **وهو `DEBT-49` في وجهه الخامس.** ⛔ **والفقرةُ ①-ب كانت تذكره
+> لكنّ أمرَ البناء هنا لم يحمله**، ⟵ **ومَن ينسخ الأمر لا يقرأ ما فوقه.**
 
 > ★ **العلّة نفسها التي أعطبت المحاكي** (§3.2 و
 > [`troubleshooting-guide.md`](troubleshooting-guide.md) §2-ب): Gradle يبني

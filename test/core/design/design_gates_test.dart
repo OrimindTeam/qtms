@@ -1051,6 +1051,74 @@ void main() {
       expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ⛔⛔★★★ **بوابةُ ممنوعات بصمة جهة التطوير** — `developer-identity.md` §5
+  //    · `developer-identity-placement.md` §5 · `FR-SYS-30`.
+  //
+  // ★★ **ولماذا بوابةٌ آلية ولا مراجعةٌ بالعين** (`playbook` §7 بند 2-ب):
+  //    ⛔ **لا اختبارَ وظيفيٌّ يفشل لأن شعارَ المطوّر ظهر في الشريط العلوي
+  //    أو في مستندٍ يُسلَّم لمقاوتٍ** — ★ **مخالفاتٌ تعاقديةٌ تمرّ من كل فحص.**
+  // ══════════════════════════════════════════════════════════════════
+  group('⛔⛔★★★ بوابةُ بصمة جهة التطوير — FR-SYS-30', () {
+    /// ★ **طبقةُ الوصول وحدها** — ⛔ **وما عداها يُرفَض.**
+    const Set<String> identityLayer = <String>{
+      'lib/core/identity/developer_identity.dart',
+      'lib/core/identity/developer_identity_providers.dart',
+      'lib/core/identity/developer_attribution.dart',
+    };
+
+    /// ⛔⛔ **المواضعُ الممنوعةُ نصّاً** — §5 البنود 2 و3 و6.
+    const Set<String> forbidden = <String>{
+      'lib/core/ui/app_top_bar.dart',
+      'lib/app/top_bar.dart',
+      'lib/core/design/brand.dart',
+      'lib/capabilities/identity_access/presentation/login_screen.dart',
+      // ★★ **وشاشةُ البداية تعيش داخل `router.dart`** (`_SplashScreen`) —
+      //    ⛔ **لا ملفَّ مستقلاً لها**: ⟵ **ومدخلٌ باسم ملفٍ غير موجود يجعل
+      //    البوابةَ خضراءَ أبداً بلا أن تفحص شيئاً.**
+      'lib/app/router.dart',
+      'lib/capabilities/oversight/infrastructure/pdf_document_renderer.dart',
+      'lib/core/design/pdf_tokens.dart',
+    };
+
+    test('⛔⛔★★★ ولا إسنادَ في شريطٍ علوي ولا دخولٍ ولا بدايةٍ ولا مخرَجٍ مُصدَّر',
+        () {
+      final List<String> hits = <String>[];
+      for (final _Source source in lib) {
+        final String path = _slash(source.path);
+        if (!forbidden.any(path.endsWith)) continue;
+        // ★ **استعمالٌ فعليٌّ في الكود** — ⛔ **لا ذكرٌ في تعليقٍ توثيقي:**
+        //   ⟵ **و`router.dart` يذكر المستندَ ليُعلن المنع**، ★ **فذكرُه
+        //   التزامٌ بالقاعدة لا خرقٌ لها.
+        if (RegExp(r'\bDeveloperAttribution\b|\bDeveloperIdentity\b')
+            .hasMatch(source.code)) {
+          hits.add('$path ⟵ يمسّ بصمةَ جهة التطوير — §5');
+        }
+      }
+      expect(
+        hits,
+        isEmpty,
+        reason: '⛔ مساحةُ العميل ملكُ العميل — §1 و§5\n${hits.join('\n')}',
+      );
+    });
+
+    test('⛔⛔★★★ ولا يقرأ ملفَّ الهوية إلا طبقةُ الوصول', () {
+      final List<String> hits = <String>[];
+      for (final _Source source in lib) {
+        final String path = _slash(source.path);
+        if (identityLayer.any(path.endsWith)) continue;
+        if (source.code.contains('assets/branding/developer-identity.json')) {
+          hits.add('$path ⟵ يقرأ مصدرَ الحقيقة مباشرةً');
+        }
+      }
+      expect(
+        hits,
+        isEmpty,
+        reason: '⛔ `DeveloperIdentity` وحدها تقرؤه — §6\n${hits.join('\n')}',
+      );
+    });
+  });
 }
 
 // ═══════════════════════════ مساعدات ═══════════════════════════

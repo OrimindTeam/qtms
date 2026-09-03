@@ -138,6 +138,15 @@ final class FirestoreAuditLogDirectory implements AuditLogDirectory {
         // ★ **الاسم منسوخٌ وقت الحدث** — ⛔ **ولا يُقرأ من بطاقة المستخدم الآن**
         //   (`audit-log-design.md` §2 الشرط 4).
         userName: _text(data['userName']) ?? 'مستخدم غير معروف',
+        // ★★★ **والبريدُ منسوخٌ وقت الحدث كذلك** — `AM-012` §3.
+        //
+        // ⛔⛔★★★ **و`null` لا نصٌّ بديل** — ★ **بخلاف الاسم أعلاه عمداً:**
+        //    ⟵ **الاسمُ حقلٌ إلزاميٌّ في كل قيدٍ منذ أول يوم فغيابُه عطلٌ
+        //    يُعلَن**، ★ **والبريدُ حقلٌ أُضيف في 2026-09-02** ⟹ ⛔ **فغيابُه
+        //    في قيدٍ أقدمَ هو الحالُ الطبيعي لا عطل** — ★ **و«بريد غير
+        //    معروف» تحت اسمٍ صحيح كانت تُقرأ اتهاماً للبيانات.**
+        //    ⟵ **والعرضُ يُسقِط السطر بلا أثر** (`audit_trail_view.dart`).
+        userEmail: _text(data['userEmail']),
         action: _actionOf(data['action']),
         entityType: _text(data['entityType']) ?? '',
         entityId: _text(data['entityId']) ?? '',

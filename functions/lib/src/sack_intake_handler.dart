@@ -30,6 +30,7 @@ import 'package:shelf/shelf.dart';
 
 import 'audited_transaction.dart';
 import 'callable.dart';
+import 'sack_valuation_handler.dart';
 import 'counter_allocator.dart' show counterValueField;
 import 'firestore_value.dart' show DecimalValue;
 import 'identity_gateway.dart';
@@ -45,6 +46,7 @@ import 'inventory_handler.dart'
         readStoredName,
         readWeight;
 import 'permission_sync_handler.dart' show requestIdField;
+import 'owner_ledger_summary_handler.dart';
 import 'sack_intake.dart';
 import 'pending_entries.dart';
 
@@ -68,12 +70,30 @@ final class SackIntakeHandler {
     required IdentityGateway identity,
     required AuditedTransaction transaction,
     DateTime Function()? clock,
+    SackValuationHandler? valuation,
+    OwnerLedgerSummaryHandler? summaries,
   })  : _identity = identity,
         _transaction = transaction,
+        _valuation = valuation,
+        _summaries = summaries,
         _clock = clock;
 
   final IdentityGateway _identity;
   final AuditedTransaction _transaction;
+
+  /// ⛅★★ **مُحتسِبُ مالية الجواني** (`WU-015`) — ★ **يُطلَق بعد الالتزام**.
+  ///
+  /// ⛔⛔ **و`null` في الاختبار تعني «لا احتساب»** — ★ **فالمُحتسِب عمليةٌ
+  /// مشغَّلةٌ مستقلة لها اختبارُها**، ⟵ **وفشلُه لا يُبطل هذه العملية أصلاً**
+  /// (`api-overview.md` §3.3).
+  final SackValuationHandler? _valuation;
+
+  /// ⛅★★★ **باني ملخصات ضمار المالك** (`WU-016`) — ★ **يُطلَق بعد الالتزام**.
+  ///
+  /// ★★ **وضريبةُ الجونية بندُ ⑥ في البطاقة** (`FR-M15-08`) — ⟵ **فكلُّ
+  /// مساسٍ بجونيةِ اليوم يُعيد بناءه**، ⛔ **وبعد المُحتسِب لا قبله**:
+  /// ★ **فالضريبةُ تُكتب فيه.**
+  final OwnerLedgerSummaryHandler? _summaries;
 
   /// ★ ساعةُ **الاقتراح** وحدها — ⛔ **ولا تُكتب قيمتها في أي حقل** بلا
   /// موافقة المنصّة. تُحقَن في الاختبار.
@@ -159,6 +179,23 @@ final class SackIntakeHandler {
         },
       );
       if (drift == null) {
+        // ⛅★★★ **ويُعاد احتساب مالية جواني هذا اليوم** — `FR-M14-05`:
+        //    ★ **بعد الالتزام لا داخله** (`api-overview.md` §3.2 و§3.3)،
+        //    ⛔ **وفشلُه لا يُبطل هذه العملية.**
+        await revalueSacksAfterCommit(
+          _valuation,
+          sourceId: sourceId,
+          stockDate: day,
+        );
+        // ⛅★★★ **ثم تُعاد بناءُ بطاقة ضمار المالك** — ⛔ **بعد المُحتسِب
+        //    لا قبله**: ★ **فالبطاقة تقرأ `sackTax` الذي يكتبه هو.**
+        await buildDailySummariesAfterCommit(
+          _summaries,
+          days: <OwnerLedgerDay>{
+            OwnerLedgerDay(sourceId: sourceId, date: day),
+          },
+          today: day,
+        );
         return callableSuccess(<String, Object?>{
           'documentNumber': number,
           'dailySequence': sequence,
@@ -423,6 +460,10 @@ final class SackIntakeHandler {
         ),
     };
 
+    // ★★ **ويومُ المنصّة يُلتقَط من المعاملة نفسِها** — ⛔ **لا من ساعة
+    //    الحاوية** (`GR-54`).
+    CalendarDay? platformToday;
+
     await _transaction.run<void>(
       readPaths: <String>[
         documentPath,
@@ -436,6 +477,7 @@ final class SackIntakeHandler {
           inventoryLedgerQuery(sourceId: sourceId, itemKey: key, day: day),
       ],
       plan: (TransactionReads reads) {
+        platformToday = platformDayOf(reads);
         final StoredSack? stored = readStoredSack(reads.document(documentPath));
         if (stored == null) {
           throw const AbortTransaction(CallableError.invalidArgument);
@@ -534,6 +576,20 @@ final class SackIntakeHandler {
           result: null,
         );
       },
+    );
+
+    // ⛅★★★ **ويُعاد احتساب مالية جواني هذا اليوم** — `FR-M14-05`:
+    //    ★ **بعد الالتزام لا داخله** (`api-overview.md` §3.2 و§3.3)،
+    //    ⛔ **وفشلُه لا يُبطل هذه العملية** (راجع `revalueSacksAfterCommit`).
+    await revalueSacksAfterCommit(
+      _valuation,
+      sourceId: sourceId,
+      stockDate: day,
+    );
+    await buildDailySummariesAfterCommit(
+      _summaries,
+      days: <OwnerLedgerDay>{OwnerLedgerDay(sourceId: sourceId, date: day)},
+      today: platformToday ?? day,
     );
 
     return callableSuccess(<String, Object?>{

@@ -278,6 +278,12 @@ void main() {
     ) async {
       await pumpSheet(tester, document: distributionDocument());
 
+      // ★★ **والزرُّ أسفلَ معاينةٍ نصّيةٍ غيرِ محدودة الطول** — ⟵ **فيقع
+      //    خارج مَنفَذ العرض في اختبارٍ بشاشةٍ صغيرة**: ★ **والورقةُ
+      //    تُمرَّر فعلاً** (`SingleChildScrollView`)، ⛔ **فالتمرير قبل
+      //    النقر يحاكي المستخدم** ⛔ **ولا يُخفَّف الفحص.**
+      await tester.ensureVisible(find.text('تصدير ملف ومشاركته'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('تصدير ملف ومشاركته'));
       await tester.pumpAndSettle();
 
@@ -298,6 +304,12 @@ void main() {
     ) async {
       await pumpSheet(tester, document: distributionDocument());
 
+      // ★★ **والزرُّ أسفلَ معاينةٍ نصّيةٍ غيرِ محدودة الطول** — ⟵ **فيقع
+      //    خارج مَنفَذ العرض في اختبارٍ بشاشةٍ صغيرة**: ★ **والورقةُ
+      //    تُمرَّر فعلاً** (`SingleChildScrollView`)، ⛔ **فالتمرير قبل
+      //    النقر يحاكي المستخدم** ⛔ **ولا يُخفَّف الفحص.**
+      await tester.ensureVisible(find.text('تصدير ملف ومشاركته'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('تصدير ملف ومشاركته'));
       await tester.pumpAndSettle();
 
@@ -311,6 +323,12 @@ void main() {
       exportLog.rejection = const PermissionError();
       await pumpSheet(tester, document: distributionDocument());
 
+      // ★★ **والزرُّ أسفلَ معاينةٍ نصّيةٍ غيرِ محدودة الطول** — ⟵ **فيقع
+      //    خارج مَنفَذ العرض في اختبارٍ بشاشةٍ صغيرة**: ★ **والورقةُ
+      //    تُمرَّر فعلاً** (`SingleChildScrollView`)، ⛔ **فالتمرير قبل
+      //    النقر يحاكي المستخدم** ⛔ **ولا يُخفَّف الفحص.**
+      await tester.ensureVisible(find.text('تصدير ملف ومشاركته'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('تصدير ملف ومشاركته'));
       await tester.pumpAndSettle();
 
@@ -326,6 +344,12 @@ void main() {
       share.fails = true;
       await pumpSheet(tester, document: distributionDocument());
 
+      // ★★ **والزرُّ أسفلَ معاينةٍ نصّيةٍ غيرِ محدودة الطول** — ⟵ **فيقع
+      //    خارج مَنفَذ العرض في اختبارٍ بشاشةٍ صغيرة**: ★ **والورقةُ
+      //    تُمرَّر فعلاً** (`SingleChildScrollView`)، ⛔ **فالتمرير قبل
+      //    النقر يحاكي المستخدم** ⛔ **ولا يُخفَّف الفحص.**
+      await tester.ensureVisible(find.text('تصدير ملف ومشاركته'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('تصدير ملف ومشاركته'));
       await tester.pumpAndSettle();
 

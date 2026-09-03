@@ -158,6 +158,17 @@ final class AuditEntry {
         'occurredAt': truncateToSecond(occurredAt),
         'userId': actor.userId,
         'userName': actor.userName,
+        // ★★★ **بريدُ المُنفِّذ — `AM-012` §3.1 و§3.2** (2026-09-02).
+        //
+        // ⛔⛔★★★ **ومنسوخٌ وقت الحدث كالاسم تماماً** (§2 الشرط 4) — ⟵ **لا
+        //    مرجعٌ يُقرأ من `users/{userId}` عند العرض**: ★ **فبريدٌ تغيّر
+        //    بعد الحدث كان سيُعيد كتابة تاريخِ من نفّذه**، ⛔ **وحسابٌ
+        //    عُطِّل وحُذفت بطاقتُه كان يترك قيدَه بلا هوية.**
+        //
+        // ⚠️★★ **و`null` مسموحةٌ وتعني «لم يُعرَف» لا «لا بريد له»** —
+        //    ★ **وقيودُ ما قبل هذا التاريخ تحمل الحقلَ غائباً**: ⟵ **فالعرضُ
+        //    يُسقِط السطر** ⛔ **ولا يكتب «لا قيمة» في موضع هوية.**
+        'userEmail': actor.userEmail,
         'action': action.name,
         'entityType': target.entityType,
         'entityId': target.entityId,
@@ -184,7 +195,11 @@ final class AuditEntry {
 /// منفِّذ العملية — **اسمه منسوخ فلا يتغيّر لو تغيّر لاحقاً** (§2 الشرط 4).
 final class AuditActor {
   /// ينشئ مُنفِّذاً، ويرفض الهوية الناقصة.
-  factory AuditActor({required String userId, required String userName}) {
+  factory AuditActor({
+    required String userId,
+    required String userName,
+    String? userEmail,
+  }) {
     if (userId.isEmpty) {
       throw ArgumentError.value(
         userId,
@@ -192,16 +207,31 @@ final class AuditActor {
         'المُنفِّذ إلزامي — لا قيد مجهول',
       );
     }
-    return AuditActor._(userId, userName);
+    return AuditActor._(userId, userName, _blankToNull(userEmail));
   }
 
-  const AuditActor._(this.userId, this.userName);
+  const AuditActor._(this.userId, this.userName, this.userEmail);
 
   /// معرّف المُنفِّذ في خدمة المصادقة.
   final String userId;
 
   /// ★ **منسوخ لا مرجع** — فتغيير اسم المستخدم لاحقاً لا يُعيد كتابة تاريخه.
   final String userName;
+
+  /// ★★★ **بريدُ المُنفِّذ منسوخاً وقت الحدث** — `AM-012` §3 · اختياري.
+  ///
+  /// ⛔⛔★★ **والفراغُ يُقرأ غياباً لا نصّاً فارغاً** — ★ **نفسُ قاعدة
+  /// [AuditEntry] في حقل السبب** (`ADR-0020` القيد 3): ⟵ **وسطرُ بريدٍ
+  /// فارغٍ تحت الاسم يُقرأ «بريدٌ محذوف»** ⛔ **بينما معناه «لم يُعرَف».**
+  ///
+  /// ⚠️ **و`null` هي حالُ كل قيدٍ كُتب قبل 2026-09-02** — ⛔ **ولا يُملأ
+  /// بأثرٍ رجعي:** ★ **السجلُّ للإضافة فقط ولا يُهاجَر** (`schema/audit-log.md`).
+  final String? userEmail;
+
+  static String? _blankToNull(String? value) {
+    final String? trimmed = value?.trim();
+    return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+  }
 }
 
 /// الكيان الذي وقع عليه الإجراء.

@@ -169,4 +169,47 @@ void main() {
       expect(auditFieldLabel('someFutureField'), 'someFutureField');
     });
   });
+
+  group('★★★ AM-012 §3.3 — أسماءُ أنواع الكيانات بالعربية', () {
+    test(
+      '⛔⛔★★★ كلُّ نوعٍ في `auditEntityTypes` له اسمٌ عربيّ — ولا استثناء',
+      () {
+        // ★★★ **وهذا هو الحارسُ نفسُه الذي حمى أسماءَ الأفعال** — ⟵ **فنوعٌ
+        //    يُضاف إلى القائمة بلا اسمٍ يُسقِط هذا الاختبار**، ⛔ **ولا يظهر
+        //    خاماً في شاشةٍ ماليةٍ يُحتَجّ بها** (`ui-guidelines.md` §6).
+        for (final String entityType in auditEntityTypes) {
+          expect(
+            auditEntityTypeLabel(entityType),
+            isNot(entityType),
+            reason: '⛔ نوعُ الكيان «\$entityType» يُعرَض خاماً',
+          );
+        }
+      },
+    );
+
+    test('★ وأمثلةُ طلب المالك حرفياً — `AM-012` §3.3', () {
+      expect(auditEntityTypeLabel(userEntityType), 'المستخدمون');
+      expect(auditEntityTypeLabel(countedIntakeEntityType), 'الوارد عدداً');
+    });
+
+    test(
+      '⛔⛔ والنوعُ المجهول يُعرَض بمفتاحه — ⛔ ولا يختفي القيد',
+      () {
+        // ★ **بنفس علّة [auditActionLabelOrUnknown] حرفياً** — ⟵ **السجلُّ
+        //    للإضافة فقط ولا يُهاجَر**، ⛔ **وقيدٌ بلا هدفٍ أسوأُ من مصطلحٍ
+        //    تقنيٍّ ظاهر.**
+        expect(auditEntityTypeLabel('someFutureEntity'), 'someFutureEntity');
+      },
+    );
+
+    test(
+      '⛔★★ ولا اسمَ مكرَّرٌ بين نوعين — ⟵ فالمدقّق يميّز الكيانات',
+      () {
+        final List<String> labels = <String>[
+          for (final String t in auditEntityTypes) auditEntityTypeLabel(t),
+        ];
+        expect(labels.toSet(), hasLength(labels.length));
+      },
+    );
+  });
 }

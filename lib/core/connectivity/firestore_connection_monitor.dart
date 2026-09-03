@@ -39,21 +39,12 @@ final class FirestoreConnectionMonitor implements ConnectionMonitor {
   /// ★ بثُّ معرّف صاحب الجلسة — و`null` تعني **لا جلسة**.
   final Stream<String?> _userIds;
 
-  /// ⛔⛔★★★ **و`distinct` ليست تحسيناً — عطلٌ رُصد على المحاكي (2026-08-31):**
-  /// ★ **`authStateChanges` تُصدِر عند كل تجديدٍ للرمز بنفس المعرّف** —
-  /// ⟵ **و`asyncExpand` تهدم المُصغي وتبنيه**، ★ **وأولُ لقطةٍ بعد إعادة
-  /// البناء تأتي من الذاكرة** (`isFromCache: true`): ⟵ ⛔ **فيومض المؤشّر
-  /// «غير متصل» أحمرَ ثم يعود** بلا أن ينقطع شيء. ★ **وإنذارٌ كاذبٌ متكرر
-  /// يُفقِد المؤشّرَ مصداقيتَه**، ⟵ **فيتجاهله المستخدم حين يصدق.**
+  /// ★ **المسبارُ الحقيقي وحدَه هنا** — ⛔ **ومنطقُ التبديل والتحفّظ في
+  /// [watchProbes]** (وفيه شرحُ `distinct` و`DEBT-83`).
   @override
-  Stream<ConnectionStatus> watch() =>
-      _userIds.distinct().asyncExpand((String? userId) {
-        // ⛔ **بلا جلسةٍ لا قياس** — ★ **ولا شريطَ علوياً أصلاً قبل الدخول**
-        //    (`ui-guidelines.md` §3-أ الاستثناءان)، ⟵ **فلا يُدَّعى شيء.**
-        if (userId == null || userId.isEmpty) {
-          return Stream<ConnectionStatus>.value(ConnectionStatus.unknown);
-        }
-        return _firestore
+  Stream<ConnectionStatus> watch() => watchProbes(
+        userIds: _userIds,
+        probe: (String userId) => _firestore
             .collection(connectionProbeCollection)
             .doc(userId)
             .snapshots(includeMetadataChanges: true)
@@ -62,10 +53,63 @@ final class FirestoreConnectionMonitor implements ConnectionMonitor {
                   snapshot.metadata.isFromCache
                       ? ConnectionStatus.offline
                       : ConnectionStatus.online,
-            );
-        // ⛔⛔ **ولا يُبتلَع فشل المُصغي هنا** — ★ **يُترَك يصعد فيقرؤه
-        //    `connectionStatusProvider` انقطاعاً** (وفيه شرحُ لماذا التحفّظ
-        //    هو الصواب)، ⛔ **ولا `handleError` تُسقطه فيبقى آخرُ وسمٍ معروضاً
-        //    وهو كاذب.**
-      });
+            ),
+      );
+}
+
+/// ★★★ **منطقُ التبديل والتحفّظ وحدَه** — ⛔ **بلا `Firestore`.**
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **ولماذا فُصل — `DEBT-83` مقيسٌ على المحاكي (2026-09-02):**
+/// ★ **تسجيلُ الخروج يُفشِل مُصغيَ `users/{uid}` بـ`PERMISSION_DENIED`**
+/// (⟵ **القاعدة تشترط `request.auth.uid == userId`**)، ★ **والخطأُ كان
+/// يصعد من `asyncExpand` فيقتل البثَّ الخارجي كلَّه** ⟹ ⛔⛔ **فيبقى
+/// المؤشّر «غير متصل» إلى آخر عمر العملية ولو عاد المستخدم ودخل** —
+/// **مقيسٌ: بدايةٌ نظيفة ⟵ «متصل»، وبعد خروجٍ ودخولٍ في العملية نفسِها
+/// ⟵ «غير متصل» أبداً بينما البيانات تُقرأ من الخادم فعلاً.**
+///
+/// ⛔⛔★★★ **وهو أسوأُ ما يمكن أن يصيب هذا المؤشّر بالذات:** ★ **وُجد
+/// ليمنع ادّعاءً كاذباً** (`ADR-0003` · `AM-008` ①) — ⟵ **فصار هو نفسُه
+/// يكذب في الاتجاه الآخر**، ⛔ **ومؤشّرٌ عالقٌ يتجاهله المستخدم حين يصدق.**
+///
+/// ★★ **والعلاجُ لا يُبدِّل الدلالة المعتمدة:** ★ **فشلُ المُصغي يبقى
+/// يُقرأ «انقطاعاً»** ⛔ **ولا يُوسَم «متصلاً»** — ★ **لكنه يُبَثّ قيمةً
+/// لا يُنهي المراقب**: ⟹ **فأولُ تبدّلٍ في الهوية يُعيد بناء المُصغي**،
+/// ★ **ويتعافى المؤشّر بلا إعادة تشغيل التطبيق.**
+/// ═══════════════════════════════════════════════════════════════════════
+///
+/// ⛔⛔★★★ **و`distinct` ليست تحسيناً — عطلٌ رُصد على المحاكي (2026-08-31):**
+/// ★ **`authStateChanges` تُصدِر عند كل تجديدٍ للرمز بنفس المعرّف** —
+/// ⟵ **و`asyncExpand` تهدم المُصغي وتبنيه**، ★ **وأولُ لقطةٍ بعد إعادة
+/// البناء تأتي من الذاكرة** (`isFromCache: true`): ⟵ ⛔ **فيومض المؤشّر
+/// «غير متصل» أحمرَ ثم يعود** بلا أن ينقطع شيء. ★ **وإنذارٌ كاذبٌ متكرر
+/// يُفقِد المؤشّرَ مصداقيتَه**، ⟵ **فيتجاهله المستخدم حين يصدق.**
+Stream<ConnectionStatus> watchProbes({
+  required Stream<String?> userIds,
+  required Stream<ConnectionStatus> Function(String userId) probe,
+}) =>
+    userIds.distinct().asyncExpand((String? userId) {
+      // ⛔ **بلا جلسةٍ لا قياس** — ★ **ولا شريطَ علوياً أصلاً قبل الدخول**
+      //    (`ui-guidelines.md` §3-أ الاستثناءان)، ⟵ **فلا يُدَّعى شيء.**
+      if (userId == null || userId.isEmpty) {
+        return Stream<ConnectionStatus>.value(ConnectionStatus.unknown);
+      }
+      return _guarded(probe(userId));
+    });
+
+/// ★ يُحوِّل فشلَ المُصغي إلى **وسمِ انقطاعٍ** ⛔ **لا إلى موتِ المراقب.**
+Stream<ConnectionStatus> _guarded(Stream<ConnectionStatus> probe) async* {
+  try {
+    // ⛔⛔★★ **و`await for` لا `yield*`** — ★ **مقيسٌ باختبارٍ فاشل:**
+    //    ⟵ **`yield*` تُمرِّر خطأ البثِّ الداخلي إلى الخارج مباشرةً**
+    //    ⛔ **فلا يمرّ بـ`catch` أصلاً**، ★ **فيسقط الوسمُ المتحفّظ.**
+    await for (final ConnectionStatus status in probe) {
+      yield status;
+    }
+  } on Object {
+    // ⛔⛔ **ولا يُبتلَع الفشل صامتاً** — ★ **يُقرأ انقطاعاً صراحةً**،
+    //    ⟵ **وهي نفسُ دلالة `connectionStatusProvider` عند الخطأ**
+    //    (وفيه شرحُ لماذا التحفّظ هو الصواب).
+    yield ConnectionStatus.offline;
+  }
 }

@@ -91,6 +91,7 @@ final class AccountRecord {
     required this.userName,
     required this.claims,
     required this.disabled,
+    this.userEmail,
     this.cardIsActive,
     this.legacyClaimKeys = const <String>{},
   });
@@ -100,6 +101,20 @@ final class AccountRecord {
 
   /// الاسم المعروض — ★ **يُنسَخ في قيد التدقيق وقت الحدث** (§2 الشرط 4).
   final String userName;
+
+  /// ★★★ **البريد كما تعرفه خدمة المصادقة** — `AM-012` §3 (2026-09-02).
+  ///
+  /// ⛔⛔★★★ **ويُنسَخ في قيد التدقيق وقت الحدث كالاسم تماماً** (§2 الشرط 4)
+  /// — ⟵ **لا مرجعٌ يُقرأ من `users/{userId}` عند العرض:** ★ **فبطاقةٌ
+  /// حُذف بريدُها أو تغيّر تترك قيداً بلا هويةٍ أو بهويةٍ خاطئة**، ⛔ **وهو
+  /// أسوأُ ما يقع في سجلٍّ يُحتَجّ به** (`RISK-05`).
+  ///
+  /// ⚠️ **و`null` تعني «لا بريد على الحساب»** — ★ **حالةٌ ممكنة في خدمة
+  /// المصادقة** ⛔ **ولا تُسدّ بقيمةٍ مُولَّدة.**
+  ///
+  /// ⛔⛔★★ **ولا تُستعمل في أي قرارِ تفويض** — ★ **الصلاحياتُ من البطاقة
+  /// وحدها** (`ADR-0016`)، ⟵ **والبريدُ حقلُ عرضٍ في السجل لا هوية أمنية.**
+  final String? userEmail;
 
   /// صلاحياته ونطاقه **من الخدمة لا من الرمز الذي أرسله المُستدعي**.
   ///
@@ -392,6 +407,9 @@ final class IdentityGateway {
       // ★ الاسم قد يغيب في حساب لم يُكمَل بعد — والبريد بديل مقروء، ⛔ ولا
       //   يُترك القيد بلا اسم لأن الشرط 4 يفرض نسخه وقت الحدث.
       userName: _resolveName(user),
+      // ★★★ **والبريد كما هو** — `AM-012` §3: ⛔ **ولا يُشتقّ من الاسم**،
+      //   ★ **والفراغ يُقرأ غياباً** (نفسُ قاعدة `AuditActor`).
+      userEmail: _resolveEmail(user),
       claims: IdentityClaims(
         // ★ ADR-0016: الصلاحيات من البطاقة لا من الرمز.
         permissions: card.permissions,
@@ -403,6 +421,17 @@ final class IdentityGateway {
       cardIsActive: card.isActiveField,
       legacyClaimKeys: decoded.legacyKeys,
     );
+  }
+
+  /// ★ البريد كما تعرفه الخدمة — ⛔ **والفراغ `null` لا نصٌّ فارغ**.
+  ///
+  /// ⚠️★★ **ولا يُخلَط بـ[_resolveName]:** ★ **تلك تسقط إلى البريد حين يغيب
+  /// الاسمُ الظاهر** (فلا يبقى قيدٌ بلا اسم) — ⟵ **وهذه تُرجِع البريدَ أو
+  /// لا شيء**، ⛔ **ولا تسقط إلى الاسم ولا إلى المعرّف:** ★ **فحقلٌ اسمُه
+  /// «بريد» يحمل معرّفَ حسابٍ خاماً يكذب على قارئه.**
+  static String? _resolveEmail(idtk.UserInfo user) {
+    final String? email = user.email?.trim();
+    return (email == null || email.isEmpty) ? null : email;
   }
 
   static String _resolveName(idtk.UserInfo user) {

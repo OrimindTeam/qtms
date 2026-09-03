@@ -4,6 +4,9 @@ library;
 
 import 'dart:async';
 
+import 'package:qtms/core/device/biometric_gateway.dart';
+import 'package:qtms/core/device/credential_vault.dart';
+import 'package:qtms/core/device/device_preferences.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 /// مستودع مصادقة يُتحكَّم به من الاختبار.
@@ -27,6 +30,21 @@ final class FakeAuthRepository implements AuthRepository {
 
   /// آخر بريد وصل الدالة — يُثبت أن الشاشة تُمرِّر ما كتبه المستخدم.
   String? lastEmail;
+
+  /// ★ آخر كلمة مرور وصلت الدالة — ★ **يُثبت أن البصمة تُمرِّر المحفوظة.**
+  ///
+  /// ⛔⛔ **وهي بيانةُ اختبارٍ محضة** — ★ **ولا نظيرَ لها في الكود الحقيقي**
+  /// (`FakeAuthRepository` **لا يُبنى في بناء الإصدار أصلاً**).
+  String? lastPassword;
+
+  /// ★★ عددُ مرات تغيير كلمة المرور — ★ **يُثبت أن الشاشة تفعل شيئاً.**
+  int changePasswordCalls = 0;
+
+  /// ★ آخر كلمةٍ جديدة وصلت — ★ **يُثبت تحديثَ الخزنة بها.**
+  String? lastNewPassword;
+
+  /// ★ نتيجةُ تغيير كلمة المرور — تُضبَط من الاختبار.
+  SignInResult changePasswordResult = const SignInAccepted();
 
   set result(SignInResult value) => _result = value;
 
@@ -55,6 +73,7 @@ final class FakeAuthRepository implements AuthRepository {
     required String password,
   }) async {
     lastEmail = email;
+    lastPassword = password;
     return _result;
   }
 
@@ -62,6 +81,103 @@ final class FakeAuthRepository implements AuthRepository {
   Future<void> signOut() async {
     signOutCalls++;
     _identities.add(null);
+  }
+
+  @override
+  Future<SignInResult> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    changePasswordCalls++;
+    lastNewPassword = newPassword;
+    return changePasswordResult;
+  }
+}
+
+/// ★★★ **بوابةُ بصمةٍ يُتحكَّم بها من الاختبار** — [`ADR-0024`] · `AM-012`.
+///
+/// ⛔⛔★★ **وهي ما يجعل الشروط 2 و6 و7 و11 قابلةً للاختبار الآلي أصلاً** —
+/// ★ **`local_auth` قناةُ منصّةٍ لا تعمل في اختبار ويدجت**، ⟵ **فبلا هذا
+/// المزيَّف لا يبقى إلا القياسُ الحيّ على المحاكي** ⛔ **وهو لا يكفي.**
+final class FakeBiometricGateway implements BiometricGateway {
+  /// حالةُ الدعم المُعادة — تُضبَط من الاختبار.
+  BiometricAvailability state = BiometricAvailability.available;
+
+  /// هل تنجح المصادقة؟ — ★ **و`false` تُحاكي رفضاً أو إلغاءً.**
+  bool accepts = true;
+
+  /// عددُ مرات طلب المصادقة — ⛔ **يُثبت أنها طُلبت قبل القراءة.**
+  int authenticateCalls = 0;
+
+  /// آخرُ سببٍ عُرض على المستخدم.
+  String? lastReason;
+
+  @override
+  Future<BiometricAvailability> availability() async => state;
+
+  @override
+  Future<bool> authenticate({required String reason}) async {
+    authenticateCalls++;
+    lastReason = reason;
+    return accepts;
+  }
+}
+
+/// ★★★ **خزنةٌ في الذاكرة يُتحكَّم بها من الاختبار** — [`ADR-0024`].
+final class FakeCredentialVault implements CredentialVault {
+  StoredCredentials? _stored;
+
+  /// عددُ مرات القراءة — ⛔ **يُثبت ألّا تُقرأ قبل المصادقة** (الشرط 2).
+  int readCalls = 0;
+
+  /// عددُ مرات المسح — ★ **يُثبت الشرطين 6 و7.**
+  int clearCalls = 0;
+
+  /// ★ يزرع بياناتٍ محفوظة مسبقاً.
+  void seed(StoredCredentials credentials) => _stored = credentials;
+
+  /// ★ المحفوظُ الآن — **للفحص في الاختبار** ⛔ **لا للإنتاج.**
+  StoredCredentials? get stored => _stored;
+
+  @override
+  Future<StoredCredentials?> readIfPresent() async {
+    readCalls++;
+    return _stored;
+  }
+
+  @override
+  Future<void> save(StoredCredentials credentials) async {
+    _stored = credentials;
+  }
+
+  @override
+  Future<void> clear() async {
+    clearCalls++;
+    _stored = null;
+  }
+
+  @override
+  Future<bool> hasCredentials() async => _stored != null;
+}
+
+/// ★★ **تفضيلاتُ عرضٍ في الذاكرة** — `AM-012` §4.4.
+final class FakeDevicePreferences implements DevicePreferences {
+  bool _showPieceWeight = false;
+
+  /// عددُ مرات الكتابة — ★ **يُثبت أن الزرّ يفعل شيئاً.**
+  int writeCalls = 0;
+
+  /// ★ يزرع قيمةً مبدئية.
+  void seedShowPieceWeight({required bool enabled}) =>
+      _showPieceWeight = enabled;
+
+  @override
+  Future<bool> showPieceWeightWithItemName() async => _showPieceWeight;
+
+  @override
+  Future<void> setShowPieceWeightWithItemName({required bool enabled}) async {
+    writeCalls++;
+    _showPieceWeight = enabled;
   }
 }
 

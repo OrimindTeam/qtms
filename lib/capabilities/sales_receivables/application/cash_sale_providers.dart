@@ -16,7 +16,6 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/state/combine_async.dart';
 import '../../inventory/application/inventory_providers.dart';
-import '../../master_data/application/master_data_providers.dart';
 
 /// دليل البيع النقدي — ⛔ **يُحقَن في الجذر**.
 final Provider<CashSaleDirectory> cashSaleDirectoryProvider =
@@ -143,24 +142,16 @@ final class CashSaleDocumentQuery {
   int get hashCode => Object.hash(sourceId, documentNumber, stockDate);
 }
 
-/// ★ الأنواع المتاحة للبيع النقدي من مصدرٍ بعينه.
-///
-/// ⛔★★ **ولا يظهر فيها نوع غير مرتبط بالمصدر ولا معطَّل** (`FR-M5-10`).
-///
-/// ★★ **ويظهر فيها «السكرب»** — ⟵ **لأنه يُباع بالكيلوجرام** (`FR-M11-11`)،
-/// ⛔ **وإنما لا يُورَّد من شاشة الوارد عدداً** (`design-overview.md` §2.2).
-///
-/// ⚠️⚠️ **وهذه تصفيةُ عرضٍ لا حماية** — ★ **والدالة السحابية تُعيد الفحص
-/// نفسه على سجل النوع** (`cash_sale.dart` `_planSale`).
-final cashSaleItemsProvider =
-    Provider.family<List<ItemCard>, String>((Ref ref, String sourceId) {
-  final List<ItemCard> all =
-      ref.watch(itemsProvider).value ?? const <ItemCard>[];
-  return <ItemCard>[
-    for (final ItemCard item in all)
-      if (item.isActive && item.sourceIds.contains(sourceId)) item,
-  ];
-});
+// ═════════════════════════════════════════════════════════════════════════
+// ⛔⛔★★★ **ولا مزوّدَ أنواعٍ من الكتالوج هنا بعد [`DEBT-86`]** (2026-09-02)
+//
+// ★ **كان `cashSaleItemsProvider` يرشِّح `items` بالمصدر والحالة** — ⟹ ⛔⛔ **فلم
+// يكن المفتاحُ المركّب للجونية يظهر في أي منسدل قطّ** (`ADR-0007`)، ★ **ولا
+// رصيدَ يقابل معرّفَ النوع المجرَّد**: ⟵ **فتُرفَض العمليةُ بـ«الكمية غير
+// كافية».** ★★ **والخياراتُ اليومَ من أرصدة الدفتر** —
+// `inventory_providers.dart` · `stockOptionsProvider`: ⟵ **وفيه شرحُ العطل
+// ولماذا الدفترُ هو المصدر** (`ADR-0008`).
+// ═════════════════════════════════════════════════════════════════════════
 
 /// ★★★ **الحدود الدنيا للبيع النقدي لأنواع اليوم** — `FR-M11-05` · `GR-34`.
 ///

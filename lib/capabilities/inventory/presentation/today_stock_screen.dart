@@ -102,7 +102,13 @@ class _StockList extends ConsumerWidget {
           const SizedBox(height: Spacing.space16),
           for (final ItemDailyBalanceCard card in list) ...<Widget>[
             InventoryTile(
-              title: card.itemName,
+              // ★★★ **والاسمُ المركّب هو المعروض** — [`ADR-0007`] · [`DEBT-86`]:
+              //    ⟵ **«التمييز مرئي … وكل شاشة مخزون» بنصّ القرار**،
+              //    ⛔ **وجونيتان من نوعٍ واحد كانتا سطرين متطابقين.**
+              title: ledgerItemDisplayName(
+                itemKey: card.itemKey,
+                itemName: card.itemName,
+              ),
               subtitle: 'وارد ${quantityLabel(card.incoming)} · '
                   'صادر ${quantityLabel(card.outgoing)}',
               trailing: quantityLabel(card.balance),
@@ -111,7 +117,12 @@ class _StockList extends ConsumerWidget {
                 context,
                 sourceId: sourceId,
                 itemKey: card.itemKey,
-                itemName: card.itemName,
+                // ★ **وعنوانُ ورقة الحركة بالاسم نفسِه** — ⛔ **ولا اسمان
+                //   لسجلٍّ واحد في شاشتين.**
+                itemName: ledgerItemDisplayName(
+                  itemKey: card.itemKey,
+                  itemName: card.itemName,
+                ),
                 day: day,
               ),
             ),
@@ -127,6 +138,29 @@ class _StockList extends ConsumerWidget {
 ///
 /// ⛔★★ **ولا سطرَ ثالثٌ يجمعهما:** ★ **الجمع بين الحبات والأوزان ممنوع**،
 /// ⟵ **وسطرٌ «الإجمالي» كان سيكون رقماً بلا معنى.**
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ★★★ **و«إجمالي الوزني» صار «إجمالي السكرب»** — `AM-012` §4.5 (2026-09-02).
+///
+/// ⛔⛔★★★ **وهي تسميةٌ أدقُّ لا تغييرُ حساب — والرقمُ نفسُه بلا مساس:**
+/// ★ **`unitOfItem` تُرجِع `ItemUnit.kilogram` للنوع الافتراضي وحدَه**
+/// (`FR-M5-03` · `FR-M5-05`)، ★ **والافتراضيُّ الوحيد «السكرب»** (`IQ-012`)
+/// ⟹ ★★★ **فكلُّ [WeightQuantity] في هذه القائمة سكربٌ حتماً.**
+///
+/// ⟵ ⛔⛔ **و«إجمالي الوزني» كان يُوهم بوجود عائلةٍ من الأنواع الوزنية في
+/// المخزون** — ★ **بينما النوعُ الوزنيُّ الطبيعة يدخل المخزنَ بالحبة**
+/// (`unitOfItem`) ⟵ **فيُحسَب في «المعدود»**، ⛔ **ولا رصيدَ وزنيٌّ له قطّ.**
+/// ★★ **وهو مبدأ `AM-012` §4.2 حرفياً.**
+///
+/// ⛔ **و`FR-M8-07` قائمٌ بحرفه:** «**إجمالان منفصلان … ولا تُجمع
+/// إجمالياتها معاً إطلاقاً**» — ★ **والمُنفَّذ إجمالان منفصلان كما كان**،
+/// ⛔ **ولا `CR` يلزم لأن المتطلب لا يفرض نصَّ التسمية.**
+///
+/// ⛔⛔★★ **ويبقى «إجمالي السكرب» ظاهراً ولو كان صفراً** — ⟵ **بخلاف
+/// [`CR-011`] في الرسالة**: ★ **والفرقُ مقصود** — **الشاشةُ لوحةُ حالةٍ
+/// دائمةُ الشكل تُقرأ كلَّ يوم**، ⟵ **وسطرٌ يظهر ويختفي فيها يجعل المستخدم
+/// يبحث عمّا لم يختفِ**؛ ⛔ **والرسالةُ نصٌّ يُقرأ مرةً واحدة.**
+/// ═══════════════════════════════════════════════════════════════════════
 class _Totals extends StatelessWidget {
   const _Totals({required this.balances});
 
@@ -161,7 +195,7 @@ class _Totals extends StatelessWidget {
           ),
           const SizedBox(height: Spacing.space4),
           Text(
-            'إجمالي الوزني: ${quantityLabel(WeightQuantity(WeightKg(kilograms)))}',
+            '$scrapTotalLabel: ${quantityLabel(WeightQuantity(WeightKg(kilograms)))}',
             style: TypeScale.bodyLg,
           ),
         ],

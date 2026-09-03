@@ -202,10 +202,16 @@
 | ★ `taxPerKilo` | ★ **money `int`** \| **null** — 🔵 قد تكون معلّقة · **مبلغ فيلزمه العدد الصحيح** (`ADR-0015`) |
 | `sackTax` | money `int` 🧮 = **round**(ضريبة الكيلو × **الوزن الكلي**) — ★ **تُقرَّب لأقرب ريال ثم تُخزَّن** |
 | ★ `sackRevenue` | money 🧮 ⛅ **الإيراد الفعلي المتحقق** |
-| ★ `supplierNet` | money 🧮 = السعر − الضريبة |
+| ★ `supplierNet` | money 🧮 = السعر − الضريبة — ⛔ **و`null` عند ضريبةٍ معلّقة** ⛔ **لا صفراً** (`WU-015`) |
+| ✅ ★★ `isRevenueFinal` | bool ⛅ **مصدرُ وسم «⏳ سعر غير نهائي» للسعر** (`FR-M14-06`) — ⚠️ **وغيرُ `isPricingComplete` في الأب**: ★ **تلك عن *سطور* الجونية** (`FR-M7-24`)، ⟵ **وهذه عن *حركات الخروج* منها** (`WU-015`) |
+| ⚙️ `lastRevaluedAt` | timestamp — **وقتُ آخر احتساب من الخادم** (`GR-54`) |
 
 > **القراءة:** `sackFinanceView` + النطاق · **الكتابة:** الضريبة وحدها بصلاحيتها ·
 > ⛅ **الإيراد والصافي من السحابة حصراً** · ⛔ **ولا حذف.**
+>
+> ✅★★ **و`WU-015` يكتب الثلاثة الأخيرة بقناعٍ ضيّق** — ⛔ **لا يذكر
+> `taxPerKilo` ولا `sackTax`**: ⟵ **فلا يمحو المُحتسِبُ ضريبةً أدخلها
+> `enterSackTax`**، ★ **وهو يقرؤها ولا يكتبها.**
 | `lines[]` | array | انظر أدناه |
 | `status` · `cancelReason` · `amendCount` | — | — |
 
@@ -410,6 +416,16 @@
 `entryDate` · `memo` · ★ **`recalcVersion`** *(لأن الصافي رقم حيّ)* ·
 `isCancelled`.
 
+> ✅★★★ **حاشيةُ `WU-015` (2026-09-03):** ★ **المعرّف `{sackId}` — سطرٌ واحدٌ
+> لكل جونية يُعاد كتابته** ⛔ **لا سطرٌ لكل احتساب** (`sack-valuation-design.md`
+> §9-أ القرار ①). ★ **وحقلان أُضيفا:** **`isRevenueFinal`** (`bool` — مصدرُ
+> وسم «⏳ سعر غير نهائي» في الحساب · `FR-M14-06`) · **`lastAmendedAt`**
+> ⚙️ **بوقت الخادم بعد أول احتساب** — ★ **و`entryDate` يُكتب مرةً واحدة**
+> ⛔ **فلا يُمحى تاريخُ نشأة السطر بكل إعادة احتساب.**
+> ⛔⛔ **و`sackTax` و`supplierNet` يُكتبان `null` عند ضريبةٍ معلّقة**
+> (`FR-M7-10`) — ⛔ **ولا صفراً**: ★ **وصفرٌ كان يجعل الصافي يساوي السعر
+> فيبدو الحسابُ مستقراً وهو لم يُحتسب.**
+
 ### `outflow_ledger`
 ★ `sourceId` **(إلزامي)** · ★ `ledgerType` · `category` · `itemType` ·
 (للقات: `itemKey` · `sackId` · `unit` · `quantity`) · `amount` ·
@@ -425,9 +441,9 @@
 | **`item_daily_balances`** | `{sourceId}_{itemKey}_{stockDate}` | الوارد · الصادر · الرصيد · ★ `unit` · `itemName` · ★★ **و`sourceId` و`itemKey` و`stockDate` حقولاً صريحة** *(`WU-003` — ⚠️ **المفتاح المركّب لا يُفهرَس** وشرطُ القراءة `storedInScope()` **يقرأ `sourceId` من المستند**؛ نفس منطق `daily_summaries`)* — **وغياب السجل يعني صفراً** |
 | **`dealer_balances`** | `{dealerId}_{sourceId}` | المدين · الدائن · الرصيد · عدد الضمارات المفتوحة · تاريخ أقدمها |
 | **`dealer_surplus`** | `{dealerId}_{sourceId \| 'general'}` | ★ **`availableAmount`** (الفائض المتاح) · `scope` · `sourceId?` · ★ `lastPaidOn` · `lastReceiptNumber` · `updatedAt` — ⛅ **تكتبه السحابة** (`WU-007`): ★ **المقبوضات تزيده والتوزيعُ يخصم منه** (`FR-M12-11`)، ⛔ **ولا يهبط تحت الصفر** |
-| **`supplier_balances`** | `{supplierId}_{sourceId}` | إجمالي سعر الجواني · إجمالي الضريبة · **الصافي** |
-| **`daily_summaries`** | `{sourceId}_{date}` · `all_{date}` | **البنود التسعة** + ★ **`retroUpdatedAt`** + ★ **`sourceId` و`date` حقلين صريحين** *(⚠️ المفتاح المركّب لا يُفهرَس — `IQ-002` ④)* · **وقيمة `sourceId` في البطاقة التجميعية هي `'all'`** |
-| ⏳★★ **`owner_ledger_trends`** | `{sourceId}` · `all` | ★ **`points`** — **مصفوفةٌ بسبعةِ عناصرَ كحدٍّ أقصى** (`{ date, netFinal, retroUpdated }` **مرتَّبةٌ تصاعدياً**) · ★★ **و`sourceId` حقلاً صريحاً مطلوباً** (**شرطُ `storedInScope()` يقرؤه** — `IQ-024` · `DEBT-40`) · `updatedAt` — ⏳ **مخطَّطٌ لـ`WU-016`** (`IQ-030` · الخيار أ): ★ **يُكتب في نفس حدثِ بناء `daily_summaries`** ⛔ **لا بجدولةٍ ولا مهمةٍ ثانية**، ★ **وغرضُه قراءةٌ واحدةٌ لرسم آخر سبعةِ أيام** ⛔ **لا سبعُ قراءاتٍ في كل فتحة** |
+| **`supplier_balances`** | `{supplierId}_{sourceId}` | ★ **`totalSackRevenue`** (إجمالي سعر الجواني) · ★ **`totalSackTax`** (إجمالي الضريبة) · ★ **`supplierNet`** (**الصافي**) · ★★ **و`supplierId` و`sourceId` حقلين صريحين** *(**شرطُ `storedInScope()` يقرؤه** — `IQ-024` · `DEBT-40`)* · ⏳ **و`sackCount` و`pendingTaxCount` و`unfinalRevenueCount`** — ★ **عدّادان يقولان *لماذا* الرقم غير نهائي** ⛔ **لا وسمٌ مبهم** (`WU-015`) · ⚙️ `updatedAt` — ⛅ **يكتبه المُحتسِب** ⛔ **ولا يُراكِم: يُبنى من دفتر الرعية بالكامل** |
+| **`daily_summaries`** | `{sourceId}_{date}` · `all_{date}` | **البنود التسعة** + ★ **`retroUpdatedAt`** + ★ **`sourceId` و`date` حقلين صريحين** *(⚠️ المفتاح المركّب لا يُفهرَس — `IQ-002` ④)* · **وقيمة `sourceId` في البطاقة التجميعية هي `'all'`** · ✅★★★ **ويكتبها `buildDailySummaries` داخل حاوية العمليات بعد التزام كل عمليةٍ تمسّ اليوم** (2026-09-03 · `WU-016`) — ⛔ **لا بمشغّل Eventarc** (نفسُ ما فُعل بـ`recomputeSackRevenue`) · ★ **وحقلٌ إضافيّ `updatedAt` وقتَ آخر بناء** |
+| ✅★★ **`owner_ledger_trends`** | `{sourceId}` · `all` | ★ **`points`** — **مصفوفةٌ بسبعةِ عناصرَ كحدٍّ أقصى** (⚠️★★ **`{ date, netFinal, withdrawals, expenses, retroUpdated }` — وحقلا البندين المحكومين زِيدا عند التنفيذ**: ⟵ **§2.1 القاعدة 5 تشترط أن يخرج البندُ المحكوم من صافي الرسم كما يخرج من البطاقة**، ⛔ **وذلك يستحيل من `netFinal` مجموعٍ وحده** · ⛔⛔ **ولا كشفَ جديداً: البندان مقروءان أصلاً في `daily_summaries` بالشرط نفسِه** — `ADR-0011` القاعدة 4) · **مرتَّبةٌ تصاعدياً** · ★★ **و`sourceId` حقلاً صريحاً مطلوباً** (**شرطُ `storedInScope()` يقرؤه** — `IQ-024` · `DEBT-40`) · `updatedAt` — ✅ **مُنفَّذٌ في `WU-016`** (2026-09-03 · `IQ-030` الخيار أ): ★ **يُكتب في نفس حدثِ بناء `daily_summaries`** ⛔ **لا بجدولةٍ ولا مهمةٍ ثانية** |
 | **`pending_entries`** | ★★ **`{documentType}_{documentId}_{missingFieldKey}`** | `documentType` (`sack` · `dailyPrice` · `distribution`) · `documentId` · `documentNumber?` · **`readableTitle`** · ★ **`sourceId`** *(**شرطُ القراءة `storedInScope()` يقرؤه** — `IQ-024` · `DEBT-40`)* · `date` (★ **تاريخ المخزون**) · **`missingField`** (بالعربية) · ★ **`missingFieldKey`** · **`navigationScreen` + `navigationField`** (وجهة زر [إدخال]) · ⚙️ `detectedAt` — ⛅ **تكتبها وتمحوها السحابة حصراً** (`WU-009` · `FR-SYS-09`) ★ **داخل معاملة مستندها نفسِها**، ★★ **والمعرّف حتميٌّ فيُمحى البند بلا قراءةٍ سابقة** |
 | **`aged_remainders`** | `{sourceId}_{itemKey}_{stockDate}` | الكمية المتبقية · `unit` · ★ **العمر بالأيام** — **تُحذَف عند التصريف الكامل** |
 
@@ -445,7 +461,10 @@
 
 ### `audit_log`
 `id` · ★ `occurredAt` (**توقيت الخادم بدقة الثانية**) · ★ `userId` ·
-★ `userName` (**مُثبَّت وقت الحدث**) · ★ `action` · `entityType` ·
+★ `userName` (**مُثبَّت وقت الحدث**) ·
+★★ `userEmail?` (**مُثبَّت وقت الحدث كذلك** — `AM-012` §3 · 2026-09-02 ·
+⛔ **وغائبٌ في كل قيدٍ كُتب قبل ذلك التاريخ، ولا يُملأ بأثرٍ رجعي**) ·
+★ `action` · `entityType` ·
 `entityId` · `documentNumber` · ★ `sourceId` · ★ `stockDate?` ·
 `valuesBefore` · `valuesAfter` · ★★ `reason` (**اختياري** — `ADR-0020`) · `deviceInfo`.
 

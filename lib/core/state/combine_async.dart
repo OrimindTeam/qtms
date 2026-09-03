@@ -50,3 +50,30 @@ AsyncValue<List<T>> combineAsyncLists<T>(
   if (compare != null) merged.sort(compare);
   return AsyncValue<List<T>>.data(merged);
 }
+
+/// ★★ ويضمّ عدّةَ [AsyncValue] لقيمٍ مفردة في قائمةٍ واحدة — **بنفس القواعد**.
+///
+/// ⚠️ **ولماذا نظيرٌ لـ[combineAsyncLists] لا توسعةٌ له:** ★ **ذاك يضمّ
+/// *قوائم*** ⟵ **وهذا يضمّ *قيماً*** (**ملخّصُ مصدرٍ واحدٍ في يوم** —
+/// `WU-016`): ⛔ **ودمجُهما في دالةٍ واحدة كان يحتاج تسطيحاً يُخفي الفرق.**
+/// ★ **والقواعدُ الثلاث نفسُها حرفياً** — ⛔ **ولا تُخفَّف واحدةٌ منها:**
+/// ⟵ **بطاقةُ «كل المصادر» الناقصةُ مصدراً رقمٌ ماليٌّ كاذب** (`A-01`).
+AsyncValue<List<T>> combineAsync<T>(List<AsyncValue<T>> parts) {
+  if (parts.isEmpty) return AsyncValue<List<T>>.data(<T>[]);
+  for (final AsyncValue<T> part in parts) {
+    if (part.hasError) {
+      return AsyncValue<List<T>>.error(
+        part.error!,
+        part.stackTrace ?? StackTrace.empty,
+      );
+    }
+  }
+  final List<T> merged = <T>[];
+  for (final AsyncValue<T> part in parts) {
+    // ⛔★★ **والانتظارُ يُقاس بـ`hasValue` لا بـ`value != null`** — ⟵ **فقيمةُ
+    //    `null` نتيجةٌ صحيحة هنا**: ★ **يومٌ بلا ملخّصٍ مكتوب** (§9).
+    if (!part.hasValue) return const AsyncValue<Never>.loading();
+    merged.add(part.value as T);
+  }
+  return AsyncValue<List<T>>.data(merged);
+}
