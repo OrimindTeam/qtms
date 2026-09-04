@@ -1,13 +1,13 @@
 {
   "WU-000": {
     "docs": {
-      "docs/01-product/product-roadmap.md": "2d3a51571e315753c376f1647fd7d317d37e7b459d2958957acfe1cc32124593",
-      "docs/06-database/data-dictionary.md": "3875a52ff60a2041da76b1233f9d46155e8025d9317a74898b6f77eee3a649a9",
+      "docs/01-product/product-roadmap.md": "8b60f9c8b7f238f8b068b7d8f73caf7ac84a42057c9db3d5c251576412b1668b",
+      "docs/06-database/data-dictionary.md": "b9eb453d811cec71ee9ced469013d5d326e124fc906dae310602ea4419be0d59",
       "docs/06-database/erd.md": "4485e8f2aaee8517a28308ce2eb43ede14c1431533e5ab1fb358501440ae3edb",
-      "docs/06-database/indexing-strategy.md": "a7edca3d08ca713d229a0107a59487936d260bb006e26fcde64dc8493985c26b",
-      "docs/07-development/build-and-run-instructions.md": "75aa092f892ddc1dd2ada33fb4f5acfa93d834e09c47bdf26ab084a95bce69f8",
+      "docs/06-database/indexing-strategy.md": "4e91d6311d724955142153409585b53b35b3f53e7d8f536b86929648eea9f387",
+      "docs/07-development/build-and-run-instructions.md": "6e9bdc9cf50dd68ecf696a11c0da6238b2341e071e1799160cb6030609bfd49c",
       "docs/09-security/authentication-policy.md": "c2437bff8b87ed93dc3e683e78fa43ec85055c59901278c016eeae97d4e06d88",
-      "docs/09-security/permissions-catalog.md": "0b02dbb3dc4ac0120d291bed8a32cabc8d0314088a458bca678610b7f89763fc",
+      "docs/09-security/permissions-catalog.md": "08b6dc2b4341a27cb07851861e75ca5286f7cdbe16e4ae876d6c79542722d773",
       "docs/09-security/secrets-management-policy.md": "6f28e64d24bb4718c361fcd8a2492b341c24a512316c141128d972c87b408ad5",
       "docs/09-security/security-requirements.md": "eefb7f533daa641dc6453550177fb2511a8d10115616bf0ff3da08d8c6063e44"
     },
@@ -18,7 +18,7 @@
       "docs/04-design/coding-standards.md": "09f7206d28c465712a64a5b77b0e42ea5b70615c1ebccaf049972037288610ff",
       "docs/04-design/design-overview.md": "7c68c2f84445edf2ab4572f0809e7e136b5c07f222e33c21f7335a4c1bb06af5",
       "docs/04-design/error-handling-strategy.md": "52a24ec6638545667a6d25796b0a591d0daa2e1f2e9778316ada016231180fd2",
-      "docs/04-design/module-design/identity-access-design.md": "2877a01a7f71ee943db5cb9e9ff9c3679d2bff24e3ed2388fa23dd390c7c9378",
+      "docs/04-design/module-design/identity-access-design.md": "7043ec2f6810f9101acd5ae7aac5589fc46f71eba5ed28c34130be79260da2d6",
       "docs/04-design/naming-conventions.md": "f3d1557a9eb6036abdd8a81828bd3073468de81222a8f47b4f54dcde8b1482a8",
       "docs/05-api/error-codes-catalog.md": "bfc8b4e10325e1861935e408b1b4f0b05cae1e6cb51040900d032a931bd81b11",
       "docs/09-security/authentication-policy.md": "c2437bff8b87ed93dc3e683e78fa43ec85055c59901278c016eeae97d4e06d88",
@@ -36,7 +36,7 @@
       "docs/04-design/coding-standards.md": "09f7206d28c465712a64a5b77b0e42ea5b70615c1ebccaf049972037288610ff",
       "docs/04-design/module-design/master-data-design.md": "4e3115703d0e55afdb0dfbd24760629ec20932f8c8655f8a616221e37f9ff263",
       "docs/04-design/naming-conventions.md": "f3d1557a9eb6036abdd8a81828bd3073468de81222a8f47b4f54dcde8b1482a8",
-      "docs/06-database/data-dictionary.md": "3875a52ff60a2041da76b1233f9d46155e8025d9317a74898b6f77eee3a649a9",
+      "docs/06-database/data-dictionary.md": "b9eb453d811cec71ee9ced469013d5d326e124fc906dae310602ea4419be0d59",
       "docs/06-database/erd.md": "4485e8f2aaee8517a28308ce2eb43ede14c1431533e5ab1fb358501440ae3edb",
       "docs/18-ux-ui/design-system.md": "ebe25275ae1c0a0e1364328aa7f9852c0f22992ee5f162d0a5b1311a4f29581c",
       "docs/18-ux-ui/design-tokens.md": "2baaa374dd1ed6d104a0827f123df1b6be5bdb0fdec0bca1ea89930ab72ead3c",
@@ -49,7 +49,7 @@
       "docs/04-design/design-overview.md": "7c68c2f84445edf2ab4572f0809e7e136b5c07f222e33c21f7335a4c1bb06af5",
       "docs/04-design/module-design/inventory-design.md": "67688deefbd83c14498cc02f0a98ac6cb755fbde54f4f37370446b27a98fcd75",
       "docs/06-database/erd.md": "4485e8f2aaee8517a28308ce2eb43ede14c1431533e5ab1fb358501440ae3edb",
-      "docs/06-database/indexing-strategy.md": "a7edca3d08ca713d229a0107a59487936d260bb006e26fcde64dc8493985c26b",
+      "docs/06-database/indexing-strategy.md": "4e91d6311d724955142153409585b53b35b3f53e7d8f536b86929648eea9f387",
       "docs/18-ux-ui/design-system.md": "ebe25275ae1c0a0e1364328aa7f9852c0f22992ee5f162d0a5b1311a4f29581c",
       "docs/18-ux-ui/design-tokens.md": "2baaa374dd1ed6d104a0827f123df1b6be5bdb0fdec0bca1ea89930ab72ead3c",
       "docs/18-ux-ui/ui-guidelines.md": "675ec7f118456f66b7a7459369bc98c210bf42e28eb0e5cfa4b63da8fc9ed837"
@@ -78,7 +78,7 @@
   "WU-006": {
     "docs": {
       "docs/04-design/design-overview.md": "7c68c2f84445edf2ab4572f0809e7e136b5c07f222e33c21f7335a4c1bb06af5",
-      "docs/04-design/module-design/distribution-design.md": "25fe68eaf7173f38a2d72a17045fd59d6b779b0ce84244b270c6299671a30487",
+      "docs/04-design/module-design/distribution-design.md": "d8a3569bfb8ce9fb2ce0a9633c2c3c8def751ccb4e92218f12b4871dcf713e73",
       "docs/09-security/security-requirements.md": "eefb7f533daa641dc6453550177fb2511a8d10115616bf0ff3da08d8c6063e44"
     },
     "title": "زيادة: التوزيع والضمار من طرف إلى طرف"
@@ -113,19 +113,19 @@
       "docs/03-architecture/technology-stack.md": "6fef7814dabc550082ad7b112c1f2f801d40864be54b0362934208889a49c0d3",
       "docs/04-design/module-design/messaging-design.md": "7c9865111156e4af2ccad0068c614f5bf6203d14eced0b8352e73ec10f72066a",
       "docs/07-development/dependency-management-policy.md": "04ca332d6f592b3a199d9dd5f685d19884ce6c1047122fe37f5820aab03766a1",
-      "docs/09-security/permissions-catalog.md": "0b02dbb3dc4ac0120d291bed8a32cabc8d0314088a458bca678610b7f89763fc",
+      "docs/09-security/permissions-catalog.md": "08b6dc2b4341a27cb07851861e75ca5286f7cdbe16e4ae876d6c79542722d773",
       "docs/18-ux-ui/design-system.md": "ebe25275ae1c0a0e1364328aa7f9852c0f22992ee5f162d0a5b1311a4f29581c",
       "docs/18-ux-ui/design-tokens.md": "2baaa374dd1ed6d104a0827f123df1b6be5bdb0fdec0bca1ea89930ab72ead3c",
       "docs/18-ux-ui/ui-guidelines.md": "675ec7f118456f66b7a7459369bc98c210bf42e28eb0e5cfa4b63da8fc9ed837",
-      "docs/19-assets/developer-identity.md": "8902f505ea1170404a37a7ec36ab946a3a891d26195ef397bf24dd24f31d87c4"
+      "docs/19-assets/developer-identity.md": "cafdadd5b17a2a6d561f0e8ee58a54c9e0481c7e0860a01cf1517b7511f87d2c"
     },
     "title": "زيادة: الإرسال والتصدير من طرف إلى طرف"
   },
   "WU-011": {
     "docs": {
       "docs/04-design/module-design/reporting-design.md": "2f61842ed236588ea202e49fd6d482c0ebffa32d675b3801964ce4b9087e5b6f",
-      "docs/06-database/indexing-strategy.md": "a7edca3d08ca713d229a0107a59487936d260bb006e26fcde64dc8493985c26b",
-      "docs/09-security/permissions-catalog.md": "0b02dbb3dc4ac0120d291bed8a32cabc8d0314088a458bca678610b7f89763fc",
+      "docs/06-database/indexing-strategy.md": "4e91d6311d724955142153409585b53b35b3f53e7d8f536b86929648eea9f387",
+      "docs/09-security/permissions-catalog.md": "08b6dc2b4341a27cb07851861e75ca5286f7cdbe16e4ae876d6c79542722d773",
       "docs/18-ux-ui/design-system.md": "ebe25275ae1c0a0e1364328aa7f9852c0f22992ee5f162d0a5b1311a4f29581c",
       "docs/18-ux-ui/design-tokens.md": "2baaa374dd1ed6d104a0827f123df1b6be5bdb0fdec0bca1ea89930ab72ead3c",
       "docs/18-ux-ui/ui-guidelines.md": "675ec7f118456f66b7a7459369bc98c210bf42e28eb0e5cfa4b63da8fc9ed837"
@@ -135,9 +135,9 @@
   "WU-012": {
     "docs": {
       "docs/04-design/design-overview.md": "7c68c2f84445edf2ab4572f0809e7e136b5c07f222e33c21f7335a4c1bb06af5",
-      "docs/04-design/module-design/distribution-design.md": "25fe68eaf7173f38a2d72a17045fd59d6b779b0ce84244b270c6299671a30487",
+      "docs/04-design/module-design/distribution-design.md": "d8a3569bfb8ce9fb2ce0a9633c2c3c8def751ccb4e92218f12b4871dcf713e73",
       "docs/06-database/schema/cash-sales.md": "0662b2c8ae15daa0ed1f3d07adc171cc705855d6ff083d8a71a71d5d5dff6101",
-      "docs/09-security/permissions-catalog.md": "0b02dbb3dc4ac0120d291bed8a32cabc8d0314088a458bca678610b7f89763fc",
+      "docs/09-security/permissions-catalog.md": "08b6dc2b4341a27cb07851861e75ca5286f7cdbe16e4ae876d6c79542722d773",
       "docs/18-ux-ui/design-system.md": "ebe25275ae1c0a0e1364328aa7f9852c0f22992ee5f162d0a5b1311a4f29581c",
       "docs/18-ux-ui/design-tokens.md": "2baaa374dd1ed6d104a0827f123df1b6be5bdb0fdec0bca1ea89930ab72ead3c",
       "docs/18-ux-ui/ui-guidelines.md": "675ec7f118456f66b7a7459369bc98c210bf42e28eb0e5cfa4b63da8fc9ed837"
@@ -169,13 +169,53 @@
     },
     "title": "زيادة: السحبيات والخرجيات من طرف إلى طرف"
   },
+  "WU-015": {
+    "docs": {
+      "docs/04-design/design-overview.md": "7c68c2f84445edf2ab4572f0809e7e136b5c07f222e33c21f7335a4c1bb06af5",
+      "docs/04-design/module-design/sack-valuation-design.md": "a640276e9be05700fc07ddaab841a3f94d64338c7a07723c2acec04d3f097271"
+    },
+    "title": "زيادة: مالية الجواني وحساب الرعوي من طرف إلى طرف"
+  },
+  "WU-016": {
+    "docs": {
+      "docs/04-design/design-overview.md": "7c68c2f84445edf2ab4572f0809e7e136b5c07f222e33c21f7335a4c1bb06af5",
+      "docs/04-design/module-design/owner-ledger-summary-design.md": "ef27e63dbc798ec2f8ec5a0ecbb344fae734802d4f8caa0bd26e3f08032e7540",
+      "docs/18-ux-ui/design-system.md": "ebe25275ae1c0a0e1364328aa7f9852c0f22992ee5f162d0a5b1311a4f29581c",
+      "docs/18-ux-ui/design-tokens.md": "2baaa374dd1ed6d104a0827f123df1b6be5bdb0fdec0bca1ea89930ab72ead3c",
+      "docs/18-ux-ui/ui-guidelines.md": "675ec7f118456f66b7a7459369bc98c210bf42e28eb0e5cfa4b63da8fc9ed837"
+    },
+    "title": "زيادة: ضمار المالك وحركة النقد من طرف إلى طرف"
+  },
   "WU-026": {
     "docs": {
       "docs/05-api/authentication-and-authorization.md": "40a9dfd75dcc7fa504ff6a678d999bc79c1afe4ebe93d2f3fc9cf042f3208e7f",
       "docs/08-testing-and-qa/test-strategy.md": "57100c4a1e4617b9be3d1425fcbb02afd89caf4ea4c868c650bc8c65dcf8d132",
-      "docs/09-security/permissions-catalog.md": "0b02dbb3dc4ac0120d291bed8a32cabc8d0314088a458bca678610b7f89763fc",
+      "docs/09-security/permissions-catalog.md": "08b6dc2b4341a27cb07851861e75ca5286f7cdbe16e4ae876d6c79542722d773",
       "docs/09-security/security-requirements.md": "eefb7f533daa641dc6453550177fb2511a8d10115616bf0ff3da08d8c6063e44"
     },
     "title": "★ زيادة: إعادة تشكيل طبقة التفويض والكتابة"
+  },
+  "WU-027": {
+    "docs": {
+      "docs/02-requirements/change-requests/CR-012-profile-biometric-and-password-change.md": "c857eb38b8b1c80e354adf39b38ae7f62d2617077d50a3a629d745b193f41aaf",
+      "docs/03-architecture/adr/ADR-0024-biometric-unlock-with-os-protected-credentials.md": "268f1afc74de4d77e07634be75ce1049dcafb824604442b02e5bf96c5a83d536",
+      "docs/04-design/module-design/identity-access-design.md": "7043ec2f6810f9101acd5ae7aac5589fc46f71eba5ed28c34130be79260da2d6",
+      "docs/07-development/dependency-management-policy.md": "04ca332d6f592b3a199d9dd5f685d19884ce6c1047122fe37f5820aab03766a1",
+      "docs/09-security/authentication-policy.md": "c2437bff8b87ed93dc3e683e78fa43ec85055c59901278c016eeae97d4e06d88",
+      "docs/18-ux-ui/design-system.md": "ebe25275ae1c0a0e1364328aa7f9852c0f22992ee5f162d0a5b1311a4f29581c",
+      "docs/18-ux-ui/design-tokens.md": "2baaa374dd1ed6d104a0827f123df1b6be5bdb0fdec0bca1ea89930ab72ead3c",
+      "docs/18-ux-ui/ui-guidelines.md": "675ec7f118456f66b7a7459369bc98c210bf42e28eb0e5cfa4b63da8fc9ed837"
+    },
+    "title": "زيادة: الملفُّ الشخصي والإعدادات والدخولُ بالبصمة"
+  },
+  "WU-028": {
+    "docs": {
+      "docs/00-governance/upds-workflow/developer-identity-selection.md": "ce84583dfb9432fc938b1392d5b5c56fe657654b0043a3796963d501aa2eee8a",
+      "docs/18-ux-ui/design-system.md": "ebe25275ae1c0a0e1364328aa7f9852c0f22992ee5f162d0a5b1311a4f29581c",
+      "docs/18-ux-ui/design-tokens.md": "2baaa374dd1ed6d104a0827f123df1b6be5bdb0fdec0bca1ea89930ab72ead3c",
+      "docs/18-ux-ui/ui-guidelines.md": "675ec7f118456f66b7a7459369bc98c210bf42e28eb0e5cfa4b63da8fc9ed837",
+      "docs/19-assets/developer-identity.md": "cafdadd5b17a2a6d561f0e8ee58a54c9e0481c7e0860a01cf1517b7511f87d2c"
+    },
+    "title": "زيادة: إسنادُ جهة التطوير من طرف إلى طرف"
   }
 }
