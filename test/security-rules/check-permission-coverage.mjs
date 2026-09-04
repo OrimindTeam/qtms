@@ -250,6 +250,24 @@ const NOT_ENFORCED_IN_RULES = new Map([
     'IQ-034 — لا مجموعةَ مستقلةَ لتقريرٍ تُحمى: التقرير مُجمَّعٌ من مجموعاتٍ'
       + ' لها شرطُ قراءتها ونطاقُها أصلاً (الكتالوج §2.11 · DEBT-71).',
   ]),
+  // ★★★ IQ-040 الخيار أ (2026-09-04) — مفتاحا كشف حساب المقوت.
+  //   ⛔ وليست فجوة: لا مجموعةَ مستقلةَ لكشف الحساب تُحمى — الكشفُ مبنيٌّ من
+  //      dealer_ledger وحدَه، وشرطُ قراءته قائمٌ فعلاً وحقيقي:
+  //      isSignedIn() && storedInScope() && perm('dealerBalanceView').
+  //      ⟹ فالمفتاحان بوابتا شاشةٍ وخيارِ عرض لا حارسَ سريّةٍ للأرقام.
+  //   ⛔⛔ ولذلك اشتُرط ترتيبُ المنح صراحةً — permissionGrantPrerequisites في
+  //      packages/qtms_domain/.../identity_access/domain/permission.dart،
+  //      ويفرضه validatePermissionGrant القاعدة ④ ويحرسه اختبارٌ سلبي.
+  //   ⚠️⚠️ ومخاطرةُ DEBT-71 نفسُها تسري: إخفاءُ شاشةٍ لا منعُ قراءة (RISK-02).
+  ...[
+    'dealerStatementView',
+    'dealerStatementAllSources',
+  ].map((k) => [
+    k,
+    'IQ-040 — لا مجموعةَ مستقلةَ لكشف الحساب تُحمى: الكشفُ من dealer_ledger'
+      + ' وشرطُ قراءته perm(dealerBalanceView) + النطاق (الكتالوج §5 · DEBT-71).'
+      + ' وترتيبُ المنح مفروضٌ في permissionGrantPrerequisites.',
+  ]),
   [
     'sourceNetImpactView',
     'ADR-0011 §5 — تقرير R-23 مُجمَّع من outflow_ledger المحكوم أصلاً بـ'

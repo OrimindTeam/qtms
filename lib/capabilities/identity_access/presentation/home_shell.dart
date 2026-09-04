@@ -163,6 +163,26 @@ class HomeShell extends ConsumerWidget {
                   ),
                 ),
               ),
+              // ⛅★★★ **ومدخلُ كشف حساب المقوت** (`WU-017` · `M17`) —
+              //    ★ **بمفتاح `dealerStatementView` وحدَه**: ⟵ **وهو مفتاحُ
+              //    عرضٍ صريحٌ يُسمّيه `FR-M17` §3 نصّاً** (`IQ-040` الخيار أ)
+              //    ⛔ **بخلاف المقبوضات والخصومات** (مفاتيحُها مفاتيحُ فعل).
+              //    ⛔⛔ **ولا يُغني عنه `dealerBalanceView`** — ★ **ذاك رصيدٌ
+              //    مجمَّع وهذا حركةٌ تفصيلية تُسلَّم للمقوت.**
+              //    ⚠️⚠️ **وإخفاءٌ لا حماية** — ★ **والحارسُ شرطُ قراءة
+              //    `dealer_ledger` بـ`dealerBalanceView` والنطاق** (`RISK-02`)،
+              //    ⟵ **ولذلك اشتُرط ترتيبُ المنح** (`permissionGrantPrerequisites`):
+              //    ⛔ **وإلا فُتحت شاشةٌ كلُّ قراءاتها مرفوضة.**
+              PermissionGate(
+                permission: Permission.dealerStatementView,
+                child: QtmsHubButton(
+                  entry: QtmsHubEntry(
+                    label: 'كشف حساب المقوت',
+                    icon: Icons.receipt_long_outlined,
+                    onPressed: () => context.go(dealerStatementRoute),
+                  ),
+                ),
+              ),
               // ⛅★★★ **ومدخلُ ضمار المالك وحركة النقد** (`WU-016` · `M15`) —
               //    ★ **بمفتاح `ownerLedgerView` وحدَه**: ⟵ **وهو مفتاحُ
               //    عرضٍ صريحٌ في الكتالوج §2.7** ⛔ **بخلاف المقبوضات

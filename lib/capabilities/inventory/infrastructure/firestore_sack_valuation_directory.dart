@@ -69,7 +69,7 @@ final class FirestoreSackValuationDirectory implements SackValuationDirectory {
             (QuerySnapshot<Map<String, dynamic>> snapshot) => <SupplierLedgerRow>[
               for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
                   in snapshot.docs)
-                _rowOf(doc.id, doc.data()),
+                rowOf(doc.id, doc.data()),
             ]..sort(
                 (SupplierLedgerRow a, SupplierLedgerRow b) =>
                     b.sackId.compareTo(a.sackId),
@@ -188,7 +188,12 @@ final class FirestoreSackValuationDirectory implements SackValuationDirectory {
         ),
       );
 
-  static SupplierLedgerRow _rowOf(String id, Map<String, dynamic> data) =>
+  /// ★ يبني سطرَ دفتر الرعية — ⛔ **والغائب `null` لا صفراً**.
+  ///
+  /// ★★ **ومكشوفٌّ لأنَّ `FirestoreReportDirectory` يقرأ المجموعةَ نفسَها**
+  /// (`R-25` · `R-26` — `WU-018`) — ⛔ **ونسخةٌ ثانية تفترق عند أول حقل**
+  /// (`coding-standards.md` §2.2) — ★ **بنفس ما فُعل بـ`FirestoreDistributionDirectory.balanceOf` حرفياً.**
+  static SupplierLedgerRow rowOf(String id, Map<String, dynamic> data) =>
       SupplierLedgerRow(
         sackId: _text(data['sackId']) ?? id,
         supplierId: _text(data['supplierId']) ?? '',

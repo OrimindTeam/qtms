@@ -134,12 +134,48 @@ class _PermissionTreeState extends State<PermissionTree> {
             permission,
       ];
 
+  /// ★★★ يبدّل مفتاحاً — **ومعه سلسلةُ اشتراطه** (`IQ-040`).
+  ///
+  /// ═══════════════════════════════════════════════════════════════════
+  /// ⛔⛔★★★ **ولماذا بنيوياً هنا لا رسالةَ خطأٍ بعد الحفظ:**
+  /// ★ **`validatePermissionGrant` القاعدة ④ ترفض مجموعةً فيها مفتاحٌ بلا
+  ///    مانحه المسبق** — ⟵ **ورفضُها `PermissionError` مجرَّدة**:
+  ///    ⛔ **فمديرٌ يؤشّر «عرض كشف حساب المقوت» وحدَه يرى «ليست لديك صلاحية»
+  ///    وهو يملكها فعلاً.** ★ **والعلاج أن تكون المجموعةُ المعروضة صحيحةً
+  ///    دائماً** ⛔ **لا أن يُشرَح خطأٌ كان يمكن منعُه.**
+  ///
+  /// ⚠️ **والاتجاهان لازمان معاً:** ★ **التأشيرُ يجرّ المانحَ المسبق صعوداً**،
+  ///    ★ **وإزالتُه تُسقِط ما يعتمد عليه نزولاً** — ⛔ **وإسقاطُ أحدهما يترك
+  ///    الشاشةَ تبني مجموعةً ترفضها السحابة.**
+  ///
+  /// ⚠️⚠️ **وهذا تصحيحُ عرضٍ لا تخفيفُ حراسة** (`RISK-02`): ★ **الحارسُ يبقى
+  ///    في طبقة النطاق وتفرضه العمليةُ الكاتبة** (`permission_sync.dart`).
+  /// ═══════════════════════════════════════════════════════════════════
   void _toggle(Permission permission, bool on) {
     final Set<Permission> next = <Permission>{...widget.selected};
     if (on) {
       next.add(permission);
+      // ① صعوداً — ★ **كلُّ مانحٍ مسبقٍ في السلسلة** ⛔ **لا الأقربَ وحدَه.**
+      for (Permission? need = permission.grantPrerequisite;
+          need != null;
+          need = need.grantPrerequisite) {
+        if (!next.add(need)) break; // ★ كان مؤشَّراً — فما فوقه مؤشَّرٌ كذلك.
+      }
     } else {
       next.remove(permission);
+      // ② نزولاً — ★ **حتى الاستقرار**: ⟵ **فسلسلةٌ من ثلاثةٍ تُسقَط كاملةً.**
+      bool changed = true;
+      while (changed) {
+        changed = false;
+        final Set<Permission> orphans = <Permission>{
+          for (final Permission held in next)
+            if (held.grantPrerequisite case final Permission need)
+              if (!next.contains(need)) held,
+        };
+        for (final Permission orphan in orphans) {
+          if (next.remove(orphan)) changed = true;
+        }
+      }
     }
     widget.onChanged(next);
   }

@@ -21,8 +21,10 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../financial_outflow/application/owner_ledger_providers.dart';
 import '../../identity_access/application/session_providers.dart';
 import '../../inventory/application/inventory_providers.dart';
+import '../../inventory/application/sack_valuation_providers.dart';
 import '../../master_data/application/master_data_providers.dart';
 
 /// دليلُ قراءة التقارير — ⛔ **يُحقَن في الجذر**.
@@ -31,16 +33,43 @@ final Provider<ReportDirectory> reportDirectoryProvider =
   throw UnimplementedError('reportDirectoryProvider يجب تجاوزه عند الجذر');
 });
 
+/// ★★★ **تقاريرُ يومٍ واحد** — ⛔ **ولا مدى «من–إلى» لها** (`WU-018`).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★ **وقرارُ نطاقٍ معلَنٌ لا سهو** ([`DEBT-94`]): ★ **`R-16` و`R-24`
+/// يُجمَعان من الدفاتر عند القراءة لا من ملخّصٍ مبنيٍّ مسبقاً** — ★ **خمسةُ
+/// استعلاماتٍ لكل يومٍ لكل مصدر** (`FirestoreCashMovementDirectory`):
+/// ⟵ **ومدىً شهريٌّ يُنتج مئةً وخمسين قراءةً لمصدرٍ واحد** ⛔ **بلا سقفٍ
+/// موثَّق** — ★ **والعتبةُ الرقمية غيرُ موثَّقة فتكون بند `IQ`**
+/// (`implementation-playbook.md` §5). ⟹ **فبُنيا يوماً واحداً كنظيرَيهما
+/// `R-02` و`R-05`** — ★ **و«من–إلى» مؤجَّلٌ معلَناً** ⛔ **لا مسكوتاً عنه.**
+/// ═══════════════════════════════════════════════════════════════════════
+bool isSingleDayReport(ReportId report) =>
+    report == ReportId.currentStock ||
+    report == ReportId.todayRemainder ||
+    report == ReportId.cashMovement ||
+    report == ReportId.withdrawalCoverage;
+
 /// ★★ التقاريرُ التي يملك المستخدم مفتاحَ عائلتها — ⛔ **وما عداها لا يُرسَم**.
 ///
 /// ⚠️ **ولا يُعرَض معطَّلاً** — `ui-guidelines.md` نمط 6: «**وبند يُخفى لعدم
 /// الصلاحية لا يُترك فراغاً بل يختفي كله**».
+/// ⛔⛔★★ **ومفاتيحُ التقرير الزائدة تُفحَص معه** ([ReportId.requiredPermissions])
+/// — ★ **وكلُّها شرطُ قراءةٍ يُرَدُّ استعلامُ التقرير بدونه كاملاً**
+/// (`IQ-024` · [`DEBT-89`]): ⟵ **فتقريرٌ يُرَدُّ دائماً يُري المستخدم عطلاً
+/// لا منعاً**، ⛔ **وهو أسوأ من إخفائه.**
 final Provider<List<ReportId>> visibleReportsProvider =
     Provider<List<ReportId>>((Ref ref) {
+  bool grants(ReportId report) {
+    for (final Permission permission in report.requiredPermissions) {
+      if (!ref.watch(hasPermissionProvider(permission))) return false;
+    }
+    return true;
+  }
+
   return <ReportId>[
     for (final ReportId report in ReportId.values)
-      if (ref.watch(hasPermissionProvider(report.family.requiredPermission)))
-        report,
+      if (grants(report)) report,
   ];
 });
 
@@ -100,6 +129,10 @@ final class ReportRequest {
     this.pendingKind,
     this.availability,
     this.balanceState,
+    this.outflowCategory,
+    this.outflowLineKind,
+    this.supplierId,
+    this.sackId,
   });
 
   /// التقرير المطلوب.
@@ -140,6 +173,21 @@ final class ReportRequest {
   /// `R-17` — حالةُ رصيد المقوت.
   final DealerBalanceState? balanceState;
 
+  /// `R-21` · `R-22` — فئةُ السند (`FR-M22-19`).
+  final OutflowCategory? outflowCategory;
+
+  /// `R-21` · `R-22` — نوعُ البند (`FR-M22-05`).
+  final OutflowLineKind? outflowLineKind;
+
+  /// `R-25` · `R-26` — الرعوي المطلوب حسابُه.
+  ///
+  /// ⛔ **وترشيحٌ محليٌّ لا قيدُ استعلام** — ★ **السطرُ يحمل `supplierId`**:
+  /// ⟵ **فلا فهرسَ ثالثٌ يُنشأ لفلترٍ مجاني** (`DEBT-72`).
+  final String? supplierId;
+
+  /// `R-27` — الجونية المطلوب تفكيكُ سعرها.
+  final String? sackId;
+
   /// ★ نسخةٌ بتعديلٍ واحد — ⛔ **والقيمة `null` تعني «امسح هذا الفلتر»**.
   ///
   /// ⚠️⚠️ **ولذلك عَلَمٌ صريحٌ لكل حقلٍ يُمسَح** — ★ **ولا يُستنتَج المسح من
@@ -164,6 +212,14 @@ final class ReportRequest {
     bool clearAvailability = false,
     DealerBalanceState? balanceState,
     bool clearBalanceState = false,
+    OutflowCategory? outflowCategory,
+    bool clearOutflowCategory = false,
+    OutflowLineKind? outflowLineKind,
+    bool clearOutflowLineKind = false,
+    String? supplierId,
+    bool clearSupplier = false,
+    String? sackId,
+    bool clearSack = false,
   }) =>
       ReportRequest(
         report: report,
@@ -183,6 +239,14 @@ final class ReportRequest {
             clearAvailability ? null : (availability ?? this.availability),
         balanceState:
             clearBalanceState ? null : (balanceState ?? this.balanceState),
+        outflowCategory: clearOutflowCategory
+            ? null
+            : (outflowCategory ?? this.outflowCategory),
+        outflowLineKind: clearOutflowLineKind
+            ? null
+            : (outflowLineKind ?? this.outflowLineKind),
+        supplierId: clearSupplier ? null : (supplierId ?? this.supplierId),
+        sackId: clearSack ? null : (sackId ?? this.sackId),
       );
 }
 
@@ -290,6 +354,34 @@ class ReportRequestState extends Notifier<ReportRequest?> {
             : current.copyWith(balanceState: balanceState),
       );
 
+  /// `R-21` · `R-22` — يختار فئة السند.
+  void selectOutflowCategory(OutflowCategory? category) => _apply(
+        (ReportRequest current) => category == null
+            ? current.copyWith(clearOutflowCategory: true)
+            : current.copyWith(outflowCategory: category),
+      );
+
+  /// `R-21` · `R-22` — يختار نوع البند.
+  void selectOutflowLineKind(OutflowLineKind? kind) => _apply(
+        (ReportRequest current) => kind == null
+            ? current.copyWith(clearOutflowLineKind: true)
+            : current.copyWith(outflowLineKind: kind),
+      );
+
+  /// `R-25` · `R-26` — يختار الرعوي.
+  void selectSupplier(String? supplierId) => _apply(
+        (ReportRequest current) => supplierId == null
+            ? current.copyWith(clearSupplier: true)
+            : current.copyWith(supplierId: supplierId),
+      );
+
+  /// `R-27` — يختار الجونية.
+  void selectSack(String? sackId) => _apply(
+        (ReportRequest current) => sackId == null
+            ? current.copyWith(clearSack: true)
+            : current.copyWith(sackId: sackId),
+      );
+
   void _apply(ReportRequest Function(ReportRequest current) change) {
     final ReportRequest? current = state;
     if (current == null) return;
@@ -301,9 +393,7 @@ class ReportRequestState extends Notifier<ReportRequest?> {
   /// ⛔ **ولا شهرٌ افتراضاً** — ★ **صفحةٌ واحدة حدُّها [reportPageSize]**،
   /// ⟵ **وفترةٌ تتجاوزها تُظهر جزءاً بلا أن تقول إنه جزء.**
   static ReportPeriod _defaultPeriod(ReportId report, CalendarDay today) {
-    if (report == ReportId.currentStock || report == ReportId.todayRemainder) {
-      return ReportPeriod.singleDay(today);
-    }
+    if (isSingleDayReport(report)) return ReportPeriod.singleDay(today);
     CalendarDay from = today;
     for (int i = 0; i < 6; i++) {
       from = from.previousDay();
@@ -335,6 +425,33 @@ final Provider<List<String>> effectiveReportSources =
   if (request.sourceId case final String sourceId) return <String>[sourceId];
   // ★ **وأولُ مصدرٍ في النطاق افتراضاً** — ⛔ **ولا استعلامَ قبل وصوله.**
   return active.isEmpty ? const <String>[] : <String>[active.first.sourceId];
+});
+
+/// ★★ جوانيُّ الفترة — **قائمةُ اختيارِ `R-27` وحدَها**.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★ **و`autoDispose` إلزاميّة** ([`DEBT-90`]) — ★ **قراءةٌ عند الطلب
+/// بلا `autoDispose` تُخزِّن نتيجتَها**: ⟵ **فتعرض جوانيَّ فترةٍ سابقة بعد
+/// تبديل المدى** ⛔ **مخالفةٌ لـ`ADR-0008`.**
+///
+/// ⛔ **ولا تُقرأ إلا لهذا التقرير** — ★ **فقائمةُ الجواني قراءةٌ إضافية**:
+/// ⟵ **وتحميلُها في كل تقريرٍ كان يُضاعف الكلفة بلا مقابل** (`NFR-COST-03`).
+/// ═══════════════════════════════════════════════════════════════════════
+final reportSacksProvider =
+    FutureProvider.autoDispose<List<SackCard>>((Ref ref) async {
+  final ReportRequest? request = ref.watch(reportRequestProvider);
+  // ★ **وتخدم `R-04` كذلك** — **فلترُ الجونية فيه** ([`DEBT-72`] ②):
+  //   ⛔ **ولا تُقرأ لتقريرٍ لا يعرضها** (`NFR-COST-03`).
+  if (request == null ||
+      (request.report != ReportId.sackPriceBreakdown &&
+          request.report != ReportId.sackIntakes)) {
+    return const <SackCard>[];
+  }
+  final ReportDirectory directory = ref.watch(reportDirectoryProvider);
+  return <SackCard>[
+    for (final String sourceId in ref.watch(effectiveReportSources))
+      ...await directory.sacks(sourceId: sourceId, period: request.period),
+  ];
 });
 
 /// ★ المصدرُ المختار فعلاً — و`null` **لـ«كل المصادر» أو قبل وصول القائمة**.
@@ -374,10 +491,13 @@ final FutureProvider<Outcome<ReportTable?>> reportTableProvider =
 /// ★★ **و«ممنوع» أشيعُ سببٍ هنا بفارق** — ★ **شرطُ قراءةٍ أو نطاقُ مصادر**
 /// (`GR-23`): ⟵ **ورسالتُه من الكتالوج قابلةٌ للتصرف**، ⛔ **بخلاف رسالةٍ
 /// عامة تترك المستخدم بلا خطوةٍ تالية.**
-AppError _asAppError(Object error) =>
-    error.toString().contains('permission-denied')
-        ? const PermissionError()
-        : InfrastructureError(error.toString());
+AppError _asAppError(Object error) => switch (error) {
+      // ★ **وما وصل نتيجةً يُفكّ نتيجةً** — ⛔ **بلا فحص نصٍّ هشّ.**
+      final _ReportFailure failure => failure.error,
+      _ when error.toString().contains('permission-denied') =>
+        const PermissionError(),
+      _ => InfrastructureError(error.toString()),
+    };
 
 /// ★ يبني الجدول — ⛔ **ويرمي عند الرفض ليُترجَم في مُستدعيه وحده**.
 Future<ReportTable?> _buildTable(Ref ref) async {
@@ -427,12 +547,16 @@ Future<ReportTable?> _buildTable(Ref ref) async {
         stockDate: request.period.to,
         balances: await _balances(directory, sources, request.period.to),
         availability: request.availability,
+        itemKey: request.itemKey,
+        itemName: _itemNameOrNull(ref, request.itemKey),
       );
 
     case ReportId.todayRemainder:
       return buildTodayRemainderReport(
         stockDate: request.period.to,
         balances: await _balances(directory, sources, request.period.to),
+        itemKey: request.itemKey,
+        itemName: _itemNameOrNull(ref, request.itemKey),
       );
 
     case ReportId.countedIntakes:
@@ -447,6 +571,9 @@ Future<ReportTable?> _buildTable(Ref ref) async {
         period: request.period,
         intakes: intakes,
         supplierNames: supplierNames,
+        supplierId: request.supplierId,
+        itemKey: request.itemKey,
+        itemName: _itemNameOrNull(ref, request.itemKey),
       );
 
     case ReportId.sackIntakes:
@@ -457,13 +584,20 @@ Future<ReportTable?> _buildTable(Ref ref) async {
             period: request.period,
           ),
       ];
-      return buildSackIntakesReport(period: request.period, sacks: sacks);
+      return buildSackIntakesReport(
+        period: request.period,
+        sacks: sacks,
+        supplierNames: supplierNames,
+        supplierId: request.supplierId,
+        sackId: request.sackId,
+      );
 
     case ReportId.distributions:
       return buildDistributionsReport(
         period: request.period,
         distributions: await _distributions(directory, sources, request),
         dealerNames: dealerNames,
+        dealerId: request.dealerId,
       );
 
     case ReportId.settlements:
@@ -486,6 +620,7 @@ Future<ReportTable?> _buildTable(Ref ref) async {
         pricing: pricing,
         dealerNames: dealerNames,
         settlementStatus: request.settlementStatus,
+        dealerId: request.dealerId,
         thousandsSeparator: separator,
       );
 
@@ -559,7 +694,293 @@ Future<ReportTable?> _buildTable(Ref ref) async {
         entries: entries,
         kind: request.pendingKind,
       );
+
+    // ═══════════════════ زيادةُ `WU-018` — المرحلة الثانية ═══════════════════
+
+    case ReportId.dealerDistributionSummary:
+      final List<DistributionCard> cards =
+          await _distributions(directory, sources, request);
+      // 🔒 **والأسعارُ لمن يملك `distributionPriceView` وحدَه** (`ت-12`).
+      final Map<String, DistributionPricingCard> pricing =
+          ref.watch(hasPermissionProvider(Permission.distributionPriceView))
+              ? await directory.distributionPricing(
+                  distributionIds: <String>[
+                    for (final DistributionCard card in cards)
+                      card.distributionId,
+                  ],
+                )
+              : const <String, DistributionPricingCard>{};
+      return buildDealerDistributionSummaryReport(
+        period: request.period,
+        distributions: cards,
+        pricing: pricing,
+        dealerNames: dealerNames,
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.cashSales:
+      return buildCashSalesReport(
+        period: request.period,
+        sales: await _cashSales(directory, sources, request),
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.salesByItem:
+      final List<DistributionCard> cards =
+          await _distributions(directory, sources, request);
+      final bool readsPricing =
+          ref.watch(hasPermissionProvider(Permission.distributionPriceView));
+      final Map<String, DistributionPricingCard> pricing = readsPricing
+          ? await directory.distributionPricing(
+              distributionIds: <String>[
+                for (final DistributionCard card in cards) card.distributionId,
+              ],
+            )
+          : const <String, DistributionPricingCard>{};
+      return buildSalesByItemReport(
+        period: request.period,
+        distributions: cards,
+        cashSales: await _cashSales(directory, sources, request),
+        pricing: pricing,
+        // ⛔⛔ **وعمودُ القيمة يظهر بالصلاحية لا بامتلاء الخريطة** — ★ **فترةٌ
+        //    بلا توزيعاتٍ خريطتُها فارغة**، ⟵ **وإخفاءُ العمود حينها كان
+        //    يُسقِط قيمةَ البيع النقدي وهي مقروءةٌ للجميع.**
+        withValue: readsPricing,
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.unpricedLines:
+      return buildUnpricedLinesReport(
+        period: request.period,
+        distributions: await _distributions(directory, sources, request),
+        dealerNames: dealerNames,
+        dealerId: request.dealerId,
+      );
+
+    case ReportId.discounts:
+      final List<DiscountCard> cards = <DiscountCard>[
+        for (final String sourceId in sources)
+          ...await directory.discounts(
+            sourceId: sourceId,
+            period: request.period,
+          ),
+      ];
+      return buildDiscountsReport(
+        period: request.period,
+        discounts: cards,
+        sourceId: ref.watch(selectedReportSource),
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.cashMovement:
+      return buildCashMovementReport(
+        date: request.period.to,
+        movement: await _cashMovement(ref, sources, request),
+        readsDeposit:
+            ref.watch(hasPermissionProvider(Permission.receiptDepositView)),
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.withdrawalCoverage:
+      return buildWithdrawalCoverageReport(
+        date: request.period.to,
+        movement: await _cashMovement(ref, sources, request),
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.ownerLedgerDaily:
+      return buildOwnerLedgerDailyReport(
+        period: request.period,
+        days: await _summaryDays(ref, directory, sources, request),
+        visibility: ref.watch(ownerLedgerVisibilityProvider),
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.sourceNetImpact:
+      return buildSourceNetImpactReport(
+        period: request.period,
+        days: await _summaryDays(ref, directory, sources, request),
+        visibility: ref.watch(ownerLedgerVisibilityProvider),
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.withdrawals:
+    case ReportId.expenses:
+      final OutflowLedgerType ledgerType =
+          request.report == ReportId.withdrawals
+              ? OutflowLedgerType.withdrawal
+              : OutflowLedgerType.expense;
+      final List<OutflowCard> cards = <OutflowCard>[
+        for (final String sourceId in sources)
+          ...await directory.outflows(
+            sourceId: sourceId,
+            ledgerType: ledgerType,
+            period: request.period,
+          ),
+      ];
+      return buildOutflowLedgerReport(
+        period: request.period,
+        ledgerType: ledgerType,
+        outflows: cards,
+        category: request.outflowCategory,
+        lineKind: request.outflowLineKind,
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.supplierAccount:
+      return buildSupplierAccountReport(
+        period: request.period,
+        rows: await _supplierLedger(directory, sources, request),
+        supplierId: request.supplierId,
+        supplierNames: supplierNames,
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.supplierTax:
+      return buildSupplierTaxReport(
+        period: request.period,
+        rows: await _supplierLedger(directory, sources, request),
+        supplierId: request.supplierId,
+        supplierNames: supplierNames,
+        thousandsSeparator: separator,
+      );
+
+    case ReportId.sackPriceBreakdown:
+      final String? sackId = request.sackId;
+      if (sackId == null) return null;
+      // ★★ **والجونيةُ تُقرأ من جوانيِّ الفترة نفسِها** — ⟵ **فمنها تاريخُ
+      //    مخزونها ومصدرُها**: ⛔ **ولا يُبنى المسار من معرّفٍ مجرَّد**،
+      //    ★ **و`loadSackContributions` تشترط الثلاثة معاً** (`GR-49`).
+      final List<SackCard> sacks = <SackCard>[
+        for (final String sourceId in sources)
+          ...await directory.sacks(sourceId: sourceId, period: request.period),
+      ];
+      SackCard? selected;
+      for (final SackCard sack in sacks) {
+        if (sack.documentNumber == sackId) selected = sack;
+      }
+      if (selected == null) return null;
+      final Outcome<List<SackRevenueContribution>> outcome = await ref
+          .watch(sackValuationDirectoryProvider)
+          .loadSackContributions(
+            sackId: selected.documentNumber,
+            sourceId: selected.sourceId,
+            stockDate: selected.stockDate,
+          );
+      return switch (outcome) {
+        Success<List<SackRevenueContribution>>(
+          :final List<SackRevenueContribution> value
+        ) =>
+          buildSackPriceBreakdownReport(
+            sackDisplayName: selected.displayName,
+            contributions: value,
+            thousandsSeparator: separator,
+          ),
+        // ⛔ **ورفضُ القراءة يصعد خطأً صريحاً** — ★ **فيُميِّز المستخدمُ بين
+        //    «لا بيانات» و«ممنوعٌ من الرؤية»** (`FR-M18-12`).
+        Failure<List<SackRevenueContribution>>(:final AppError error) =>
+          throw _ReportFailure(error),
+      };
   }
+}
+
+/// ★ سنداتُ البيع النقدي عبر مصادرَ مُعدَّدة.
+Future<List<CashSaleCard>> _cashSales(
+  ReportDirectory directory,
+  List<String> sources,
+  ReportRequest request,
+) async =>
+    <CashSaleCard>[
+      for (final String sourceId in sources)
+        ...await directory.cashSales(
+          sourceId: sourceId,
+          period: request.period,
+        ),
+    ];
+
+/// ★ سطورُ دفتر الرعية عبر مصادرَ مُعدَّدة.
+Future<List<SupplierLedgerRow>> _supplierLedger(
+  ReportDirectory directory,
+  List<String> sources,
+  ReportRequest request,
+) async =>
+    <SupplierLedgerRow>[
+      for (final String sourceId in sources)
+        ...await directory.supplierLedger(
+          sourceId: sourceId,
+          period: request.period,
+        ),
+    ];
+
+/// ★★★ حركةُ النقد في تاريخ التقرير — **بالقارئ نفسِه الذي تستعمله البطاقة**.
+///
+/// ⛔ **ولا نسخةَ ثانية من التجميع** (`coding-standards.md` §2.2) — ★ **وهو
+/// خمسةُ استعلاماتٍ لكل مصدر** ⟵ **ولذلك التقريرُ يومٌ واحد** ([`DEBT-94`]).
+Future<CashMovementProjection> _cashMovement(
+  Ref ref,
+  List<String> sources,
+  ReportRequest request,
+) async {
+  final CashMovementSummary summary =
+      await ref.watch(cashMovementReaderProvider).readCashMovement(
+            sourceIds: sources,
+            // ⛔⛔ **والفائضُ العام في «كل المصادر» وحدها** — `FR-M12-12`.
+            includesUnscopedSurplus: request.allSources,
+            date: request.period.to,
+            readsDeposit:
+                ref.watch(hasPermissionProvider(Permission.receiptDepositView)),
+          );
+  return projectCashMovement(summary, ref.watch(ownerLedgerVisibilityProvider));
+}
+
+/// ★★★ أيامُ الفترة مبنيّةً على صلاحيات قارئها — `R-20` · `R-23`.
+///
+/// ⛔⛔★★ **و«كل المصادر» تُجمَع من بطاقات مصادر القارئ يوماً بيوم** — ⛔ **لا
+/// من مستند `all_{date}`** (`E-36` · `FR-M15-09`): ⟵ **فمن نطاقه مصدرٌ واحد
+/// لا تدخل أرقامُ غيره تقريرَه**، ★ **والجمعُ خطّيٌّ يطابق جمعَ البطاقات بنداً
+/// ببند** ([aggregateOwnerLedgerSummaries]).
+Future<List<OwnerLedgerProjection>> _summaryDays(
+  Ref ref,
+  ReportDirectory directory,
+  List<String> sources,
+  ReportRequest request,
+) async {
+  final Map<CalendarDay, List<OwnerLedgerSummary>> byDay =
+      <CalendarDay, List<OwnerLedgerSummary>>{};
+  for (final String sourceId in sources) {
+    for (final OwnerLedgerSummary summary in await directory.dailySummaries(
+      sourceId: sourceId,
+      period: request.period,
+    )) {
+      byDay.putIfAbsent(summary.date, () => <OwnerLedgerSummary>[]).add(summary);
+    }
+  }
+  final OwnerLedgerVisibility visibility =
+      ref.watch(ownerLedgerVisibilityProvider);
+  return <OwnerLedgerProjection>[
+    for (final MapEntry<CalendarDay, List<OwnerLedgerSummary>> day
+        in byDay.entries)
+      projectOwnerLedgerSummary(
+        day.value.length == 1
+            ? day.value.single
+            : aggregateOwnerLedgerSummaries(
+                date: day.key,
+                summaries: day.value,
+              ),
+        visibility,
+      ),
+  ];
+}
+
+/// ★ رفضٌ صعد من طبقةٍ تُرجِع [Outcome] — ⛔ **ولا يُبتلَع في «لا بيانات»**.
+///
+/// ⚠️ **وموجودٌ لأن [_buildTable] يرمي ويُترجَم في مُستدعيه وحده** — ★ **فما
+/// وصل نتيجةً يُعاد رمياً ثم يُفكّ في [_asAppError]**: ⛔ **بلا فحص نصٍّ
+/// هشّ لرسالةٍ تقنية.**
+final class _ReportFailure implements Exception {
+  const _ReportFailure(this.error);
+
+  final AppError error;
 }
 
 /// ★ أرصدةُ يومٍ عبر مصادرَ مُعدَّدة.
@@ -590,6 +1011,13 @@ Future<List<DistributionCard>> _distributions(
           settlementStatus: request.settlementStatus,
         ),
     ];
+
+/// ★ اسمُ النوع للترويسة — و`null` **حين لا فلترَ أصلاً**.
+///
+/// ⛔ **ولا يُعرَض مفتاحٌ تقني في شاشة** (`ui-guidelines.md` §6) — ★ **والاسمُ
+/// يُبنى هنا مرةً** ⟵ **فيُصرِّح الفلترُ بنفسه ولو خلا الجدول من صفوفه.**
+String? _itemNameOrNull(Ref ref, String? itemKey) =>
+    itemKey == null ? null : _itemName(ref, itemKey);
 
 /// ★ اسمُ النوع للعرض — ⛔ **والغائب يقع على مفتاحه لا على فراغ**.
 String _itemName(Ref ref, String itemKey) {

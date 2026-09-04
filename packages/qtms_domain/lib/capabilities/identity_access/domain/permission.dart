@@ -13,7 +13,7 @@
 /// (`permission_test.dart`) — فلا مفتاح هنا بلا سطر هناك، ولا العكس.
 library;
 
-/// مفاتيح الصلاحيات الخمسة والثمانون المعتمدة.
+/// مفاتيح الصلاحيات السبعة والثمانون المعتمدة.
 ///
 /// ★ **والتسعة الأخيرة إدارية بحتة** — أُضيفت بجواب `IQ-007` (الخيار أ،
 /// 2026-08-22). ⚠️ **وهي لا تنقض `BR-M1-08`** («منح صلاحية أو سحبها: من
@@ -64,7 +64,7 @@ enum Permission {
   // ── الإتلاف والجرد (2) ──
   disposalCreate,
   stocktakeWrite,
-  // ── التحصيل والذمم (6) ──
+  // ── التحصيل والذمم (9) ──
   receiptCreate,
   receiptBackdate,
   receiptDepositView,
@@ -72,6 +72,22 @@ enum Permission {
   discountCreate,
   discountBackdate,
   dealerBalanceView,
+  // ★★★ **مفتاحان أُضيفا بحسم `IQ-040` الخيار أ (2026-09-04)** — ⛔ **ولا
+  //    واحدٌ منهما مخترَع:** ★ **`FR-M17` §3 يُسمّيهما نصّاً** («**عرض كشف
+  //    الحساب**» · «**كشف موحّد لكل المصادر**») ⟵ **صلاحيتين مستقلتين**،
+  //    ⛔ **لا وصفَ قدرةٍ يحكمها `sourceScope` وحده.**
+  //
+  // ⛔⛔★★ **ولا يُغني عنهما `dealerBalanceView`** — ★ **وصفُه «عرض أرصدة
+  //    المقاوته»**: ⟵ **وقد يريد المالكُ من يرى الرصيدَ المجمَّع ولا يرى
+  //    الحركةَ التفصيلية** — ★ **والكشفُ مستندٌ يُسلَّم للمقوت ويُبنى عليه
+  //    نزاعٌ محتمل**، ⛔ **فالفرقُ قرارُ سياسةٍ لا استنتاجُ كود** (`IQ-021`).
+  //
+  // ⚠️⚠️ **وكلاهما «شرطُ شاشةٍ» لا شرطُ قاعدة** — ★ **والحمايةُ الفعلية
+  //    تبقى شرطَ قراءة `dealer_ledger`** (`dealerBalanceView` **+ النطاق**):
+  //    ⟵ **ولذلك اشتُرط ترتيبُ المنح صراحةً** ([Permission.grantPrerequisite])
+  //    ⛔ **وإلا فُتحت شاشةٌ كلُّ قراءاتها مرفوضة** — ★ **عطبٌ إداريٌّ صامت.**
+  dealerStatementView,
+  dealerStatementAllSources,
   // ── السحبيات والخرجيات (8) ──
   //
   // ⛔⛔★★★ **وثلاثةٌ أُضيفت في `WU-014` (2026-09-01) — ⛔ ولا واحدٌ منها
@@ -195,6 +211,34 @@ const Set<Permission> identityAccessAdminPermissions = <Permission>{
 const Set<Permission> ownerBootstrapPermissions = <Permission>{
   ...Permission.values,
 };
+
+/// ★★★ **المانحُ المسبق لكلِّ مفتاحٍ يشترطه** — `IQ-040` **الخيار أ نصّاً**.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **ولماذا اشتراطٌ عند المنح لا عند الاستعمال:** ★ **مفتاحا كشف
+///    الحساب «شرطُ شاشةٍ» لا شرطُ قاعدة** (الكتالوج §5) — ⟵ **والحمايةُ
+///    الفعلية شرطُ قراءةِ `dealer_ledger`**: `perm('dealerBalanceView')`.
+///    ⟹ ⛔ **فمنحُ `dealerStatementView` لمن لا يملك `dealerBalanceView`
+///    يفتح شاشةً كلُّ قراءاتها مرفوضةٌ من القواعد** — ★ **عطبٌ إداريٌّ صامتٌ
+///    لا يظهر إلا وقت الاستخدام**، ⛔ **ولا يكشفه أيُّ فحصٍ آلي.**
+///
+/// ⚠️⚠️ **ولا يُدرَج هنا `receiptDepositConfirm ⟵ receiptDepositView`
+///    رغم أن الكتالوج §2.5 يصفه اشتراطاً** — ★ **لأنه مُنفَّذٌ فعلاً عند
+///    *الاستعمال*** ([`receipt.dart`] **يشترط المفتاحين معاً في `setDeposit`**)،
+///    ⛔ **ونقلُه إلى المنح تغييرُ سياسةٍ خارج ما حسمه `IQ-040`** — ★ **وما
+///    لم يُحسَم لا يُنفَّذ** (`implementation-playbook.md` §5).
+/// ═══════════════════════════════════════════════════════════════════════
+const Map<Permission, Permission> permissionGrantPrerequisites =
+    <Permission, Permission>{
+  Permission.dealerStatementView: Permission.dealerBalanceView,
+  Permission.dealerStatementAllSources: Permission.dealerStatementView,
+};
+
+/// ★ المانحُ المسبق لهذا المفتاح — و`null` **لمفتاحٍ بلا اشتراط**.
+extension PermissionGrantPrerequisite on Permission {
+  /// المفتاح الذي لا يُمنَح هذا بدونه.
+  Permission? get grantPrerequisite => permissionGrantPrerequisites[this];
+}
 
 /// كل المفاتيح كنصوص — كما تُكتب في مطالبات رمز الدخول وفي قواعد الحماية.
 Set<String> get allPermissionKeys =>

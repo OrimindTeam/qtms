@@ -95,17 +95,37 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   /// ★ الفلاترُ المتاحة لكل تقرير — **بالمصدر دائماً وما يخصُّه بعده**.
+  ///
+  /// ⛔⛔★★ **وما يذكره هذا السطر هو المبنيُّ فعلاً** — ⛔ **لا ما يَعِد به
+  /// `FR-M19` §2 ولم يُبنَ بعد** (`DEBT-72`): ⟵ **فسطرٌ يَعِد بفلترٍ غائبٍ
+  /// يُقرأ عطلاً حين لا يجده المستخدم في الشاشة.**
   static String _filtersLabel(ReportId report) => switch (report) {
         ReportId.itemMovements => 'المصدر · النوع · الفترة',
-        ReportId.currentStock => 'المصدر · التاريخ · الحالة',
-        ReportId.countedIntakes => 'المصدر · الفترة',
-        ReportId.sackIntakes => 'المصدر · الفترة',
-        ReportId.todayRemainder => 'المصدر · التاريخ',
-        ReportId.distributions => 'المصدر · الفترة',
-        ReportId.settlements => 'المصدر · الفترة · حالة التسوية',
+        ReportId.currentStock => 'المصدر · التاريخ · الحالة · النوع',
+        ReportId.countedIntakes => 'المصدر · الفترة · الرعوي · النوع',
+        ReportId.sackIntakes => 'المصدر · الفترة · الرعوي · الجونية',
+        ReportId.todayRemainder => 'المصدر · التاريخ · النوع',
+        ReportId.distributions => 'المصدر · الفترة · المقوت',
+        ReportId.dealerDistributionSummary => 'المصدر · الفترة',
+        ReportId.settlements => 'المصدر · الفترة · حالة التسوية · المقوت',
+        ReportId.cashSales => 'المصدر · الفترة',
+        ReportId.salesByItem => 'المصدر · الفترة',
+        ReportId.unpricedLines => 'المصدر · الفترة · المقوت',
         ReportId.receipts => 'المصدر · الفترة · حالة الإيداع',
+        ReportId.discounts => 'المصدر · الفترة',
+        ReportId.cashMovement => 'المصدر · التاريخ',
         ReportId.dealerBalances => 'المصدر · حالة الرصيد',
         ReportId.dealerStatement => 'المصدر · المقوت · الفترة',
+        ReportId.ownerLedgerDaily => 'المصدر · الفترة',
+        ReportId.withdrawals ||
+        ReportId.expenses =>
+          'المصدر · الفترة · الفئة · نوع البند',
+        ReportId.sourceNetImpact => 'المصدر · الفترة',
+        ReportId.withdrawalCoverage => 'المصدر · التاريخ',
+        ReportId.supplierAccount ||
+        ReportId.supplierTax =>
+          'المصدر · الفترة · الرعوي',
+        ReportId.sackPriceBreakdown => 'المصدر · الفترة · الجونية',
         ReportId.pendingEntries => 'المصدر · الفترة · نوع المستند',
       };
 }

@@ -94,16 +94,26 @@ String supplierLedgerEntryId({required String sackId}) {
 /// `SourceDocumentType`**: ⛔ **ولا تُملأ استباقاً بقيمٍ لا كاتب لها.**
 enum SackRevenueSource {
   /// توزيع على مقوت — `M10` (`FR-M14-02`).
-  distribution,
+  distribution('توزيع'),
 
   /// بيع نقدي مباشر — `M11` (`FR-M14-02`).
-  cashSale,
+  cashSale('بيع نقدي'),
 
   /// ★ سحبية مالك — `M22` · `E-26`: **يستحق الرعوي ثمنها** (`A-15`).
-  withdrawal,
+  withdrawal('سحبية'),
 
   /// ★ خرجية تشغيلية — `M22` · `GR-45`.
-  expense,
+  expense('خرجية');
+
+  const SackRevenueSource(this.label);
+
+  /// ★ الاسم المعروض — **بالعربية من معجم المصطلحات** (`ui-guidelines.md` §6).
+  ///
+  /// ⚠️⚠️ **وموضعُه النطاق لا الشاشة** — ★ **بنفس `OutflowCategory.label`
+  /// و`ReportFamily.label` حرفياً**: ⟵ **يقرؤه تفكيكُ `R-27` وورقةُ التفكيك
+  /// معاً** (`WU-015` · `WU-018`)، ⛔ **ونسخةٌ ثانية في إحداهما تفترق عن
+  /// الأخرى عند أول تسميةٍ تتغيّر** (`coding-standards.md` §2.2).
+  final String label;
 }
 
 /// ★★★ **مساهمةٌ واحدة في سعر الجونية** — سطرُ حركةٍ خارجةٍ بقيمته المسجَّلة.

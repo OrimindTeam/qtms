@@ -223,32 +223,61 @@ final class FirestoreReceiptDirectory implements ReceiptDirectory {
           .handleError((Object _) {})
           .cast<ReceiptDepositCard?>();
 
+  /// ⛅ الفائض المتاح — **باستعلامٍ مقيَّد** ⛔ **لا بقراءة المعرّف**.
+  ///
+  /// ═══════════════════════════════════════════════════════════════════
+  /// ⛔⛔★★★ **ولماذا استعلامٌ لا `doc(id).snapshots()` — عطلٌ قِيس حيّاً على
+  ///    المحاكي (2026-09-04 · `WU-017`):** ★ **شرطُ قراءة `dealer_surplus`
+  ///    يعتمد `resource.data.sourceId`** — ⟵ **والمستندُ الغائب بلا
+  ///    `resource` أصلاً**: ⟹ ⛔ **فقراءتُه بمعرّفه تُرفَض
+  ///    `PERMISSION_DENIED`** ★ **ومقوتٌ بلا فائضٍ في مصدرٍ حالةٌ طبيعية لا
+  ///    خطأ.** ⚠️⚠️ **وكان الرفضُ يُطوى صامتاً إلى `null`** ⟵ **فيُقرأ صفراً
+  ///    على الشاشة**: ★ **الرقمُ صحيحٌ والمسارُ معطوب**، ⛔ **وهو أخطر ما
+  ///    يكون** — ⟵ **يوم يصير الرفضُ حقيقياً لا يُميَّز عن الغياب.**
+  ///
+  /// ★★ **وهذه القاعدةُ نفسُها المسجَّلة في `WU-016`** ([`DEBT-91`]):
+  ///    «**الغائبُ لا يُقرأ بمعرّفه بل باستعلامٍ مقيَّد يُرجِع صفراً**»،
+  ///    ⛔ **والعلاجُ تقييدُ الحقل لا تخفيفُ القاعدة.**
+  ///
+  /// ⚠️ **والتقييدُ يطابق شقَّي الشرط:** ★ **`sourceId == null` لفائضٍ عام**
+  ///    (⟵ **فالشقُّ الأول مُثبَت**) · ★ **و`sourceId == <مصدر>` لفائض مصدر**
+  ///    (⟵ **فالشقُّ الثاني مُثبَت بالنطاق**) — ⛔ **ولا استعلامَ غيرَ مقيَّد.**
+  /// ═══════════════════════════════════════════════════════════════════
   @override
   Stream<Money?> watchAvailableSurplus({
     required String dealerId,
     required SurplusScope scope,
     String? sourceId,
-  }) =>
-      _firestore
-          .collection(dealerSurplusCollection)
-          .doc(
-            dealerSurplusId(
-              dealerId: dealerId,
-              scope: scope,
-              sourceId: sourceId,
-            ),
-          )
-          .snapshots()
-          .map((DocumentSnapshot<Map<String, dynamic>> doc) {
-            final Map<String, dynamic>? data = doc.data();
-            if (data == null) return null;
-            // ⛅ **وهو مشتقٌّ يحمل «المتاح» مباشرةً** (`data-dictionary.md` §4)
-            //    — ⛔ **ولا يُجمَع من مدفوعٍ ومُطبَّق هنا** (`ADR-0008`).
-            final int? available = _intOf(data['availableAmount']);
-            return available == null ? null : Money(available);
-          })
-          .handleError((Object _) {})
-          .cast<Money?>();
+  }) {
+    // ⛔ **ويُستدعى المعرّفُ للتحقق من تماسك المدخلات وحده** — ★ **فهو يرمي
+    //    على «فائض مصدرٍ بلا مصدر»** (`E-13`): ⟵ **والحارسُ يبقى قائماً.**
+    dealerSurplusId(dealerId: dealerId, scope: scope, sourceId: sourceId);
+    final Query<Map<String, dynamic>> byDealer = _firestore
+        .collection(dealerSurplusCollection)
+        .where('dealerId', isEqualTo: dealerId);
+    // ⛔⛔★★★ **و`isNull: true` لا `isEqualTo: null` — مقيسٌ على المحاكي:**
+    //    ★ **`isEqualTo` معاملٌ اختياريٌّ قيمتُه الافتراضية `null`** —
+    //    ⟹ **فتمريرُ `null` إليه يُقرأ «لم يُمرَّر» فيسقط الشرطُ بصمت**:
+    //    ⛔ **وخرج الاستعلامُ مقيَّداً بـ`dealerId` وحده فرُفض كاملاً**
+    //    (`dealer_surplus where dealerId==… ⟵ PERMISSION_DENIED`).
+    //    ⚠️ **ولم يُخفِق البناءُ ولا التحليلُ ولا اختبارٌ واحد** — ★ **كشفه
+    //    `adb logcat` وحدَه** (بروتوكول التشغيل §د).
+    return (scope == SurplusScope.source
+            ? byDealer.where('sourceId', isEqualTo: sourceId)
+            : byDealer.where('sourceId', isNull: true))
+        .limit(1)
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+          if (snapshot.docs.isEmpty) return null;
+          final Map<String, dynamic> data = snapshot.docs.first.data();
+          // ⛅ **وهو مشتقٌّ يحمل «المتاح» مباشرةً** (`data-dictionary.md` §4)
+          //    — ⛔ **ولا يُجمَع من مدفوعٍ ومُطبَّق هنا** (`ADR-0008`).
+          final int? available = _intOf(data['availableAmount']);
+          return available == null ? null : Money(available);
+        })
+        .handleError((Object _) {})
+        .cast<Money?>();
+  }
 
   // ═════════════════════════════════════════════════════════════════════
   // التحويل — ⛔ **والمجهول يُقرأ بالافتراض الآمن لا يُسقِط الشاشة**

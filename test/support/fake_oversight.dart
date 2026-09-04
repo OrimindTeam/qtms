@@ -169,8 +169,17 @@ final class FakeReportDirectory implements ReportDirectory {
   /// أرصدةُ المقاوته.
   List<DealerBalanceCard> dealerBalanceCards = const <DealerBalanceCard>[];
 
-  /// قيودُ كشف الحساب.
+  /// قيودُ كشف الحساب — **لكل المصادر ما لم يُحدَّد في [statementBySource]**.
   List<DealerLedgerRowCard> statement = const <DealerLedgerRowCard>[];
+
+  /// ★★★ قيودُ كشف الحساب **لمصدرٍ بعينه** — `WU-017`.
+  ///
+  /// ⛔⛔★★ **ولماذا لزم هذا الفصل:** ★ **الدليلُ كان يردّ [statement] نفسَها
+  /// لكل مصدرٍ يُستعلَم به** — ⟵ **فاستعلامُ «كل المصادر» على مصدرين كان
+  /// يُضاعف القيدَ الواحد بمعرّفه نفسِه**، ⛔ **فيُضاعف الرصيدَ في اختبارٍ
+  /// يظنّه المؤلّف صحيحاً.** ★ **رُصد فعلياً في أول تشغيلٍ لاختبار الكشف.**
+  Map<String, List<DealerLedgerRowCard>> statementBySource =
+      const <String, List<DealerLedgerRowCard>>{};
 
   /// بنودُ المركز المعلّق.
   List<PendingEntryCard> pending = const <PendingEntryCard>[];
@@ -303,7 +312,7 @@ final class FakeReportDirectory implements ReportDirectory {
   }) async {
     _record(sourceId, period);
     await _settle();
-    return statement;
+    return statementBySource[sourceId] ?? statement;
   }
 
   @override
@@ -315,5 +324,91 @@ final class FakeReportDirectory implements ReportDirectory {
     _record(sourceId, period);
     await _settle();
     return pending;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ★★ زيادةُ `WU-018` — تقاريرُ المرحلة الثانية
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// سنداتُ البيع النقدي.
+  List<CashSaleCard> cashSaleCards = const <CashSaleCard>[];
+
+  /// سنداتُ الخصم.
+  List<DiscountCard> discountCards = const <DiscountCard>[];
+
+  /// سنداتُ السحبيات والخرجيات.
+  List<OutflowCard> outflowCards = const <OutflowCard>[];
+
+  /// ملخصاتُ الأيام.
+  List<OwnerLedgerSummary> summaries = const <OwnerLedgerSummary>[];
+
+  /// سطورُ دفتر الرعية.
+  List<SupplierLedgerRow> supplierRows = const <SupplierLedgerRow>[];
+
+  /// ★★ سجلاتُ السحبيات التي استُعلم بها — ⛔ **واستعلامان لا واحد**
+  /// ([`DEBT-89`]): ⟵ **فيُثبت الاختبار أن `ledgerType` مُقيَّدٌ صراحةً.**
+  final List<OutflowLedgerType> requestedLedgerTypes = <OutflowLedgerType>[];
+
+  @override
+  Future<List<CashSaleCard>> cashSales({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return cashSaleCards;
+  }
+
+  @override
+  Future<List<DiscountCard>> discounts({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return discountCards;
+  }
+
+  @override
+  Future<List<OutflowCard>> outflows({
+    required String sourceId,
+    required OutflowLedgerType ledgerType,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    requestedLedgerTypes.add(ledgerType);
+    _record(sourceId, period);
+    await _settle();
+    return <OutflowCard>[
+      for (final OutflowCard card in outflowCards)
+        if (card.ledgerType == ledgerType) card,
+    ];
+  }
+
+  @override
+  Future<List<OwnerLedgerSummary>> dailySummaries({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return <OwnerLedgerSummary>[
+      for (final OwnerLedgerSummary summary in summaries)
+        if (summary.sourceId == sourceId) summary,
+    ];
+  }
+
+  @override
+  Future<List<SupplierLedgerRow>> supplierLedger({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return supplierRows;
   }
 }

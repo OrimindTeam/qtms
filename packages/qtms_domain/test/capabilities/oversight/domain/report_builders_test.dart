@@ -529,9 +529,60 @@ void main() {
         reportsOfFamily(ReportFamily.financial),
         <ReportId>[
           ReportId.receipts,
+          ReportId.discounts,
+          ReportId.cashMovement,
           ReportId.dealerBalances,
           ReportId.dealerStatement,
+          ReportId.ownerLedgerDaily,
         ],
+      );
+    });
+
+    // ═══════════════════ زيادةُ `WU-018` — المرحلة الثانية ═══════════════════
+
+    test('★★ ومفاتيحُ التقرير الزائدة تشمل مفتاحَ عائلته دائماً', () {
+      for (final ReportId report in ReportId.values) {
+        expect(
+          report.requiredPermissions.first,
+          report.family.requiredPermission,
+          reason: '${report.code} يجب أن يبدأ بمفتاح عائلته',
+        );
+      }
+    });
+
+    test('⛔⛔ و`R-07` غيرُ مبنيٍّ — لا كاتبَ للإتلاف بعد', () {
+      expect(ReportId.tryParse('R-07'), isNull);
+    });
+
+    test('★★ و`R-23` يشترط مفتاحَه المستقل مع مفتاح الملخصات', () {
+      expect(
+        ReportId.sourceNetImpact.requiredPermissions,
+        containsAll(<Permission>[
+          Permission.reportOutflowView,
+          Permission.ownerLedgerView,
+          Permission.sourceNetImpactView,
+        ]),
+      );
+    });
+
+    test('⛔⛔ و`R-27` يشترط مفتاحَي السحبيات والخرجيات معاً', () {
+      expect(
+        ReportId.sackPriceBreakdown.requiredPermissions,
+        containsAll(<Permission>[
+          Permission.withdrawalView,
+          Permission.expenseView,
+        ]),
+      );
+    });
+
+    test('★ وتقريرا السحبيات والخرجيات منفصلان بمفتاحين مختلفين', () {
+      expect(
+        ReportId.withdrawals.extraPermissions,
+        <Permission>[Permission.withdrawalView],
+      );
+      expect(
+        ReportId.expenses.extraPermissions,
+        <Permission>[Permission.expenseView],
       );
     });
   });

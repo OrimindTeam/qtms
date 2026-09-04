@@ -87,6 +87,19 @@ final class FirestoreCashSaleDirectory implements CashSaleDirectory {
       totalWeight: WeightKg(_double(data['totalWeight']) ?? 0),
       netCashReceived: Money(_int(data['netCashReceived']) ?? 0),
       lines: lines,
+      // ★★★ **وقيمُ السطور تُقرأ كما كُتبت** — ⛔ **ولا تُشتقّ من الكمية
+      //    والسعر** (`ADR-0019` · **الموضع الثالث للتقريب**): ⟵ **والغائبةُ
+      //    `null` لا صفراً** — ★ **فسطرٌ بلا قيمةٍ مخزَّنة يُعرَض «غير
+      //    معروفة» في `R-12`** ⛔ **ولا يدخل إجمالياً بصفر.**
+      lineTotals: <Money?>[
+        if (rawLines is List<dynamic>)
+          for (final dynamic raw in rawLines)
+            if (raw is Map<String, dynamic>)
+              if (_int(raw['lineTotal']) case final int riyals)
+                Money(riyals)
+              else
+                null,
+      ],
       notes: data['notes'] as String?,
       cancelReason: data['cancelReason'] as String?,
       amendCount: _int(data['amendCount']) ?? 0,

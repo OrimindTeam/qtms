@@ -21,8 +21,14 @@ library;
 
 import '../../../core/calendar_day.dart';
 import '../../../core/money.dart';
+import '../../financial_outflow/domain/outflow.dart';
+import '../../financial_outflow/domain/outflow_repository.dart';
+import '../../financial_outflow/domain/owner_ledger_summary.dart';
 import '../../inventory/domain/inventory_repository.dart';
 import '../../inventory/domain/sack_intake_repository.dart';
+import '../../inventory/domain/sack_valuation_repository.dart';
+import '../../sales_receivables/domain/cash_sale_repository.dart';
+import '../../sales_receivables/domain/discount_repository.dart';
 import '../../sales_receivables/domain/distribution.dart';
 import '../../sales_receivables/domain/distribution_repository.dart';
 import '../../sales_receivables/domain/receipt.dart';
@@ -99,6 +105,8 @@ final class DealerLedgerRowCard {
     this.debtLotId,
     this.sourceDocNumber,
     this.memo,
+    this.lastAmendedAt,
+    this.amendedBy,
   });
 
   /// معرّف القيد.
@@ -136,6 +144,17 @@ final class DealerLedgerRowCard {
 
   /// البيان الآلي — **لقيود تطبيق الفائض** (`FR-M12-11`).
   final String? memo;
+
+  /// ★★ **وقتُ آخر تعديل** — و`null` **لحركةٍ لم تُعدَّل** (`FR-M17-05`).
+  ///
+  /// ⛔⛔★★ **ولماذا حقلٌ في الصف لا وسمٌ يُمرَّر من الشاشة:** ★ **الحركةُ
+  /// تُعدَّل في مكانها فلا يظهر لها سطرٌ مضاد** (`A-14` · `BR-M17-03`) —
+  /// ⟹ **فبلا هذا الحقل يقرأ المقوتُ رقماً مُعدَّلاً كأنه الأصل**، ⛔ **ولا
+  /// أثرَ في الكشف يدلّه.** ★ **والدفترُ يكتبه أصلاً** (`schema/dealer-ledger.md`).
+  final DateTime? lastAmendedAt;
+
+  /// ★ من عدّل — `FR-M17-05` («**مع اسم من عدّل ووقت التعديل**»).
+  final String? amendedBy;
 }
 
 /// ★★★ دليلُ قراءة التقارير — ⛔ **قراءةً فقط ولا كتابةَ واحدة**.
@@ -257,6 +276,88 @@ abstract interface class ReportDirectory {
   ///
   /// ★ **الفهرس:** `sourceId ↑ · date ↓`.
   Future<List<PendingEntryCard>> pendingEntries({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit,
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ★★ زيادةُ `WU-018` — تقاريرُ المرحلة الثانية
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// `R-11` · `R-12` — **سنداتُ البيع النقدي في فترة**.
+  ///
+  /// ★ **الفهرس:** `sourceId ↑ · stockDate ↓`.
+  ///
+  /// ⛔⛔ **وعلى `stockDate` لا `entryDate`** — ★ **تقريرٌ بيعيٌّ مخزنيُّ
+  /// الأثر** (`RISK-07` · `schema/cash-sales.md` القاعدة 8)، ⚠️ **بخلاف
+  /// حركة النقد وحدَها** (`R-16`): ⟵ **تلك صندوقُ يومٍ فتقرأ تاريخ الإدخال**
+  /// (`FR-M15-16`) ⛔ **وخلطُهما يُنتج رقمين مختلفين لليوم نفسِه.**
+  Future<List<CashSaleCard>> cashSales({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit,
+  });
+
+  /// `R-15` — **سنداتُ الخصم التي مسّت هذا المصدر في فترة**.
+  ///
+  /// ★ **الفهرس:** `affectedSourceIds ⊃ · date ↓` — ⚠️ **فهرسُ احتواءِ
+  /// مصفوفة كنظيره في `R-14` حرفياً**: ★ **وسندُ «كل المصادر» يمسّ عدةَ
+  /// مصادر** ⟵ **ولن يظهر في أيٍّ منها بفهرسٍ على `sourceFilter`.**
+  Future<List<DiscountCard>> discounts({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit,
+  });
+
+  /// 🔒 `R-21` · `R-22` — **سنداتُ سجلٍّ بعينه في فترة**.
+  ///
+  /// ★ **الفهرس:** `sourceId ↑ · ledgerType ↑ · documentDate ↓`.
+  ///
+  /// ⛔⛔★★★ **و[ledgerType] مُقيَّدٌ صراحةً — استعلامان لا واحد** ([`DEBT-89`]):
+  /// ★ **شرطُ قراءة `outflows` يتفرّع على `resource.data.ledgerType`**،
+  /// ⟵ **واستعلامٌ لا يُقيّده يُرفَض كاملاً ولو ملك القارئُ المفتاحين معاً.**
+  ///
+  /// ⚠️ **وتقريرا السحبيات والخرجيات منفصلان تماماً** — `FR-M19-07` · `GR-43`:
+  /// ⛔ **ولا تقريرَ واحدٌ يجمعهما بفلترٍ.**
+  Future<List<OutflowCard>> outflows({
+    required String sourceId,
+    required OutflowLedgerType ledgerType,
+    required ReportPeriod period,
+    int limit,
+  });
+
+  /// 🔒 `R-20` · `R-23` — **ملخصاتُ أيام مصدرٍ في فترة**.
+  ///
+  /// ★ **الفهرس:** `sourceId ↑ · date ↓` · 🔒 **وشرطُها `ownerLedgerView`**.
+  ///
+  /// ⛔⛔★★ **ولقطةٌ لا بثّ** — ★ **بخلاف `watchSummaryRange`** (`FR-M15-14`):
+  /// ⟵ **تلك بطاقةٌ حيّةٌ تُفتَح عشرات المرات يومياً**، ★ **وهذا تقريرٌ
+  /// يُقرأ عند الطلب** (`reporting-design.md` §4) ⛔ **فلا مستمعَ عليه.**
+  ///
+  /// ⛔⛔★★★ **ولا يُقرأ مستندُ «كل المصادر» هنا إطلاقاً** — ★ **«الكل» في
+  /// التقارير مصادرُ مُعدَّدة يجمعها المزوّد** ([aggregateOwnerLedgerSummaries]
+  /// · `E-36`): ⟵ **فمن نطاقه مصدرٌ واحد لا تدخل أرقامُ غيره تقريرَه**،
+  /// ⛔ **ولا يُشترَط له `allSourcesCardView` أصلاً.**
+  Future<List<OwnerLedgerSummary>> dailySummaries({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit,
+  });
+
+  /// 🔒 `R-25` · `R-26` — **سطورُ دفتر الرعية في مصدرٍ خلال فترة**.
+  ///
+  /// ★ **الفهرس:** `sourceId ↑ · entryDate ↓` · 🔒 **وشرطُها
+  /// `supplierFinanceView`**.
+  ///
+  /// ⚠️⚠️ **والمدى على `entryDate` لا `stockDate`** — ★ **وهو الصواب لا
+  /// مخالفةً للقاعدة 2 من `indexing-strategy.md` §3:** ⟵ **دفترُ الرعية
+  /// دفترٌ مالي لا مخزني** ⛔ **ولا `stockDate` في سطره أصلاً**
+  /// (`schema/supplier-ledger.md`) — ★ **وهو نفسُ ما فُعل في `R-19` حرفياً.**
+  ///
+  /// ⛔ **والرعويُّ يُرشَّح محلياً لا في الاستعلام** — ★ **السطرُ يحمل
+  /// `supplierId`**، ⟵ **فترشيحُه مجانيٌّ بلا فهرسٍ ثالث** (`DEBT-72`).
+  Future<List<SupplierLedgerRow>> supplierLedger({
     required String sourceId,
     required ReportPeriod period,
     int limit,

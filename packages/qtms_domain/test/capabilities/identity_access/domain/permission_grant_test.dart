@@ -171,4 +171,71 @@ void main() {
           throwsUnsupportedError);
     });
   });
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ★★★ `IQ-040` — اشتراطُ ترتيبِ المنح
+  // ═════════════════════════════════════════════════════════════════════
+  group('validatePermissionGrant — اشتراطُ المانح المسبق (IQ-040)', () {
+    test('⛔ يُرفَض `dealerStatementView` بلا `dealerBalanceView`', () {
+      final Outcome<ApprovedGrant> result = validatePermissionGrant(_request(
+        actorPermissions: Permission.values.toSet(),
+        requested: <Permission>{Permission.dealerStatementView},
+      ));
+      expect(result, isA<Failure<ApprovedGrant>>());
+      expect((result as Failure<ApprovedGrant>).error, isA<PermissionError>());
+    });
+
+    test('⛔ ويُرفَض `dealerStatementAllSources` بلا `dealerStatementView`', () {
+      final Outcome<ApprovedGrant> result = validatePermissionGrant(_request(
+        actorPermissions: Permission.values.toSet(),
+        requested: <Permission>{
+          Permission.dealerBalanceView,
+          Permission.dealerStatementAllSources,
+        },
+      ));
+      expect(result, isA<Failure<ApprovedGrant>>());
+    });
+
+    test('✅ وتُقبَل السلسلة كاملةً', () {
+      final Outcome<ApprovedGrant> result = validatePermissionGrant(_request(
+        actorPermissions: Permission.values.toSet(),
+        requested: <Permission>{
+          Permission.dealerBalanceView,
+          Permission.dealerStatementView,
+          Permission.dealerStatementAllSources,
+        },
+      ));
+      expect(result, isA<Success<ApprovedGrant>>());
+    });
+
+    test('✅ ويُقبَل المانحُ المسبق وحدَه — الاشتراطُ اتجاهٌ واحد', () {
+      final Outcome<ApprovedGrant> result = validatePermissionGrant(_request(
+        actorPermissions: Permission.values.toSet(),
+        requested: <Permission>{Permission.dealerBalanceView},
+      ));
+      expect(result, isA<Success<ApprovedGrant>>());
+    });
+
+    test('★ والسحبُ الكامل يبقى مسموحاً — لا اشتراطَ على مجموعةٍ فارغة', () {
+      final Outcome<ApprovedGrant> result = validatePermissionGrant(_request(
+        actorPermissions: Permission.values.toSet(),
+      ));
+      expect(result, isA<Success<ApprovedGrant>>());
+    });
+
+    // ⛔⛔★★ **حارسُ المعجم نفسِه** — ⟵ **فلا سلسلةَ اشتراطٍ دائرية ولا
+    //    مانحٌ مسبقٌ لا وجود له**: ★ **خللٌ كان سيمنع المنحَ إلى الأبد.**
+    test('★ ومعجمُ الاشتراط سليمٌ بنيوياً — بلا دورةٍ ولا مفتاحٍ مجهول', () {
+      for (final Permission key in permissionGrantPrerequisites.keys) {
+        final Set<Permission> seen = <Permission>{key};
+        Permission? current = key.grantPrerequisite;
+        while (current != null) {
+          expect(Permission.values, contains(current));
+          expect(seen.add(current), isTrue,
+              reason: 'دورةٌ في سلسلة اشتراط ${key.name}');
+          current = current.grantPrerequisite;
+        }
+      }
+    });
+  });
 }

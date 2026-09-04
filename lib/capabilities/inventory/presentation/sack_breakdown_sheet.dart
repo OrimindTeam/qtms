@@ -165,7 +165,7 @@ class _Breakdown extends StatelessWidget {
               QtmsTableRow(
                 <String>[
                   row.itemName,
-                  movementSourceLabel(row.origin),
+                  row.origin.label,
                   row.counterpartyName ?? row.documentNumber,
                   quantityLabel(row.quantity),
                   row.unitPrice == null ? '—' : '${row.unitPrice!.riyals}',
@@ -192,11 +192,3 @@ class _Breakdown extends StatelessWidget {
   }
 }
 
-/// ★ اسمُ نوع الحركة كما يُعرَض — ⛔ **ولا مصطلح تقني في واجهة المستخدم**
-/// (`ui-guidelines.md` §6).
-String movementSourceLabel(SackRevenueSource origin) => switch (origin) {
-      SackRevenueSource.distribution => 'توزيع',
-      SackRevenueSource.cashSale => 'بيع نقدي',
-      SackRevenueSource.withdrawal => 'سحبية',
-      SackRevenueSource.expense => 'خرجية',
-    };

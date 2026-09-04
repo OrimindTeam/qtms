@@ -73,6 +73,23 @@ Outcome<ApprovedGrant> validatePermissionGrant(PermissionGrantRequest request) {
     return const Failure<ApprovedGrant>(PermissionError());
   }
 
+  // ④ ★★★ `IQ-040`: **ولا يُمنَح مفتاحٌ بلا مانحه المسبق**
+  //    ([Permission.grantPrerequisite]).
+  //
+  //    ⛔⛔★★ **والفحصُ على المجموعة المطلوبة كاملةً لا على الفارق:**
+  //    ⟵ **فالمنحُ يستبدل مجموعةَ المستهدَف لا يضيف إليها**
+  //    ([ApprovedGrant.permissions] **هي ما يُكتب**): ★ **ومجموعةٌ فيها
+  //    `dealerStatementView` بلا `dealerBalanceView` تُرفَض ولو كان
+  //    الأولُ قائماً قبلها** — ⛔ **وإلا نجا الاشتراطُ من أول تعديلٍ يُسقِط
+  //    الأدنى ويُبقي الأعلى.**
+  for (final Permission granted in request.requestedPermissions) {
+    final Permission? prerequisite = granted.grantPrerequisite;
+    if (prerequisite != null &&
+        !request.requestedPermissions.contains(prerequisite)) {
+      return const Failure<ApprovedGrant>(PermissionError());
+    }
+  }
+
   return Success<ApprovedGrant>(
     ApprovedGrant(
       permissions: Set<Permission>.unmodifiable(request.requestedPermissions),

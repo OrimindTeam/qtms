@@ -66,8 +66,14 @@ void main() {
       //    (`FR-M22-09` حرفياً). ★ **والعلّةُ الحاكمة `GR-43`:** «**صلاحياتُ
       //    عرضٍ وإنشاءٍ منفصلة**» للسجلَّين — ⟵ **فمفتاحٌ واحدٌ يخدمهما معاً
       //    كان يُسقِط الفصلَ الذي وُجد السجلّان لأجله.**
-      expect(catalog.length, 85,
-          reason: 'الكتالوج يعلن 85 مفتاحاً — فإن تغيّر العدد فُحص عمداً');
+      // ★★★ **و85 ⟵ 87 في `WU-017`** — ★ **وكلاهما يُسمّيه `FR-M17` §3
+      //    نصّاً** («**عرض كشف الحساب**» · «**كشف موحّد لكل المصادر**»)
+      //    ⛔ **ولا واحدٌ منهما مخترَع** (`IQ-040` الخيار أ). ★ **ولا يُغني
+      //    عنهما `dealerBalanceView`:** ⟵ **ذاك رصيدٌ مجمَّع وهذا حركةٌ
+      //    تفصيلية تُسلَّم للمقوت** — ★ **والفرقُ قرارُ سياسةٍ لا استنتاجُ
+      //    كود** (`IQ-021` نصّاً).
+      expect(catalog.length, 87,
+          reason: 'الكتالوج يعلن 87 مفتاحاً — فإن تغيّر العدد فُحص عمداً');
       expect(catalog, contains('sackView'));
       // ★ `IQ-021` الخيار أ — ⛔ ولا يُقاس عليه مفتاحٌ حقلي.
       expect(catalog, contains('sackCreate'));
@@ -79,6 +85,9 @@ void main() {
       expect(catalog, contains('expenseQatPriceNow'));
       expect(catalog, contains('withdrawalBackdate'));
       expect(catalog, contains('expenseBackdate'));
+      // ★★ **ومفتاحا `WU-017` بأسمائهما** — ⛔ **فلا يمرّ العدد وحده.**
+      expect(catalog, contains('dealerStatementView'));
+      expect(catalog, contains('dealerStatementAllSources'));
     });
 
     test('⟵ لا مفتاح في الكود بلا سطر في المستند', () {
@@ -92,9 +101,9 @@ void main() {
     test('اسم قيمة التعداد هو المفتاح حرفياً — فلا جدول تحويل', () {
       expect(Permission.sackView.name, 'sackView');
       expect(Permission.distributionPriceView.name, 'distributionPriceView');
-      // ★ **85 بعد ثلاثة `WU-014`** (`expenseQatPriceNow` ·
-      //   `withdrawalBackdate` · `expenseBackdate`) — راجع الحارس أعلاه.
-      expect(Permission.values.length, 85);
+      // ★ **87 بعد مفتاحَي `WU-017`** (`dealerStatementView` ·
+      //   `dealerStatementAllSources`) — راجع الحارس أعلاه.
+      expect(Permission.values.length, 87);
     });
 
     test('★ المفاتيح الإدارية التسعة موجودة — `IQ-007` الخيار أ', () {

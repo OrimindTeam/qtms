@@ -215,6 +215,9 @@ class _ReportViewScreenState extends ConsumerState<ReportViewScreen> {
           'اختر النوع الذي تريد حركته من شريط التصفية أعلاه.',
         ReportId.dealerStatement =>
           'اختر المقوت الذي تريد كشف حسابه من شريط التصفية أعلاه.',
+        ReportId.sackPriceBreakdown =>
+          'اختر الجونية التي تريد تفكيك سعرها من شريط التصفية أعلاه. '
+              'والقائمة تعرض جواني الفترة المختارة وحدها.',
         _ => 'اختر مصدراً وفترة من شريط التصفية أعلاه.',
       };
 }
@@ -380,6 +383,34 @@ class _ReportFilters extends ConsumerWidget {
                   onSelected: () => controller.selectAvailability(value),
                 ),
             ],
+            _itemGroup(ref, request, controller),
+          ],
+        ReportId.todayRemainder => <List<QtmsFilterOption>>[
+            _itemGroup(ref, request, controller),
+          ],
+        ReportId.countedIntakes => <List<QtmsFilterOption>>[
+            _supplierGroup(ref, request, controller),
+            _itemGroup(ref, request, controller),
+          ],
+        ReportId.sackIntakes => <List<QtmsFilterOption>>[
+            _supplierGroup(ref, request, controller),
+            <QtmsFilterOption>[
+              QtmsFilterOption(
+                label: 'كل الجواني',
+                selected: request.sackId == null,
+                onSelected: () => controller.selectSack(null),
+              ),
+              for (final SackCard sack
+                  in ref.watch(reportSacksProvider).value ?? const <SackCard>[])
+                QtmsFilterOption(
+                  label: sack.displayName,
+                  selected: request.sackId == sack.documentNumber,
+                  onSelected: () => controller.selectSack(sack.documentNumber),
+                ),
+            ],
+          ],
+        ReportId.distributions => <List<QtmsFilterOption>>[
+            _dealerGroup(ref, request, controller),
           ],
         ReportId.settlements => <List<QtmsFilterOption>>[
             <QtmsFilterOption>[
@@ -395,6 +426,7 @@ class _ReportFilters extends ConsumerWidget {
                   onSelected: () => controller.selectSettlementStatus(value),
                 ),
             ],
+            _dealerGroup(ref, request, controller),
           ],
         ReportId.receipts => <List<QtmsFilterOption>>[
             <QtmsFilterOption>[
@@ -454,7 +486,142 @@ class _ReportFilters extends ConsumerWidget {
                 ),
             ],
           ],
+        // ★★ **والمقوتُ فلترٌ محليٌّ هنا** — ⛔ **لا قيدُ استعلام:**
+        //    ⟵ **المستندُ يحمل `dealerId` أصلاً** ⛔ **فلا فهرسَ يُنشأ لفلترٍ
+        //    مجاني** (`DEBT-72`).
+        ReportId.unpricedLines => <List<QtmsFilterOption>>[
+            _dealerGroup(ref, request, controller),
+          ],
+        ReportId.withdrawals || ReportId.expenses => <List<QtmsFilterOption>>[
+            <QtmsFilterOption>[
+              QtmsFilterOption(
+                label: 'كل الفئات',
+                selected: request.outflowCategory == null,
+                onSelected: () => controller.selectOutflowCategory(null),
+              ),
+              // ⛔⛔ **وفئاتُ السجلِّ وحدَه** — ★ **`OutflowCategory.of`**:
+              //    ⟵ **فلا «شُقى الشُقّات» في سحبية** (`FR-M22-19`).
+              for (final OutflowCategory value in OutflowCategory.of(
+                request.report == ReportId.withdrawals
+                    ? OutflowLedgerType.withdrawal
+                    : OutflowLedgerType.expense,
+              ))
+                QtmsFilterOption(
+                  label: value.label,
+                  selected: request.outflowCategory == value,
+                  onSelected: () => controller.selectOutflowCategory(value),
+                ),
+            ],
+            <QtmsFilterOption>[
+              QtmsFilterOption(
+                label: 'كل البنود',
+                selected: request.outflowLineKind == null,
+                onSelected: () => controller.selectOutflowLineKind(null),
+              ),
+              for (final OutflowLineKind value in OutflowLineKind.values)
+                QtmsFilterOption(
+                  label: _lineKindLabel(value),
+                  selected: request.outflowLineKind == value,
+                  onSelected: () => controller.selectOutflowLineKind(value),
+                ),
+            ],
+          ],
+        ReportId.supplierAccount ||
+        ReportId.supplierTax =>
+          <List<QtmsFilterOption>>[
+            _supplierGroup(ref, request, controller),
+          ],
+        // ★★ **وجوانيُّ الفترة وحدها تُعرَض** — ⛔ **ولا كلُّ جونيةٍ في
+        //    النظام**: ⟵ **فالتفكيك يقرأ حركات يومِ مخزونها** (`GR-49`)،
+        //    ★ **وقائمةٌ من خارج الفترة كانت تُنتج تقريراً فارغاً دائماً.**
+        ReportId.sackPriceBreakdown => <List<QtmsFilterOption>>[
+            <QtmsFilterOption>[
+              for (final SackCard sack
+                  in ref.watch(reportSacksProvider).value ?? const <SackCard>[])
+                QtmsFilterOption(
+                  label: sack.displayName,
+                  selected: request.sackId == sack.documentNumber,
+                  onSelected: () => controller.selectSack(sack.documentNumber),
+                ),
+            ],
+          ],
         _ => const <List<QtmsFilterOption>>[],
+      };
+
+  /// ★★ مجموعةُ «الرعوي» — [`DEBT-72`] ① · **مشتركةٌ بين `R-03` و`R-04`**.
+  ///
+  /// ⛔ **ونسخةٌ لكل تقرير كانت تفترق عند أول تسميةٍ تتغيّر**
+  /// (`coding-standards.md` §2.2).
+  static List<QtmsFilterOption> _supplierGroup(
+    WidgetRef ref,
+    ReportRequest request,
+    ReportRequestState controller,
+  ) =>
+      <QtmsFilterOption>[
+        QtmsFilterOption(
+          label: 'كل الرعية',
+          selected: request.supplierId == null,
+          onSelected: () => controller.selectSupplier(null),
+        ),
+        for (final SupplierCard supplier
+            in ref.watch(suppliersProvider).value ?? const <SupplierCard>[])
+          QtmsFilterOption(
+            label: supplier.name,
+            selected: request.supplierId == supplier.supplierId,
+            onSelected: () => controller.selectSupplier(supplier.supplierId),
+          ),
+      ];
+
+  /// ★★ مجموعةُ «النوع» — [`DEBT-72`] ④ · `R-02` و`R-03` و`R-05`.
+  ///
+  /// ⚠️ **وبلا «الكل» في `R-01` وحدَه** — ★ **هناك النوعُ إلزاميٌّ لبناء
+  /// التقرير أصلاً**، ⟵ **وهنا فلترٌ اختياري.**
+  static List<QtmsFilterOption> _itemGroup(
+    WidgetRef ref,
+    ReportRequest request,
+    ReportRequestState controller,
+  ) =>
+      <QtmsFilterOption>[
+        QtmsFilterOption(
+          label: 'كل الأنواع',
+          selected: request.itemKey == null,
+          onSelected: () => controller.selectItem(null),
+        ),
+        for (final ItemCard item
+            in ref.watch(itemsProvider).value ?? const <ItemCard>[])
+          QtmsFilterOption(
+            label: item.name,
+            selected: request.itemKey == item.itemId,
+            onSelected: () => controller.selectItem(item.itemId),
+          ),
+      ];
+
+  /// ★★ مجموعةُ «المقوت» — [`DEBT-72`] ③ · `R-08` و`R-10` و`R-13`.
+  static List<QtmsFilterOption> _dealerGroup(
+    WidgetRef ref,
+    ReportRequest request,
+    ReportRequestState controller,
+  ) =>
+      <QtmsFilterOption>[
+        QtmsFilterOption(
+          label: 'كل المقاوته',
+          selected: request.dealerId == null,
+          onSelected: () => controller.selectDealer(null),
+        ),
+        for (final DealerCard dealer
+            in ref.watch(dealersProvider).value ?? const <DealerCard>[])
+          QtmsFilterOption(
+            label: dealer.name,
+            selected: request.dealerId == dealer.dealerId,
+            onSelected: () => controller.selectDealer(dealer.dealerId),
+          ),
+      ];
+
+  /// ★ اسمُ نوع البند — **من `FR-M22-05` حرفياً** ⛔ **ولا مصطلح تقني**.
+  static String _lineKindLabel(OutflowLineKind kind) => switch (kind) {
+        OutflowLineKind.qat => 'قات',
+        OutflowLineKind.amount => 'مبلغ مالي',
+        OutflowLineKind.other => 'أخرى',
       };
 
   static String _settlementLabel(SettlementStatus status) => switch (status) {
@@ -482,11 +649,24 @@ class _PeriodRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final CalendarDay today = ref.watch(todayProvider);
-    final bool singleDay = request.report == ReportId.currentStock ||
-        request.report == ReportId.todayRemainder;
-    // ★★ **والاسم يقول أيَّ تاريخ** — **مخزونٌ أم إدخال** (`ADR-0006`).
+    final bool singleDay = isSingleDayReport(request.report);
+    // ★★ **والاسم يقول أيَّ تاريخ** — **مخزونٌ أم إدخال أم سند** (`ADR-0006`
+    // · `GR-49` · `ui-guidelines.md` §2: «**كل شاشة تعرض تاريخاً تُصرِّح أيّ
+    // تاريخ تعرض**»).
     final String label = switch (request.report) {
-      ReportId.receipts || ReportId.dealerStatement => 'تاريخ الإدخال',
+      ReportId.receipts ||
+      ReportId.dealerStatement ||
+      ReportId.supplierAccount ||
+      ReportId.supplierTax =>
+        'تاريخ الإدخال',
+      ReportId.discounts ||
+      ReportId.withdrawals ||
+      ReportId.expenses =>
+        'تاريخ السند',
+      // ⛔⛔★★ **وحركةُ النقد تاريخُ صندوقٍ لا مخزون** — `FR-M15-16`:
+      //    ⟵ **سندُ القبض بتاريخه والبيعُ النقدي بتاريخ إدخاله والسحبيةُ
+      //    بتاريخ سندها**، ⛔ **ولا `stockDate` في أيٍّ منها.**
+      ReportId.cashMovement || ReportId.withdrawalCoverage => 'تاريخ الحركة',
       _ => 'تاريخ المخزون',
     };
 
@@ -530,8 +710,7 @@ class _PeriodRow extends ConsumerWidget {
     );
     if (picked == null) return;
     final CalendarDay day = CalendarDay.fromUtc(picked.toUtc());
-    final bool singleDay = request.report == ReportId.currentStock ||
-        request.report == ReportId.todayRemainder;
+    final bool singleDay = isSingleDayReport(request.report);
     if (singleDay) {
       controller.withPeriod(from: day, to: day);
       return;

@@ -133,6 +133,20 @@
       ]
     },
     {
+      "collectionGroup": "supplier_ledger",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sourceId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "entryDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "outflow_ledger",
       "queryScope": "COLLECTION",
       "fields": [

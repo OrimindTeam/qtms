@@ -26,8 +26,13 @@ library;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
+import '../../financial_outflow/infrastructure/firestore_outflow_directory.dart';
+import '../../financial_outflow/infrastructure/firestore_owner_ledger_directory.dart';
 import '../../inventory/infrastructure/firestore_inventory_directory.dart';
 import '../../inventory/infrastructure/firestore_sack_directory.dart';
+import '../../inventory/infrastructure/firestore_sack_valuation_directory.dart';
+import '../../sales_receivables/infrastructure/firestore_cash_sale_directory.dart';
+import '../../sales_receivables/infrastructure/firestore_discount_directory.dart';
 import '../../sales_receivables/infrastructure/firestore_distribution_directory.dart';
 import '../../sales_receivables/infrastructure/firestore_receipt_directory.dart';
 import 'firestore_pending_entries_directory.dart';
@@ -273,6 +278,132 @@ final class FirestoreReportDirectory implements ReportDirectory {
   }
 
   // ═════════════════════════════════════════════════════════════════════
+  // ★★ زيادةُ `WU-018` — تقاريرُ المرحلة الثانية
+  // ═════════════════════════════════════════════════════════════════════
+
+  @override
+  Future<List<CashSaleCard>> cashSales({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _dayRange(
+      _firestore
+          .collection(cashSalesCollection)
+          .where('sourceId', isEqualTo: sourceId),
+      field: 'stockDate',
+      period: period,
+    ).orderBy('stockDate', descending: true).limit(limit).get();
+
+    return <CashSaleCard>[
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in snapshot.docs)
+        FirestoreCashSaleDirectory.cardOf(doc.id, doc.data(), period.to),
+    ];
+  }
+
+  @override
+  Future<List<DiscountCard>> discounts({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _dayRange(
+      _firestore
+          .collection(discountsCollection)
+          // ★★ **فهرسُ احتواءِ مصفوفة** — `affectedSourceIds ⊃ · date ↓`:
+          //    ⟵ **فسندُ «كل المصادر» يظهر في تقرير كلِّ مصدرٍ مسَّه**
+          //    ⛔ **ولا يسقط من جميعها** (نظيرُ `R-14` حرفياً).
+          .where('affectedSourceIds', arrayContains: sourceId),
+      field: 'date',
+      period: period,
+    ).orderBy('date', descending: true).limit(limit).get();
+
+    return <DiscountCard>[
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in snapshot.docs)
+        FirestoreDiscountDirectory.cardOf(doc.id, doc.data()),
+    ];
+  }
+
+  @override
+  Future<List<OutflowCard>> outflows({
+    required String sourceId,
+    required OutflowLedgerType ledgerType,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _dayRange(
+      _firestore
+          .collection(outflowsCollection)
+          .where('sourceId', isEqualTo: sourceId)
+          // ⛔⛔★★★ **و`ledgerType` مُقيَّدٌ صراحةً** — ★ **شرطُ القراءة
+          //    يتفرّع عليه** ([`DEBT-89`]): ⟵ **واستعلامٌ لا يُقيّده يُرفَض
+          //    كاملاً ولو ملك القارئُ المفتاحين معاً.**
+          .where('ledgerType', isEqualTo: ledgerType.name),
+      field: 'documentDate',
+      period: period,
+    ).orderBy('documentDate', descending: true).limit(limit).get();
+
+    return <OutflowCard>[
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in snapshot.docs)
+        FirestoreOutflowDirectory.cardOf(doc.id, doc.data()),
+    ];
+  }
+
+  @override
+  Future<List<OwnerLedgerSummary>> dailySummaries({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _dayRange(
+      _firestore
+          .collection(dailySummariesCollection)
+          // ⛔⛔★★ **ولا يُقرأ مستندُ `all_{date}` هنا إطلاقاً** — ★ **قيدُ
+          //    `sourceId` بمصدرٍ حقيقي يُخرجه من النتيجة أصلاً**: ⟵ **فلا
+          //    يُشترَط `allSourcesCardView` ولا تُقرأ أرقامُ مصدرٍ خارج
+          //    نطاق القارئ** (`E-36` · `FR-M15-09`).
+          .where('sourceId', isEqualTo: sourceId),
+      field: 'date',
+      period: period,
+    ).orderBy('date', descending: true).limit(limit).get();
+
+    return <OwnerLedgerSummary>[
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in snapshot.docs)
+        if (FirestoreOwnerLedgerDirectory.summaryOf(doc.data())
+            case final OwnerLedgerSummary summary)
+          summary,
+    ];
+  }
+
+  @override
+  Future<List<SupplierLedgerRow>> supplierLedger({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _dayRange(
+      _firestore
+          .collection(supplierLedgerCollection)
+          .where('sourceId', isEqualTo: sourceId),
+      // ⚠️⚠️ **والمدى على `entryDate`** — ★ **دفترُ الرعية دفترٌ مالي لا
+      //    مخزني ولا `stockDate` في سطره أصلاً** (`schema/supplier-ledger.md`):
+      //    ⟵ **وهو نفسُ ما فُعل في `R-19` حرفياً.**
+      field: 'entryDate',
+      period: period,
+    ).orderBy('entryDate', descending: true).limit(limit).get();
+
+    return <SupplierLedgerRow>[
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in snapshot.docs)
+        FirestoreSackValuationDirectory.rowOf(doc.id, doc.data()),
+    ];
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
   // القراءاتُ المحكومةُ بشرطٍ مستقل — ⛔ **ورفضُها طيٌّ لا سقوط**
   // ═════════════════════════════════════════════════════════════════════
 
@@ -379,6 +510,11 @@ final class FirestoreReportDirectory implements ReportDirectory {
         debtLotId: _text(data['debtLotId']),
         sourceDocNumber: _text(data['sourceDocNumber']),
         memo: _text(data['memo']),
+        // ★★ **وأثرُ التعديل يُقرأ من الدفتر** — `FR-M17-05` (`WU-017`):
+        //    ⟵ **فالحركةُ تُعدَّل في مكانها ولا يظهر لها سطرٌ مضاد** (`A-14`)،
+        //    ⛔ **وبلا هذين الحقلين لا أثرَ في الكشف يدلّ المقوتَ عليها.**
+        lastAmendedAt: _instant(data['lastAmendedAt']),
+        amendedBy: _text(data['amendedBy']),
       );
 
   /// ★ نوعُ القيد — ⛔ **والمجهول `null` لا افتراضٌ صامت**.

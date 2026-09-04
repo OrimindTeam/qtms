@@ -42,11 +42,13 @@ final class CashSaleCard {
     required this.totalWeight,
     required this.netCashReceived,
     required List<ValidatedCashSaleLine> lines,
+    List<Money?> lineTotals = const <Money?>[],
     this.sourceName,
     this.notes,
     this.cancelReason,
     this.amendCount = 0,
-  }) : lines = List<ValidatedCashSaleLine>.unmodifiable(lines);
+  })  : lines = List<ValidatedCashSaleLine>.unmodifiable(lines),
+        lineTotals = List<Money?>.unmodifiable(lineTotals);
 
   /// ★ رقم المستند — **وهو معرّفه في المجموعة** (`CSH-YYYYMMDD-####`).
   final String documentNumber;
@@ -77,6 +79,27 @@ final class CashSaleCard {
 
   /// السطور **بأسعارها** — راجع ترويسة الملف.
   final List<ValidatedCashSaleLine> lines;
+
+  /// ★★★ **قيمُ السطور كما كُتبت في المستند** — **بترتيب [lines] نفسِه**.
+  ///
+  /// ═════════════════════════════════════════════════════════════════════
+  /// ⛔⛔★★★ **ولا تُشتقّ من الكمية والسعر هنا إطلاقاً** — ★ **بنفس علّة
+  /// `SackRevenueContribution.lineValue` حرفياً** (`ADR-0019` · **الموضع
+  /// الثالث للتقريب**): ⟵ **السطرُ الوزنيُّ مرَّ بالتقريب لحظةَ حفظِ مستنده**،
+  /// ★ **وإعادةُ ضربِه هنا تُنتج رقماً يخالف ما في المستند بريالٍ أو ريالين**
+  /// ⛔ **بلا إنذار.**
+  ///
+  /// ★ **وبناها `R-12` وحده** (`WU-018` — **المبيعات حسب النوع كمّاً وقيمة**)
+  /// — ⛔ **ولا شاشةَ تقرؤها**: ★ **[netCashReceived] هو رقمُ السند المعروض.**
+  ///
+  /// ⚠️ **وفارغةٌ أو أقصرُ من [lines] لمستندٍ قديمٍ بلا الحقل** — ★ **وتُقرأ
+  /// حينها «قيمةٌ غير معروفة»** ⛔ **لا صفراً يدخل إجمالياً.**
+  /// ═════════════════════════════════════════════════════════════════════
+  final List<Money?> lineTotals;
+
+  /// ★ قيمةُ سطرٍ بترتيبه — و`null` **لمستندٍ لم يحمل الحقل**.
+  Money? lineTotalAt(int index) =>
+      index < lineTotals.length ? lineTotals[index] : null;
 
   /// ملاحظات السند.
   final String? notes;

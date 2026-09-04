@@ -29,6 +29,7 @@ import '../capabilities/oversight/presentation/pending_entries_screen.dart';
 import '../capabilities/oversight/presentation/report_view_screen.dart';
 import '../capabilities/oversight/presentation/reports_screen.dart';
 import '../capabilities/sales_receivables/presentation/cash_sale_screen.dart';
+import '../capabilities/sales_receivables/presentation/dealer_statement_screen.dart';
 import '../capabilities/financial_outflow/presentation/outflow_screen.dart';
 import '../capabilities/financial_outflow/presentation/owner_ledger_history_screen.dart';
 import '../capabilities/financial_outflow/presentation/owner_ledger_screen.dart';
@@ -154,6 +155,16 @@ const String cashSaleRoute = '/home/cash-sales';
 /// الشاشة** (`ui-guidelines.md` §4): ⟵ **ومسارٌ يحمل تاريخاً كان يُوحي بأن
 /// «المقبوض في تاريخ» يُختار من الرابط**، ⛔ **وهو حقلُ سندٍ لا وجهةُ ملاحة.**
 const String receiptRoute = '/home/receipts';
+
+/// ★★ مسار **كشف حساب المقوت** (`M17` · `WU-017`) — **مستويان**.
+///
+/// ⛔⛔★★★ **ولا معامل مقوتٍ ولا مصدرٍ ولا فترةٍ في المسار** — ★ **الثلاثةُ
+/// حالةٌ في التطبيق** (`statementDealerProvider` وأخواتها) ⛔ **لا رابطٌ
+/// يُشارَك: ⟵ **ومسارٌ يحملها كان يصير طريقاً ثانياً لقراءة كشفِ ذمّةٍ**
+/// بلا الشاشة التي تملك صلاحيته ونطاقه — ★ **بنفس علّة [auditLogRoute]
+/// و[reportRoute] حرفياً.** ⚠️ **والكشفُ مستندٌ يُسلَّم للمقوت ويُبنى عليه
+/// نزاعٌ محتمل**، ⟹ **فالحساسيةُ هنا أعلى لا أدنى.**
+const String dealerStatementRoute = '/home/dealer-statement';
 
 /// ★ مسار الخصومات (`M13` · `WU-013`) — **مستويان**.
 ///
@@ -383,6 +394,12 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             path: 'receipts',
             builder: (BuildContext context, GoRouterState state) =>
                 const ReceiptScreen(),
+          ),
+          // ── كشف حساب المقوت (`WU-017`) — شاشةٌ بمستويين وتبويبين ──
+          GoRoute(
+            path: 'dealer-statement',
+            builder: (BuildContext context, GoRouterState state) =>
+                const DealerStatementScreen(),
           ),
           // ── الخصومات (`WU-013`) — شاشةٌ بمستويين ──
           GoRoute(

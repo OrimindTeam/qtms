@@ -62,7 +62,7 @@ String permissionLabel(Permission permission) => switch (permission) {
       // ── الإتلاف والجرد (2) ──
       Permission.disposalCreate => 'الإتلاف',
       Permission.stocktakeWrite => 'الجرد',
-      // ── التحصيل والذمم (6) ──
+      // ── التحصيل والذمم (9) ── ★ **ومفتاحا `IQ-040` آخرُها**
       Permission.receiptCreate => 'إضافة سند قبض',
       Permission.receiptBackdate => 'قبض بتاريخ سابق',
       Permission.receiptDepositView => 'عرض حالة الإيداع البنكي',
@@ -70,6 +70,9 @@ String permissionLabel(Permission permission) => switch (permission) {
       Permission.discountCreate => 'الخصومات',
       Permission.discountBackdate => 'خصم بتاريخ سابق',
       Permission.dealerBalanceView => 'عرض أرصدة المقاوته',
+      Permission.dealerStatementView => 'عرض كشف حساب المقوت',
+      Permission.dealerStatementAllSources =>
+        'عرض الكشف الموحّد لكل المصادر',
       // ── السحبيات والخرجيات (8) ──
       Permission.withdrawalCreate => 'إضافة سحبية',
       Permission.expenseCreate => 'إضافة خرجية',
@@ -189,6 +192,8 @@ const List<PermissionGroup> permissionGroups = <PermissionGroup>[
       Permission.discountCreate,
       Permission.discountBackdate,
       Permission.dealerBalanceView,
+      Permission.dealerStatementView,
+      Permission.dealerStatementAllSources,
     ],
   ),
   PermissionGroup(
