@@ -105,6 +105,7 @@ class ReportsScreen extends ConsumerWidget {
         ReportId.countedIntakes => 'المصدر · الفترة · الرعوي · النوع',
         ReportId.sackIntakes => 'المصدر · الفترة · الرعوي · الجونية',
         ReportId.todayRemainder => 'المصدر · التاريخ · النوع',
+        ReportId.wasteAndDisposal => 'المصدر · الفترة · الرعوي',
         ReportId.distributions => 'المصدر · الفترة · المقوت',
         ReportId.dealerDistributionSummary => 'المصدر · الفترة',
         ReportId.settlements => 'المصدر · الفترة · حالة التسوية · المقوت',

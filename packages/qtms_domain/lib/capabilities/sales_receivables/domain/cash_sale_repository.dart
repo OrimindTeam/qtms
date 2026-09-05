@@ -145,7 +145,14 @@ abstract interface class CashSaleAdminRepository {
   /// ⛔⛔★★ **ويُرفَض إن كان سعرُ سطرٍ دون الحد الأدنى بلا
   /// `cashSaleBelowMinimum`** برمز `ERR_PRICE_002` (`FR-M11-05` · `GR-34`) —
   /// ★ **والحدّ يُقرأ من `daily_prices` داخل المعاملة** ⛔ **لا من الجهاز.**
-  Future<Outcome<String>> createCashSale(ValidatedCashSale sale);
+  /// ★★★ **و[stockDate] مسارُ التصريف المتأخر وحده** (`WU-019` · `FR-M11-10`):
+  /// ⛔⛔ **وغيابُه هو الحالُ الأصلي**، ⟵ **ووجودُه بيومٍ أقدم يشترط
+  /// `agedRemainderClear`** ⛔ **وبيومٍ أحدث مرفوضٌ للجميع** (`GR-13`)،
+  /// ★ **ويُحتسب البيعُ في «نقدي» ذلك اليوم** (`A1` من `UC-004` · `E-24`).
+  Future<Outcome<String>> createCashSale(
+    ValidatedCashSale sale, {
+    CalendarDay? stockDate,
+  });
 
   /// ★ يعدّل سنداً معتمداً — **بصلاحية `cashSaleAmend` وسببٍ نصّي اختياري**
   /// (`FR-M11-13` · `ADR-0020`).

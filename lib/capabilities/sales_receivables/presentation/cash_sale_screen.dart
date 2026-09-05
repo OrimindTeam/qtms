@@ -49,6 +49,8 @@ import '../../../core/ui/optional_reason.dart';
 import '../../../core/ui/search_field.dart';
 import '../../../core/ui/sticky_action_bar.dart';
 import '../../identity_access/presentation/permission_gate.dart';
+import '../../inventory/application/aged_remainder_providers.dart';
+import '../../inventory/presentation/aged_remainder_screen.dart';
 import '../../inventory/application/inventory_providers.dart';
 import '../../inventory/presentation/inventory_widgets.dart';
 import '../../master_data/application/master_data_providers.dart';
@@ -68,6 +70,30 @@ class _CashSaleScreenState extends ConsumerState<CashSaleScreen> {
   /// ★ **بحثٌ برقم السند** — ⛔ **ولا بحثَ باسم مشترٍ**: `FR-M11-12`
   /// **«اسم المشتري حقلٌ غير موجود قصداً»** ⟵ **فلا شيءَ يُبحَث به سواه.**
   final TextEditingController _search = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // 📦★★★ **وجهةُ التصريف المتأخر — تُفتَح ورقةً مثبَّتة** (`WU-019` ·
+    //    `A1` من `UC-004`: **يُحتسب في «نقدي» ذلك اليوم**).
+    //
+    // ⛔⛔★★★ **والاستهلاك بعد أول إطار لا داخل [initState]** — `DEBT-68`:
+    //    ★ **`take()` *تكتب* حالةً، وRiverpod يمنع الكتابة في دورة حياة
+    //    الويدجت.**
+    WidgetsBinding.instance.addPostFrameCallback((Duration _) {
+      if (!mounted) return;
+      final AgedClearanceFocus? aged = ref.read(agedClearanceFocusProvider);
+      if (aged == null) return;
+      ref.read(agedClearanceFocusProvider.notifier).take();
+      ref.read(sourceListFilterProvider.notifier).select(aged.sourceId);
+      showCashSaleForm(
+        context,
+        sourceId: aged.sourceId,
+        pinnedStockDate: aged.stockDate,
+        pinnedItemKey: aged.itemKey,
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -386,6 +412,8 @@ Future<void> showCashSaleForm(
   BuildContext context, {
   required String sourceId,
   String? documentNumber,
+  CalendarDay? pinnedStockDate,
+  String? pinnedItemKey,
 }) =>
     showModalBottomSheet<void>(
       context: context,
@@ -398,6 +426,8 @@ Future<void> showCashSaleForm(
         child: CashSaleFormSheet(
           sourceId: sourceId,
           documentNumber: documentNumber,
+          pinnedStockDate: pinnedStockDate,
+          pinnedItemKey: pinnedItemKey,
         ),
       ),
     );
@@ -411,6 +441,8 @@ class CashSaleFormSheet extends ConsumerStatefulWidget {
   const CashSaleFormSheet({
     required this.sourceId,
     this.documentNumber,
+    this.pinnedStockDate,
+    this.pinnedItemKey,
     super.key,
   });
 
@@ -419,6 +451,16 @@ class CashSaleFormSheet extends ConsumerStatefulWidget {
 
   /// رقم السند عند التعديل — و`null` تعني **إنشاءً**.
   final String? documentNumber;
+
+  /// ★★★ **تاريخُ مخزونٍ قديمٌ مثبَّت** — `FR-M8-12` (`WU-019`).
+  ///
+  /// ⛔⛔★★★ **و`null` هو الحالُ الأصلي: يومُ المنصّة** — ★ **ووجودُه يعني أن
+  /// الورقة فُتحت من شاشة المتبقي المتأخر**، ⟵ **ويُحتسب البيعُ في «نقدي»
+  /// ذلك اليوم لا اليوم الحالي** (`E-24`).
+  final CalendarDay? pinnedStockDate;
+
+  /// ★★ **النوعُ المثبَّت** — يُبذَر سطراً أول (`FR-M8-12`).
+  final String? pinnedItemKey;
 
   @override
   ConsumerState<CashSaleFormSheet> createState() => _CashSaleFormSheetState();
@@ -434,6 +476,9 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
   /// ★ معرّفُ ما بُذر منه — ⛔ **ولا يُعاد الملء عند كل بناء**: ⟵ **وإلا مسح
   /// ما يكتبه المستخدم كلما وصل تحديثٌ من جهازٍ آخر.**
   String? _seededId;
+
+  /// ★ هل بُذر النوعُ المثبَّت؟ — ⛔ **ولا يُعاد بذرُه بعد حذفه.**
+  bool _pinnedSeeded = false;
 
   bool _submitting = false;
   CatalogMessage? _rejection;
@@ -452,7 +497,11 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final CalendarDay today = ref.watch(todayProvider);
+    // ★★★ **يومُ هذه الورقة** — ⛔ **يومُ المنصّة إلا في التصريف المتأخر**
+    //    (`WU-019` · `FR-M8-12`): ⟵ **والأرصدةُ والحدودُ الدنيا كلُّها منه.**
+    final CalendarDay today =
+        widget.pinnedStockDate ?? ref.watch(todayProvider);
+    final bool isAged = widget.pinnedStockDate != null;
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
     // ⛔⛔★★★ **والخياراتُ من أرصدة الدفتر لا من كتالوج الأنواع** —
     //    [`DEBT-86`] · `ADR-0007`: راجع [stockOptionsProvider].
@@ -482,6 +531,8 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
       null => null,
     };
     _seedFrom(existing);
+    // ★★★ **وبذرُ النوع المثبَّت سطراً أول** — `FR-M8-12`.
+    _seedPinnedItem();
 
     final bool isAmend = widget.documentNumber != null;
     final bool isCancelled = existing?.isCancelled ?? false;
@@ -551,9 +602,16 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
                     ],
                     // ⛔ **ومقفلٌ في التعديل** — ★ **ونقلُ سندٍ بين مصدرين
                     //    نقلٌ خارج النطاق** (`ADR-0005`).
-                    onChanged: isAmend ? null : _onSourceChanged,
+                    // ⛔⛔★★★ **ومقفلٌ في التصريف المتأخر كذلك** —
+                    //    `FR-M8-12`: **المصدر 🔒**.
+                    onChanged: isAmend || isAged ? null : _onSourceChanged,
                   ),
                   const SizedBox(height: Spacing.space16),
+                  // ⚠️★★★ **وشريطُ التنبيه البارز** — `FR-M8-12` نصّاً.
+                  if (isAged) ...<Widget>[
+                    AgedClearanceBanner(stockDate: today),
+                    const SizedBox(height: Spacing.space16),
+                  ],
                   if (isCancelled)
                     Text(
                       'هذا السند ملغى — لا يمكن تعديله.',
@@ -725,6 +783,14 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
   }
 
   /// ★★ يملأ الحقول من السند القائم **مرةً واحدة لكل مستند**.
+  /// ★★ يبذر النوعَ المثبَّت مرةً واحدة — ⛔ **ولا يُعاد عند كل بناء.**
+  void _seedPinnedItem() {
+    final String? pinned = widget.pinnedItemKey;
+    if (pinned == null || _pinnedSeeded) return;
+    _pinnedSeeded = true;
+    _lines.add(_CashLine()..itemId = pinned);
+  }
+
   void _seedFrom(CashSaleCard? card) {
     if (card == null || _seededId == card.documentNumber) return;
     _seededId = card.documentNumber;
@@ -757,6 +823,10 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
       }
       _lines.clear();
       _seededId = null;
+      // ⛔ **ويُعاد بذرُ النوع المثبَّت** — `FR-M8-12` (**النوع 🔒**).
+      //   ⚠️ **والمصدرُ مقفلٌ أصلاً في التصريف المتأخر** — ★ **فهذا حارسٌ
+      //   ثانٍ لا مسارٌ متوقَّع.**
+      _pinnedSeeded = false;
       _rejection = null;
     });
   }
@@ -823,7 +893,11 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
 
     final CashSaleAdminRepository repository = ref.read(cashSaleAdminProvider);
     final Outcome<void> outcome = card == null
-        ? await repository.createCashSale(sale)
+        // ★★★ **وتاريخُ المخزون يُرسَل في التصريف المتأخر وحده** (`WU-019`).
+        ? await repository.createCashSale(
+            sale,
+            stockDate: widget.pinnedStockDate,
+          )
         : await repository.amendCashSale(
             documentNumber: card.documentNumber,
             sale: sale,

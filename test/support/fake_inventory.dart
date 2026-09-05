@@ -347,3 +347,64 @@ DailyPriceCard testPrice({
       distributionPrice: distribution == null ? null : Money(distribution),
       minCashPrice: minimum == null ? null : Money(minimum),
     );
+
+/// ★★ دليلُ متبقٍّ متأخر مزيَّف — `WU-019`.
+///
+/// ⛔ **ولا مستودعَ كتابةٍ يقابله** — ★ **البندُ مشتقٌّ تكتبه السحابة**،
+/// ⟵ **والتصريفُ يمرّ بعمليتَي التوزيع والبيع النقدي.**
+final class FakeAgedRemainderDirectory implements AgedRemainderDirectory {
+  final StreamController<List<AgedRemainderCard>> _cards =
+      StreamController<List<AgedRemainderCard>>.broadcast();
+
+  List<AgedRemainderCard>? _current;
+  Object? _error;
+
+  /// ★ آخر «اليوم» الذي طُلب — ⛔ **يُثبت أن الحدَّ في الاستعلام لا في العرض**.
+  CalendarDay? lastToday;
+
+  /// المصادر التي استُعلم عنها — ★ **يُثبت الاستعلامَ المقيَّد لكل مصدر**
+  /// (`IQ-024` · `DEBT-40`).
+  final List<String> requestedSources = <String>[];
+
+  /// يبثّ البنود.
+  void emit(List<AgedRemainderCard> value) {
+    _current = value;
+    _cards.add(value);
+  }
+
+  /// ★ يبثّ رفضاً — ⛔ **لا قائمة فارغة** (`RISK-02`).
+  void emitError(Object error) {
+    _error = error;
+    _cards.addError(error);
+  }
+
+  @override
+  Stream<List<AgedRemainderCard>> watchAgedRemainders({
+    required String sourceId,
+    required CalendarDay today,
+  }) async* {
+    lastToday = today;
+    requestedSources.add(sourceId);
+    if (_error case final Object error) {
+      yield* Stream<List<AgedRemainderCard>>.error(error);
+    }
+    if (_current case final List<AgedRemainderCard> value) yield value;
+    yield* _cards.stream;
+  }
+}
+
+/// ★ بطاقةُ متبقٍّ للاختبار.
+AgedRemainderCard testAgedRemainder({
+  String sourceId = 'SRC-001',
+  String itemKey = 'ITM-0001',
+  String itemName = 'عوارض',
+  required CalendarDay stockDate,
+  int pieces = 20,
+}) =>
+    AgedRemainderCard(
+      sourceId: sourceId,
+      itemKey: itemKey,
+      itemName: itemName,
+      stockDate: stockDate,
+      remaining: PieceQuantity(PieceCount(pieces)),
+    );

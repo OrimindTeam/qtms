@@ -72,8 +72,17 @@ void main() {
       //    عنهما `dealerBalanceView`:** ⟵ **ذاك رصيدٌ مجمَّع وهذا حركةٌ
       //    تفصيلية تُسلَّم للمقوت** — ★ **والفرقُ قرارُ سياسةٍ لا استنتاجُ
       //    كود** (`IQ-021` نصّاً).
-      expect(catalog.length, 87,
-          reason: 'الكتالوج يعلن 87 مفتاحاً — فإن تغيّر العدد فُحص عمداً');
+      // ★★★ **و87 ⟵ 90 في `WU-022`** — ★ **وثلاثتُها يُسمّيها `FR-M16` §3
+      //    نصّاً** («عرض الجرد» · «اعتماد الجرد» · «**جرد يوم سابق**»)
+      //    ⛔ **ولا واحدةٌ منها مخترَعة**، ★ **ولم يكن في الكتالوج منها شيء.**
+      //    ★ **والعلّةُ الحاكمة `FR-M16-09` نصّاً:** «**الجرد يتطلب صلاحية
+      //    «تنفيذ الجرد»، والاعتماد صلاحية مستقلة**» — ⟵ **فمفتاحٌ واحدٌ
+      //    يخدم البدءَ والاعتماد كان يُسقِط الفصلَ الذي نصّ عليه المتطلب.**
+      //    ⛔⛔ **ولا يُغني `agedRemainderClear` عن `stocktakePriorDay`:**
+      //    ⟵ **ذاك يحرس إجراءاتِ التصريف الثلاثة وكلُّها تُخرِج البضاعة**،
+      //    ★ **والجردُ يُصحِّح رقماً في دفترِ يومٍ مضى.**
+      expect(catalog.length, 90,
+          reason: 'الكتالوج يعلن 90 مفتاحاً — فإن تغيّر العدد فُحص عمداً');
       expect(catalog, contains('sackView'));
       // ★ `IQ-021` الخيار أ — ⛔ ولا يُقاس عليه مفتاحٌ حقلي.
       expect(catalog, contains('sackCreate'));
@@ -88,6 +97,10 @@ void main() {
       // ★★ **ومفتاحا `WU-017` بأسمائهما** — ⛔ **فلا يمرّ العدد وحده.**
       expect(catalog, contains('dealerStatementView'));
       expect(catalog, contains('dealerStatementAllSources'));
+      // ★★ **وثلاثةُ `WU-022` بأسمائها** — ⛔ **فلا يمرّ العدد وحده.**
+      expect(catalog, contains('stocktakeView'));
+      expect(catalog, contains('stocktakeApprove'));
+      expect(catalog, contains('stocktakePriorDay'));
     });
 
     test('⟵ لا مفتاح في الكود بلا سطر في المستند', () {
@@ -101,9 +114,9 @@ void main() {
     test('اسم قيمة التعداد هو المفتاح حرفياً — فلا جدول تحويل', () {
       expect(Permission.sackView.name, 'sackView');
       expect(Permission.distributionPriceView.name, 'distributionPriceView');
-      // ★ **87 بعد مفتاحَي `WU-017`** (`dealerStatementView` ·
-      //   `dealerStatementAllSources`) — راجع الحارس أعلاه.
-      expect(Permission.values.length, 87);
+      // ★ **90 بعد مفاتيح `WU-022` الثلاثة** (`stocktakeView` ·
+      //   `stocktakeApprove` · `stocktakePriorDay`) — راجع الحارس أعلاه.
+      expect(Permission.values.length, 90);
     });
 
     test('★ المفاتيح الإدارية التسعة موجودة — `IQ-007` الخيار أ', () {

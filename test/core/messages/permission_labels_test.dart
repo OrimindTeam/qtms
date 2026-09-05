@@ -67,7 +67,10 @@ void main() {
       //   (`dealerStatementView` · `dealerStatementAllSources`):
       //   ⟵ **يُسمّيهما `FR-M17` §3 نصّاً** ⛔ **ولا واحدٌ منهما مخترَع**
       //   (`IQ-040` الخيار أ).
-      expect(catalog.length, 87);
+      // ★★★ **و87 ⟵ 90 في `WU-022`** — ★ **ثلاثةُ مفاتيح الجرد**
+      //   (`stocktakeView` · `stocktakeApprove` · `stocktakePriorDay`):
+      //   ⟵ **يُسمّيها `FR-M16` §3 نصّاً** ⛔ **ولا واحدٌ منها مخترَع.**
+      expect(catalog.length, 90);
     });
 
     test('⛔★★ لا مفتاح في الكتالوج بلا اسم عربي مطابق في التطبيق', () {

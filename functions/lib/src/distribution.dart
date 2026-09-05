@@ -33,6 +33,7 @@ library;
 
 import 'package:qtms_domain/qtms_domain.dart';
 
+import 'aged_remainder.dart';
 import 'callable.dart';
 import 'firestore_value.dart' show DecimalValue;
 import 'identity_gateway.dart';
@@ -133,6 +134,7 @@ final class DistributionRequest {
     required this.dealerId,
     required this.documentNumber,
     required this.stockDate,
+    this.serverDay,
     this.distribution,
     this.storedSource,
     this.storedDealer,
@@ -164,7 +166,22 @@ final class DistributionRequest {
   final String documentNumber;
 
   /// ★★ **تاريخ المخزون** — ⛔ **من زمن المنصّة داخل المعاملة**.
+  ///
+  /// ⚠️★★ **ويقبل يوماً أقدم في مسار التصريف المتأخر وحده** (`WU-019`) —
+  /// ★ **بشرط [serverDay] و`agedRemainderClear` معاً** (`FR-M8-11`).
   final CalendarDay stockDate;
+
+  /// ★★★ **يوم المنصّة كما قُرئ داخل المعاملة** — و`null` **«غيرُ معلوم»**.
+  ///
+  /// ⛔⛔★★★ **وهو الحدُّ الذي يفصل «اليوم» عن «المتأخر»** — ★ **يُمرَّر في
+  /// مسار الإنشاء وحده**: ⟵ **والتعديلُ والإلغاءُ يومُهما محفورٌ في رقم
+  /// المستند ولا يُعاد تقريرُه** (`documentNumberDay`)، ⛔ **فلا يُخمَّن حكمٌ
+  /// من غياب** ([isAgedClearanceOn]).
+  final CalendarDay? serverDay;
+
+  /// ★ هل هذه العملية **تصريفُ متبقٍّ متأخر**؟ — `FR-M8-11`.
+  bool get isAgedClearance =>
+      isAgedClearanceOn(stockDate: stockDate, serverDay: serverDay);
 
   /// المستند المُتحقَّق منه — `null` للإلغاء.
   final ValidatedDistribution? distribution;
@@ -288,6 +305,19 @@ DistributionPlan planDistribution(
   final DistributionRejected? parties = _partiesGate(request, operation);
   if (parties != null) return parties;
 
+  // ③ ★★★ **تاريخ المخزون = يوم المنصّة — إلا بمفتاح التصريف المتأخر**
+  //    (`FR-M10-03` · `FR-M8-11` · `agedRemainderClear`): ⟵ **والحُكمُ هنا
+  //    في الدالة الخالصة** ⛔ **لا في المنفِّذ**: ★ **فقواعدُ الحماية لا
+  //    تحرس هذا المسار أصلاً** (`ADR-0013` القاعدة 3).
+  if (request.serverDay case final CalendarDay serverDay) {
+    final CallableError? denied = agedClearanceRejection(
+      actor: request.actor,
+      stockDate: request.stockDate,
+      serverDay: serverDay,
+    );
+    if (denied != null) return DistributionRejected(denied);
+  }
+
   return operation.isCancel
       ? _planCancellation(request, reason)
       : _planDistribution(request, operation, reason);
@@ -403,7 +433,12 @@ DistributionPlan _planDistribution(
     writes: writes,
     entry: _entry(
       request: request,
-      action: operation.isCreate ? AuditAction.create : AuditAction.amend,
+      // ★★★ **وفعلُ التصريف المتأخر باسمه** — `FR-M18-08` (**إجراءٌ واجبُ
+      //    التسجيل**): ⛔ **ولا يُسجَّل «إنشاءً» عادياً**، ⟵ **فالسجلُّ
+      //    يُقرأ للتمييز بين ما وقع اليوم وما وقع على يومٍ مضى.**
+      action: request.isAgedClearance
+          ? AuditAction.agedRemainderClear
+          : (operation.isCreate ? AuditAction.create : AuditAction.amend),
       reason: reason,
       valuesBefore: operation.isCreate
           ? const <String, Object?>{}
@@ -1319,6 +1354,11 @@ AuditEntry _entry({
         //   يستعلم بما يُفتَح به المستند فعلاً** (`FR-M18-10`).
         entityId: request.compositeId,
         sourceId: request.sourceId,
+        // ★★★ **والتاريخان معاً في القيد** — `AT-52` · `FR-SYS-18`:
+        //    ⟵ **`occurredAt` تاريخُ الإدخال (وقتُ المنصّة)**، **وهذا
+        //    تاريخُ المخزون** — ⛔ **ويفترقان في التصريف المتأخر وحده**،
+        //    ★ **وهو بالضبط ما يجعل تسجيلَهما معاً شرطاً لا زينة.**
+        stockDate: request.stockDate,
       ),
       // ⛔⛔★★★ **وتُمرَّر كما هي** — ★ **والوزن يبقى [DecimalValue] مغلَّفاً:**
       // ⚠️⚠️ **عطلٌ رُصد حيّاً على المحاكي (2026-08-27):** فكُّ الغلاف إلى

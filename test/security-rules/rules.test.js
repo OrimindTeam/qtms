@@ -1097,6 +1097,172 @@ describe('★★ ADR-0013 — الكتابة مغلقة في القواعد عل
 //   ⛔ فجوة كشفها WU-026 ولم يُنشئها (IQ-010).
 // ===========================================================================
 
+describe('★★ WU-019 — قائمة المتبقي المتأخر: قراءةٌ بالنطاق وكتابةٌ مغلقة', () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'aged_remainders/SRC-001_ITM-0001_20260901'), {
+        sourceId: 'SRC-001',
+        itemKey: 'ITM-0001',
+        itemName: 'عوارض',
+        stockDate: daysAgoUtc(3),
+        unit: 'piece',
+        remaining: 40,
+      });
+      await setDoc(doc(db, 'aged_remainders/SRC-999_ITM-0001_20260901'), {
+        sourceId: 'SRC-999',
+        itemKey: 'ITM-0001',
+        itemName: 'عوارض',
+        stockDate: daysAgoUtc(3),
+        unit: 'piece',
+        remaining: 5,
+      });
+    });
+  });
+
+  it('✅ استعلامٌ مقيَّدٌ بمصدرٍ في النطاق يُقبَل — ولا مفتاحَ عرضٍ له', async () => {
+    // ⛔⛔ **ولا مفتاح «عرض المتبقي المتأخر» في الكتالوج §2** — ★ **والقاعدة
+    //    تكتفي بـ`isSignedIn() && storedInScope()`**، ⟵ **فمستخدمٌ بلا أي
+    //    مفتاحٍ يقرأ متبقّي مصادره** ⛔ **ولا يُخترَع مفتاح** (`BR-M1-07`).
+    const reader = await as({}, ['SRC-001']);
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(reader, 'aged_remainders'),
+          where('sourceId', '==', 'SRC-001'),
+        ),
+      ),
+    );
+  });
+
+  it('⛔⛔ ومصدرٌ خارج النطاق يُرفَض — GR-23', async () => {
+    const reader = await as({}, ['SRC-001']);
+    await assertFails(
+      getDoc(doc(reader, 'aged_remainders/SRC-999_ITM-0001_20260901')),
+    );
+    await assertFails(
+      getDocs(
+        query(
+          collection(reader, 'aged_remainders'),
+          where('sourceId', '==', 'SRC-999'),
+        ),
+      ),
+    );
+  });
+
+  it('⛔⛔★★★ واستعلامٌ غيرُ مقيَّدٍ بالمصدر يُرفَض — ولو بنطاقٍ شامل', async () => {
+    // ★ **IQ-024 · DEBT-40:** ⟵ **الشرطُ يُقيَّم على قيود الاستعلام**،
+    //   ⛔ **فسردٌ لا يُقيّد `sourceId` يُرفَض كاملاً.**
+    const reader = await as({}, 'all');
+    await assertFails(getDocs(collection(reader, 'aged_remainders')));
+  });
+
+  it('⛅ ولا كتابةَ عليها لأحد — ولو ملك كل المفاتيح', async () => {
+    const owner = await asOwner();
+    await assertFails(
+      setDoc(doc(owner, 'aged_remainders/SRC-001_ITM-0002_20260901'), {
+        sourceId: 'SRC-001',
+        remaining: 1,
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(owner, 'aged_remainders/SRC-001_ITM-0001_20260901'), {
+        remaining: 0,
+      }),
+    );
+    // ⛔⛔★★★ **ولا حذفَ من التطبيق** — ★ **المحوُ فعلُ الراصد السحابي وحدَه**
+    //    داخل معاملة الحركة، ⟵ **وحذفٌ من الجهاز كان يُسكِت تنبيهاً قائماً
+    //    بلا أن يُصرَّف شيء** (`GR-16`).
+    await assertFails(
+      deleteDoc(doc(owner, 'aged_remainders/SRC-001_ITM-0001_20260901')),
+    );
+  });
+});
+
+// ===========================================================================
+// ★★ WU-020 — مستندات الإتلاف: قراءةٌ بالنطاق وكتابةٌ مغلقة (`FR-M8-16`)
+// ===========================================================================
+
+describe('★★ WU-020 — الإتلاف: قراءةٌ بالنطاق وكتابةٌ مغلقة', () => {
+  beforeEach(async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'disposals/DSP-20260904-0001'), {
+        documentNumber: 'DSP-20260904-0001',
+        sourceId: 'SRC-001',
+        stockDate: daysAgoUtc(0),
+        status: 'approved',
+        lines: [{ itemId: 'ITM-0001', itemName: 'عوارض', unit: 'piece', quantity: 4 }],
+      });
+      await setDoc(doc(db, 'disposals/DSP-20260904-0002'), {
+        documentNumber: 'DSP-20260904-0002',
+        sourceId: 'SRC-999',
+        stockDate: daysAgoUtc(0),
+        status: 'approved',
+        lines: [],
+      });
+    });
+  });
+
+  it('✅ استعلامٌ مقيَّدٌ بمصدرٍ في النطاق يُقبَل — ولا مفتاحَ عرضٍ له', async () => {
+    // ⛔⛔ **ولا مفتاح «عرض الإتلاف» في الكتالوج §2** — ★ **والقاعدة تكتفي
+    //    بـ`isSignedIn() && storedInScope()`**: ⟵ **ولا حقلَ ماليَّ في
+    //    المستند يُحجَب** (`FR-M8-16`) ⛔ **ولا يُخترَع مفتاح** (`BR-M1-07`).
+    const reader = await as({}, ['SRC-001']);
+    await assertSucceeds(
+      getDocs(
+        query(collection(reader, 'disposals'), where('sourceId', '==', 'SRC-001')),
+      ),
+    );
+  });
+
+  it('⛔⛔ ومصدرٌ خارج النطاق يُرفَض — GR-23', async () => {
+    const reader = await as({ disposalCreate: true }, ['SRC-001']);
+    await assertFails(getDoc(doc(reader, 'disposals/DSP-20260904-0002')));
+    await assertFails(
+      getDocs(
+        query(collection(reader, 'disposals'), where('sourceId', '==', 'SRC-999')),
+      ),
+    );
+  });
+
+  it('⛔⛔★★★ واستعلامٌ غيرُ مقيَّدٍ بالمصدر يُرفَض — ولو بنطاقٍ شامل', async () => {
+    // ★ **IQ-024 · DEBT-40:** ⟵ **الشرطُ يُقيَّم على قيود الاستعلام.**
+    const reader = await as({}, 'all');
+    await assertFails(getDocs(collection(reader, 'disposals')));
+  });
+
+  it('⛅⛔ ولا كتابةَ عليها لأحد — ولو ملك مفتاح الإتلاف كلَّه', async () => {
+    // ⛔⛔★★★ **وهذا ما يجعل «لا حقلَ ماليّ» ضمانةً بنيوية** (`FR-M8-16`):
+    //    ⟵ **العميلُ لا يكتب في المجموعة حرفاً**، ★ **والكاتبُ الوحيد
+    //    العمليةُ المستدعاة بحساب خدمة** (`ADR-0013` القاعدة 2).
+    const owner = await asOwner();
+    await assertFails(
+      setDoc(doc(owner, 'disposals/DSP-20260904-0003'), {
+        sourceId: 'SRC-001',
+        stockDate: daysAgoUtc(0),
+        lines: [],
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(owner, 'disposals/DSP-20260904-0001'), {
+        status: 'cancelled',
+      }),
+    );
+    // ⛔ **ولا حذفَ إطلاقاً** — `GR-07`.
+    await assertFails(deleteDoc(doc(owner, 'disposals/DSP-20260904-0001')));
+  });
+
+  it('⛔⛔★★★ ولا يُكتَب حقلٌ ماليٌّ عليها ولو حاول المالك — FR-M8-16', async () => {
+    // ★ **والرفضُ هنا لأن الكتابة مغلقةٌ كلُّها** — ⟵ **فلا حاجةَ لشرطِ
+    //    حقلٍ ماليٍّ في القاعدة**: ★ **الإغلاقُ أقوى من قائمةِ منعٍ تُنسى.**
+    const owner = await asOwner();
+    await assertFails(
+      updateDoc(doc(owner, 'disposals/DSP-20260904-0001'), {
+        grandTotal: 5000,
+      }),
+    );
+  });
+});
+
 describe('★ ADR-0017 — عزل حالة الإيداع البنكي', () => {
   const PARENT = 'receipts/RCP-DEP';
   const DEPOSIT = 'receipts/RCP-DEP/deposit/current';

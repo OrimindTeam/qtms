@@ -62,6 +62,8 @@ import '../../../core/ui/sticky_action_bar.dart';
 import '../../master_data/application/master_data_providers.dart';
 import '../../identity_access/application/session_providers.dart';
 import '../../identity_access/presentation/permission_gate.dart';
+import '../../inventory/application/aged_remainder_providers.dart';
+import '../../inventory/presentation/aged_remainder_screen.dart';
 import '../../inventory/application/inventory_providers.dart';
 import '../../inventory/presentation/inventory_widgets.dart';
 import '../../oversight/application/pending_entries_providers.dart';
@@ -97,6 +99,24 @@ class _DistributionScreenState extends ConsumerState<DistributionScreen> {
     //    والمستخدم يقرّر.**
     WidgetsBinding.instance.addPostFrameCallback((Duration _) {
       if (!mounted) return;
+      // 📦★★★ **وجهةُ التصريف المتأخر — تُفتَح ورقةً مثبَّتة** (`WU-019` ·
+      //    `FR-M8-12` · `UC-004` ③): ⛔ **ولا تُفتَح شاشةُ تصريفٍ بديلة.**
+      //
+      // ⛔⛔★★ **وتُفحَص قبل وجهة المركز المعلّق** — ★ **وهما لا يجتمعان
+      //    عملياً**، ⟵ **والترتيبُ يحسم لو اجتمعا** ⛔ **بدل سلوكٍ يتبع
+      //    ترتيبَ الكتابة.**
+      final AgedClearanceFocus? aged = ref.read(agedClearanceFocusProvider);
+      if (aged != null) {
+        ref.read(agedClearanceFocusProvider.notifier).take();
+        ref.read(sourceListFilterProvider.notifier).select(aged.sourceId);
+        showDistributionForm(
+          context,
+          sourceId: aged.sourceId,
+          pinnedStockDate: aged.stockDate,
+          pinnedItemKey: aged.itemKey,
+        );
+        return;
+      }
       final PendingFocus? focus = ref.read(pendingFocusProvider);
       if (focus == null || focus.kind != PendingDocumentKind.distribution) {
         return;
@@ -465,6 +485,8 @@ Future<void> showDistributionForm(
   BuildContext context, {
   required String sourceId,
   String? dealerId,
+  CalendarDay? pinnedStockDate,
+  String? pinnedItemKey,
 }) =>
     showModalBottomSheet<void>(
       context: context,
@@ -474,7 +496,12 @@ Future<void> showDistributionForm(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: DistributionFormSheet(sourceId: sourceId, dealerId: dealerId),
+        child: DistributionFormSheet(
+          sourceId: sourceId,
+          dealerId: dealerId,
+          pinnedStockDate: pinnedStockDate,
+          pinnedItemKey: pinnedItemKey,
+        ),
       ),
     );
 
@@ -489,6 +516,8 @@ class DistributionFormSheet extends ConsumerStatefulWidget {
   const DistributionFormSheet({
     required this.sourceId,
     this.dealerId,
+    this.pinnedStockDate,
+    this.pinnedItemKey,
     super.key,
   });
 
@@ -497,6 +526,22 @@ class DistributionFormSheet extends ConsumerStatefulWidget {
 
   /// المقوت الابتدائي — و`null` تعني **إنشاءً بلا اختيارٍ بعد**.
   final String? dealerId;
+
+  /// ★★★ **تاريخُ مخزونٍ قديمٌ مثبَّت** — `FR-M8-12` (`WU-019`).
+  ///
+  /// ⛔⛔★★★ **و`null` هو الحالُ الأصلي: يومُ المنصّة** (`FR-M10-03` · `A-10`
+  /// · `GR-14`) — ★ **ووجودُه يعني أن الورقة فُتحت من شاشة المتبقي المتأخر**،
+  /// ⟵ **وهو المسارُ الوحيد المصرَّح به لتاريخٍ أقدم** (`inventory-design.md`
+  /// §5 · `§9.6`). ⛔ **ولا حقلَ تاريخٍ يُعرَض للمستخدم في الحالتين.**
+  final CalendarDay? pinnedStockDate;
+
+  /// ★★ **النوعُ المثبَّت** — `FR-M8-12`: **المصدر والنوع وتاريخ المخزون 🔒**.
+  ///
+  /// ⚠️ **ويُبذَر سطراً أول** — ⛔ **ولا يُمنَع المستخدم من إضافة سطرٍ ثانٍ
+  /// من نفس اليوم**: ★ **كلُّ ما في اليوم متبقٍّ متأخر** ⟵ **فتقييدُه بنوعٍ
+  /// واحد كان يُلزِم بورقةٍ لكل نوع** (`GR-18`: **توزيعةٌ واحدة لكل مقوتٍ
+  /// في اليوم والمصدر**).
+  final String? pinnedItemKey;
 
   @override
   ConsumerState<DistributionFormSheet> createState() =>
@@ -516,6 +561,9 @@ class _DistributionFormSheetState
   /// ما يكتبه المستخدم كلما وصل تحديثٌ من جهازٍ آخر.**
   String? _seededId;
 
+  /// ★ هل بُذر النوعُ المثبَّت؟ — ⛔ **ولا يُعاد بذرُه بعد أن يحذفه المستخدم.**
+  bool _pinnedSeeded = false;
+
   bool _submitting = false;
   bool _saved = false;
   CatalogMessage? _rejection;
@@ -531,7 +579,13 @@ class _DistributionFormSheetState
 
   @override
   Widget build(BuildContext context) {
-    final CalendarDay today = ref.watch(todayProvider);
+    // ★★★ **يومُ هذه الورقة** — ⛔ **يومُ المنصّة إلا في التصريف المتأخر**
+    //    (`WU-019` · `FR-M8-12`): ⟵ **وكلُّ ما تحته مشتقٌّ منه** — الأرصدةُ
+    //    والأسعارُ المقترَحة والتوزيعةُ القائمة، ⛔ **فلا يبقى مزوّدٌ واحدٌ
+    //    على «اليوم» بينما الكتابةُ على يومٍ آخر.**
+    final CalendarDay today =
+        widget.pinnedStockDate ?? ref.watch(todayProvider);
+    final bool isAged = widget.pinnedStockDate != null;
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
     // ⛔★★ **ولا يظهر مقوتٌ معطَّل** — `FR-M10-12`.
     final List<DealerCard> dealers = ref.watch(distributionDealersProvider);
@@ -580,6 +634,10 @@ class _DistributionFormSheetState
             ? const AsyncValue<DistributionPricingCard?>.data(null)
             : ref.watch(distributionPricingProvider(existing.distributionId));
     _seedFrom(existing, existingPricing);
+    // ★★★ **وبذرُ النوع المثبَّت سطراً أول** — `FR-M8-12`: ⟵ **فالمستخدم
+    //    يفتح الورقة على البند الذي ضغطه** ⛔ **لا على نموذجٍ فارغٍ يُعيد
+    //    اختيارَ ما اختاره للتوّ.**
+    _seedPinnedItem();
 
     final bool isAmend = existing != null;
     final bool isCancelled = existing?.status == DistributionStatus.cancelled;
@@ -654,9 +712,19 @@ class _DistributionFormSheetState
                               Text(source.name, overflow: TextOverflow.ellipsis),
                         ),
                     ],
-                    onChanged: isAmend ? null : _onSourceChanged,
+                    // ⛔⛔★★★ **والمصدرُ مقفلٌ في التصريف المتأخر** —
+                    //    `FR-M8-12`: **المصدر 🔒**: ⟵ **فالبندُ رصيدُ
+                    //    (مصدر × نوع × يوم)**، ★ **وتبديلُ المصدر يجعل
+                    //    الورقةَ تصرّف بنداً آخر** ⛔ **لا الذي فُتحت له.**
+                    onChanged: isAmend || isAged ? null : _onSourceChanged,
                   ),
                   const SizedBox(height: Spacing.space16),
+                  // ⚠️★★★ **وشريطُ التنبيه البارز** — `FR-M8-12` نصّاً:
+                  //    ⟵ **قبل أي حقلٍ يُملأ** ⛔ **لا بعد زر الحفظ.**
+                  if (isAged) ...<Widget>[
+                    AgedClearanceBanner(stockDate: today),
+                    const SizedBox(height: Spacing.space16),
+                  ],
                   if (isAmend) _ExistingBanner(card: existing),
                   if (isCancelled)
                     Text(
@@ -877,6 +945,18 @@ class _DistributionFormSheetState
     return price == null ? '' : '${price.riyals}';
   }
 
+  /// ★★ يبذر النوعَ المثبَّت مرةً واحدة — ⛔ **ولا يُعاد عند كل بناء.**
+  ///
+  /// ⚠️ **ويُبذَر ولو كان رصيدُه غيرَ محمَّلٍ بعد** — ★ **فالبندُ جاء من
+  /// قائمةٍ مقروءةٍ من القاعدة**، ⟵ **والمنسدلُ يعرضه متى وصلت الخيارات**؛
+  /// ⛔ **وانتظارُ الوصول كان يفتح ورقةً فارغةً ثم تمتلئ تحت إصبع المستخدم.**
+  void _seedPinnedItem() {
+    final String? pinned = widget.pinnedItemKey;
+    if (pinned == null || _pinnedSeeded) return;
+    _pinnedSeeded = true;
+    _lines.add(_DistLine()..itemId = pinned);
+  }
+
   void _onDealerChanged(String id) {
     if (id == _dealerId) return;
     setState(() {
@@ -902,6 +982,11 @@ class _DistributionFormSheetState
     }
     _lines.clear();
     _seededId = null;
+    // ⛔⛔★★★ **ويُعاد بذرُ النوع المثبَّت** — `FR-M8-12` (**النوع 🔒**):
+    //    ⟵ **فاختيارُ المقوت يُفرِغ السطور**، ★ **وبندُ التصريف ليس سطراً
+    //    كتبه المستخدم بل قيدُ الورقة نفسِها** ⛔ **فإسقاطُه يفتح نموذجاً
+    //    فارغاً على شاشةٍ عنوانُها تصريفُ بندٍ بعينه.**
+    _pinnedSeeded = false;
     _rejection = null;
     _saved = false;
   }
@@ -984,7 +1069,13 @@ class _DistributionFormSheetState
     final DistributionAdminRepository repository =
         ref.read(distributionAdminProvider);
     final Outcome<void> outcome = card == null
-        ? await repository.createDistribution(distribution)
+        // ★★★ **وتاريخُ المخزون يُرسَل في التصريف المتأخر وحده** (`WU-019`)
+        //    — ⛔⛔ **و`null` في التوزيعة العادية**: ⟵ **فالسحابة تُثبّت
+        //    يومَ المنصّة** (`FR-M10-03`)، ★ **والحاضرُ يُحاكَم بمفتاحه.**
+        ? await repository.createDistribution(
+            distribution,
+            stockDate: widget.pinnedStockDate,
+          )
         : await repository.amendDistribution(
             documentNumber: card.documentNumber,
             distribution: distribution,

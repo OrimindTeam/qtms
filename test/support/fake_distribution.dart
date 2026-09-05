@@ -114,12 +114,17 @@ final class FakeDistributionAdmin implements DistributionAdminRepository {
   /// رفضٌ مُبرمَج — ★ **لاختبار عرض رسالة الكتالوج**.
   AppError? rejection;
 
+  /// ★★ تاريخُ المخزون المُرسَل في آخر إنشاء — و`null` **لم يُرسَل** (`WU-019`).
+  CalendarDay? lastCreateStockDate;
+
   @override
   Future<Outcome<String>> createDistribution(
-    ValidatedDistribution distribution,
-  ) async {
+    ValidatedDistribution distribution, {
+    CalendarDay? stockDate,
+  }) async {
     createCalls++;
     lastDistribution = distribution;
+    lastCreateStockDate = stockDate;
     final AppError? error = rejection;
     return error == null
         ? const Success<String>('MQT-0001_SRC-001_20260827')

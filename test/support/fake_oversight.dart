@@ -153,6 +153,9 @@ final class FakeReportDirectory implements ReportDirectory {
   /// الجواني.
   List<SackCard> sackCards = const <SackCard>[];
 
+  /// ★★ مستنداتُ الإتلاف المُرجَعة — `R-07` (`WU-020`).
+  List<DisposalCard> disposalCards = const <DisposalCard>[];
+
   /// التوزيعات.
   List<DistributionCard> distributionCards = const <DistributionCard>[];
 
@@ -251,6 +254,17 @@ final class FakeReportDirectory implements ReportDirectory {
     _record(sourceId, period);
     await _settle();
     return sackCards;
+  }
+
+  @override
+  Future<List<DisposalCard>> disposals({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    _record(sourceId, period);
+    await _settle();
+    return disposalCards;
   }
 
   @override

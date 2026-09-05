@@ -39,8 +39,9 @@ final class FunctionsDistributionRepository
 
   @override
   Future<Outcome<String>> createDistribution(
-    ValidatedDistribution distribution,
-  ) async {
+    ValidatedDistribution distribution, {
+    CalendarDay? stockDate,
+  }) async {
     final Outcome<Map<String, Object?>> result = await _client.call(
       'createDistribution',
       <String, Object?>{
@@ -48,6 +49,11 @@ final class FunctionsDistributionRepository
         'sourceId': distribution.sourceId,
         'dealerId': distribution.dealerId,
         'notes': ?distribution.notes,
+        // ★★★ **تاريخُ المخزون في مسار التصريف المتأخر وحده** (`WU-019`) —
+        //    ⛔⛔ **ولا يُرسَل في التوزيعة العادية إطلاقاً**: ⟵ **فحقلٌ
+        //    غائبٌ يعني «يومُ المنصّة»** (`FR-M10-03`)، ★ **والحاضرُ يُحاكَم
+        //    بـ`agedClearanceRejection` في السحابة.**
+        'stockDate': ?stockDate?.format(),
         'lines': _linesOf(distribution),
       },
     );

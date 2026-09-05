@@ -180,12 +180,28 @@ void main() {
       expect(find.text('تفكيك سعر جونية'), findsNothing);
     });
 
-    testWidgets('⛔⛔ و`R-07` غيرُ معروضٍ أصلاً — لا كاتبَ للإتلاف بعد',
+    testWidgets('✅★★ و`R-07` معروضٌ لمن يملك مفتاح المخزنية — WU-020',
         (WidgetTester tester) async {
+      // ★★ **وصار له كاتبٌ فعليٌّ في `WU-020`** — ⟵ **فالعنوانُ يَعِد بما
+      //    يفعله فعلاً** ([`DEBT-72`]): ⛔ **ولا مفتاحَ زائدٌ له.**
       await pumpScreen(
         tester,
         const ReportsScreen(),
         actorPermissions: const <Permission>{Permission.reportInventoryView},
+      );
+
+      expect(
+        find.textContaining('الوزن الضائع والسكرب والإتلاف'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('⛔ وبلا مفتاح المخزنية لا يُعرَض — RISK-02',
+        (WidgetTester tester) async {
+      await pumpScreen(
+        tester,
+        const ReportsScreen(),
+        actorPermissions: const <Permission>{Permission.reportSalesView},
       );
 
       expect(find.textContaining('الوزن الضائع'), findsNothing);

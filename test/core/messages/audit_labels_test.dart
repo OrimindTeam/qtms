@@ -118,6 +118,12 @@ void main() {
         'permissionsGranted',
         'disableReason',
         'deleted',
+        // ★★ **وحقولُ مستند الإتلاف** (`WU-020`) — ⛔ **ورُصد `lineCount`
+        //    خاماً على المحاكي**: ⟵ **فالحقلُ الجديد يحتاج اسمَه العربي معه.**
+        'lineCount',
+        'totalPieces',
+        'totalWeight',
+        'stockDate',
       ];
       for (final String field in written) {
         expect(

@@ -30,6 +30,7 @@ library;
 import 'package:qtms_domain/qtms_domain.dart';
 import 'package:shelf/shelf.dart';
 
+import 'aged_remainder.dart';
 import 'audited_transaction.dart';
 import 'callable.dart';
 import 'sack_valuation_handler.dart';
@@ -52,6 +53,13 @@ import 'permission_sync_handler.dart' show requestIdField;
 
 /// اسم حقل سبب التعديل أو الإلغاء في الحمولة.
 const String cashSaleReasonField = 'reason';
+
+/// ★★ اسمُ حقل **تاريخ المخزون المطلوب** في الحمولة — `YYYYMMDD`.
+///
+/// ⛔⛔★★★ **اختياريٌّ عمداً — وغيابُه هو الوضع الطبيعي**: ★ **يُرسَل من شاشة
+/// المتبقي المتأخر وحدها** (`FR-M8-11` · `A1` من `UC-004`)، ⟵ **وإرسالُه
+/// بيومٍ أقدم يشترط `agedRemainderClear`** ⛔ **وبيومٍ أحدث مرفوضٌ للجميع.**
+const String cashSaleStockDateField = 'stockDate';
 
 /// منفّذ عمليات البيع النقدي.
 final class CashSaleHandler {
@@ -157,7 +165,19 @@ final class CashSaleHandler {
       return callableFailure(CallableError.invalidArgument);
     }
 
-    CalendarDay day = CalendarDay.fromUtc(_now());
+    // ★★★ **تاريخُ المخزون المطلوب — مسارُ التصريف المتأخر وحده** (`WU-019`):
+    //    ⛔⛔ **وغيابُه هو الحالُ الأصلي**، ★ **ووجودُه يُثبِّت اليوم ويُخضِع
+    //    الطلبَ لـ`agedRemainderClear`** داخل [planCashSale] (`FR-M11-10`).
+    final String? requestedDay = call.readString(cashSaleStockDateField);
+    final CalendarDay? pinnedDay =
+        requestedDay == null ? null : CalendarDay.tryParseCompact(requestedDay);
+    // ⛔ **ونصٌّ مشوَّه رفضٌ صريح** — ⛔ **لا سقوطٌ صامتٌ إلى «اليوم»** (`RISK-07`).
+    if (requestedDay != null && pinnedDay == null) {
+      return callableFailure(CallableError.invalidArgument);
+    }
+
+    CalendarDay day = pinnedDay ?? CalendarDay.fromUtc(_now());
+    CalendarDay? platformDay;
     String? number;
     // ★ **محاولتان لا أكثر** — ⟵ **فانقلابُ منتصف الليل يُصحَّح مرة واحدة.**
     for (int attempt = 0; attempt < 2; attempt++) {
@@ -168,6 +188,8 @@ final class CashSaleHandler {
         sourceId: sourceId,
         lines: lines,
         day: day,
+        isPinned: pinnedDay != null,
+        onPlatformDay: (CalendarDay observed) => platformDay = observed,
         onAllocated: (String allocated) => number = allocated,
       );
       if (drift == null) {
@@ -186,7 +208,10 @@ final class CashSaleHandler {
           days: <OwnerLedgerDay>{
             OwnerLedgerDay(sourceId: sourceId, date: day),
           },
-          today: day,
+          // ⛔⛔★★★ **و«اليوم» يومُ المنصّة لا يومُ المخزون** (`WU-019`):
+          //    ⟵ **`markRetro = date < today`** — ★ **فبيعُ متبقٍّ متأخر
+          //    يَسِم بطاقةَ يومِه «⟳ مُحدَّث بأثر رجعي»** (`FR-M8-15`).
+          today: platformDay ?? day,
         );
         return callableSuccess(<String, Object?>{
           'documentNumber': number,
@@ -208,6 +233,8 @@ final class CashSaleHandler {
     required String sourceId,
     required List<_LineRequest> lines,
     required CalendarDay day,
+    required bool isPinned,
+    required void Function(CalendarDay) onPlatformDay,
     required void Function(String) onAllocated,
   }) async {
     final String sourcePath =
@@ -252,7 +279,10 @@ final class CashSaleHandler {
         if (observed == null) {
           throw const AbortTransaction(CallableError.internal);
         }
-        if (observed != day) {
+        onPlatformDay(observed);
+        // ⛔⛔★★★ **والانقلابُ يُصحَّح في المسار غير المثبَّت وحده** —
+        //    ★ **واليومُ المثبَّت مقصودٌ لا انزلاق** (`WU-019`).
+        if (!isPinned && observed != day) {
           drift = _DayMismatch(observed);
           throw const AbortTransaction(CallableError.concurrency);
         }
@@ -301,6 +331,9 @@ final class CashSaleHandler {
             sourceId: sourceId,
             documentNumber: number,
             stockDate: day,
+            // ★★★ **ويومُ المنصّة يبلغ المُخطِّط الخالص** — ⟵ **فبوابةُ
+            //    التصريف المتأخر تُقرَّر هناك** (`ADR-0013` القاعدة 3).
+            serverDay: observed,
             sale: (validated as Success<ValidatedCashSale>).value,
             storedSource: reads.document(sourcePath),
             // ⛔★★ **ومستندٌ غائبٌ يقيناً** — ★ **الرقم خُصِّص للتوّ من عدّاد
@@ -321,6 +354,11 @@ final class CashSaleHandler {
         }
 
         final CashSaleAccepted accepted = plan as CashSaleAccepted;
+        // ⛅★★★ **راصدُ المتبقي المتأخر** — `FR-M8-09` (`WU-019`):
+        //    ⟵ **يُكتب البندُ أو يُمحى في المعاملة نفسِها بحسب الرصيد
+        //    الناتج**، ⛔ **لا بمشغّلٍ يصل بعد الالتزام** (`aged_remainder.dart`).
+        final AgedRemainderSet aged =
+            agedRemaindersFromBalanceWrites(accepted.writes);
 
         // ⏳★★★ **وبندُ `M9` يُزال متى استنفد البيعُ رصيدَ النوع** —
         //    `pending-entries-design.md` §9، ★ **ويبقى بدقّة حين يبقى رصيد.**
@@ -347,8 +385,12 @@ final class CashSaleHandler {
               updateMask: const <String>[counterValueField],
             ),
             ...pendingEntryDocuments(pending),
+            ...aged.documents,
           ],
-          deletions: pendingEntryDeletions(pending),
+          deletions: <PendingDeletion>[
+            ...pendingEntryDeletions(pending),
+            ...aged.deletions,
+          ],
           entry: accepted.entry,
           result: null,
         );
@@ -491,6 +533,11 @@ final class CashSaleHandler {
         }
 
         final CashSaleAccepted accepted = plan as CashSaleAccepted;
+        // ⛅★★★ **راصدُ المتبقي المتأخر** — `FR-M8-09` (`WU-019`):
+        //    ⟵ **يُكتب البندُ أو يُمحى في المعاملة نفسِها بحسب الرصيد
+        //    الناتج**، ⛔ **لا بمشغّلٍ يصل بعد الالتزام** (`aged_remainder.dart`).
+        final AgedRemainderSet aged =
+            agedRemaindersFromBalanceWrites(accepted.writes);
 
         final PendingEntrySet pending = pendingFromBalanceWrites(
           writes: accepted.writes,
@@ -504,8 +551,12 @@ final class CashSaleHandler {
             for (final InventoryWrite write in accepted.writes)
               _toPending(write),
             ...pendingEntryDocuments(pending),
+            ...aged.documents,
           ],
-          deletions: pendingEntryDeletions(pending),
+          deletions: <PendingDeletion>[
+            ...pendingEntryDeletions(pending),
+            ...aged.deletions,
+          ],
           entry: accepted.entry,
           result: null,
         );

@@ -356,4 +356,11 @@ String _entityTypeOf(SourceDocumentType type) => switch (type) {
       //   الخرجيات» وحدها لا يُفتَح له سجلُّ سحبيةٍ باسمٍ محايد.**
       SourceDocumentType.withdrawal => withdrawalEntityType,
       SourceDocumentType.expense => expenseEntityType,
+      // ★★ **وكاتبٌ سابع منذ `WU-020`** — ⟵ **والسجل السياقي للحركة يفتح
+      //   مستندَ الإتلاف برقمه** (`FR-M18-10`): ★ **ومعرّفُه رقمُه.**
+      SourceDocumentType.disposal => disposalEntityType,
+      // ★★ **وكاتبٌ ثامن منذ `WU-022`** — ⟵ **والسجل السياقي لحركة التسوية
+      //   يفتح مستندَ الجرد برقمه** (`FR-M16-10` · `FR-M18-10`): ★ **ومعرّفُه
+      //   رقمُه** ⛔ **لا معرّفٌ مركّب.**
+      SourceDocumentType.stocktake => stocktakeEntityType,
     };

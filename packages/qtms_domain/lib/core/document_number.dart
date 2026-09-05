@@ -39,7 +39,19 @@ enum DocumentKind {
   expense('EXP', 4),
 
   /// جرد — `STK-YYYYMMDD-###` — ★ **بثلاث خانات لا أربع**.
-  stocktake('STK', 3);
+  stocktake('STK', 3),
+
+  /// ★★ إتلاف — `DSP-YYYYMMDD-####` (`WU-020` · `FR-M8-16`).
+  ///
+  /// ⚠️⚠️★★ **والبادئةُ مُشتقّةٌ لا مُخترَعة — ⛔ ولا تُقرأ سهواً:**
+  /// ★ **`naming-conventions.md` §5 لا يذكر مستندَ الإتلاف** (**المصدرُ
+  /// نفسُه لم يذكره**)، ⟵ **والاشتقاقُ بنفس خطوة `WU-000` حين أضاف مجموعةَ
+  /// `disposals` إلى `data-dictionary.md`**: **معجمُ §2 يقول الإتلاف ⟵
+  /// `disposal`**، ★ **والهيكلُ العظمي لحروفه `DSP`** ⟵ **وهي غيرُ
+  /// مستعمَلةٍ في البادئات التسع القائمة** (⛔ **و`DIS` كانت تُلبَس بـ`DSC`
+  /// و`DST`**). ★★ **وأربعُ خاناتٍ كبقية مستندات الحركة** — ⛔ **والثلاثُ
+  /// استثناءُ الجرد وحده الموثَّق في §5.**
+  disposal('DSP', 4);
 
   const DocumentKind(this.prefix, this.sequenceWidth);
 
@@ -139,7 +151,7 @@ CalendarDay? parseDocumentNumberDay(String documentNumber) {
 /// | النوع | شرط القاعدة | يقبل السابق؟ |
 /// |---|---|:-:|
 /// | `countedIntake` · `sack` | `todayStockDate()` **وحده** | ⛔ لا |
-/// | `distribution` · `cashSale` | `todayStockDate() \|\| agedRemainderClear` | ✅ نعم |
+/// | `distribution` · `cashSale` · `disposal` | `todayStockDate() \|\| agedRemainderClear` | ✅ نعم |
 /// | `receipt` | `notFutureDate('date')` + `receiptBackdate` | ✅ نعم |
 /// | `discount` · `withdrawal` · `expense` | `notFutureDate('date')` | ✅ نعم |
 /// | `stocktake` | **لا قيد تاريخ عند الإنشاء** — وجرد يوم سابق مقصود | ✅ نعم |
@@ -147,6 +159,10 @@ bool allowsBackdating(DocumentKind kind) => switch (kind) {
       DocumentKind.countedIntake || DocumentKind.sack => false,
       DocumentKind.distribution ||
       DocumentKind.cashSale ||
+      // ★★ **والإتلافُ ثالثُ إجراءات تصريف المتبقي المتأخر** (`FR-M8-11`) —
+      //    ⟵ **فرقمُه يحمل تاريخ المخزون لا يومَ الإدخال**، ★ **وحارسُه
+      //    `agedClearanceRejection` نفسُه** (`WU-019`).
+      DocumentKind.disposal ||
       DocumentKind.receipt ||
       DocumentKind.discount ||
       DocumentKind.withdrawal ||

@@ -42,16 +42,21 @@ import 'src/export_log_handler.dart';
 import 'src/identity_gateway.dart';
 import 'src/inventory.dart';
 import 'src/inventory_handler.dart';
+import 'src/disposal.dart';
+import 'src/disposal_handler.dart';
 import 'src/outflow.dart';
 import 'src/outflow_handler.dart';
 import 'src/owner_ledger_summary_handler.dart';
 import 'src/owner_bootstrap_handler.dart';
 import 'src/permission_sync.dart';
+import 'src/retroactive_rebuild_handler.dart';
 import 'src/receipt.dart';
 import 'src/receipt_handler.dart';
 import 'src/sack_intake.dart';
 import 'src/sack_intake_handler.dart';
 import 'src/sack_valuation_handler.dart';
+import 'src/stocktake.dart';
+import 'src/stocktake_handler.dart';
 import 'src/permission_sync_handler.dart';
 import 'src/master_data.dart';
 import 'src/master_data_handler.dart';
@@ -98,7 +103,10 @@ Future<CashSaleHandler>? _cashSaleHandler;
 Future<ReceiptHandler>? _receiptHandler;
 Future<DiscountHandler>? _discountHandler;
 Future<OutflowHandler>? _outflowHandler;
+Future<DisposalHandler>? _disposalHandler;
+Future<StocktakeHandler>? _stocktakeHandler;
 Future<ExportLogHandler>? _exportLogHandler;
+Future<RetroactiveRebuildHandler>? _rebuildHandler;
 
 /// ★★★ **`callables` — نقطة الدخول الوحيدة للعمليات المستدعاة** (`IQ-019`).
 ///
@@ -209,6 +217,22 @@ Future<Response> callables(Request request) async {
       _outflow(request, OutflowOperation.amendOutflow),
     CallableOperation.cancelOutflow =>
       _outflow(request, OutflowOperation.cancelOutflow),
+    CallableOperation.createDisposal =>
+      _disposal(request, DisposalOperation.createDisposal),
+    CallableOperation.amendDisposal =>
+      _disposal(request, DisposalOperation.amendDisposal),
+    CallableOperation.cancelDisposal =>
+      _disposal(request, DisposalOperation.cancelDisposal),
+    CallableOperation.startStocktake =>
+      _stocktake(request, StocktakeOperation.startStocktake),
+    CallableOperation.approveStocktake =>
+      _stocktake(request, StocktakeOperation.approveStocktake),
+    CallableOperation.amendStocktake =>
+      _stocktake(request, StocktakeOperation.amendStocktake),
+    CallableOperation.cancelStocktake =>
+      _stocktake(request, StocktakeOperation.cancelStocktake),
+    CallableOperation.rebuildDayRetroactively =>
+      rebuildDayRetroactively(request),
     CallableOperation.logExport =>
       _exportLog(request, ExportLogOperation.logExport),
   };
@@ -308,6 +332,64 @@ Future<OutflowHandler> _buildOutflow() async {
     valuation: valuation,
     summaries: summaries,
   );
+}
+
+/// ★ المسار المشترك لعمليات الإتلاف الثلاث (`WU-020`).
+///
+/// ⛔★★ **ولا يحتاج `QTMS_OWNER_UID`:** حارس المالك (`BR-M1-02`) يخصّ
+/// **حسابات المستخدمين** وحدها — ★ **وتفويضُ هذه العمليات ثلاثةُ مفاتيح**
+/// (`disposalCreate` · `disposalAmend` · `disposalCancel`) **مع نطاق
+/// المصادر** ⟵ **ورابعٌ لتاريخٍ سابق** (`agedRemainderClear`)، وتُفحَص في
+/// `disposalGate` و`planDisposal`.
+///
+/// ⛔⛔★★★ **ولا `SackValuationHandler` ولا `OwnerLedgerSummaryHandler` في
+/// تبعياته** — ★ **والغيابُ مقصودٌ ومقروء:** ⟵ **الإتلافُ لا يدخل سعرَ
+/// الجونية ولا بطاقةَ ضمار المالك** (`design-overview.md` §2.2 · `A-15`)،
+/// ⛔ **وحقنُهما كان يُوهِم أن له فيهما أثراً.**
+Future<Response> _disposal(Request request, DisposalOperation operation) async {
+  final DisposalHandler handler = await (_disposalHandler ??= _buildDisposal());
+  return handler.handle(request, operation);
+}
+
+Future<DisposalHandler> _buildDisposal() async {
+  final (
+    IdentityGateway identity,
+    AuditedTransaction transaction,
+    SackValuationHandler _,
+    OwnerLedgerSummaryHandler _,
+  ) = await _connectWritingDependencies();
+  return DisposalHandler(identity: identity, transaction: transaction);
+}
+
+/// ★ المسار المشترك لعمليات الجرد الأربع (`WU-022`).
+///
+/// ⛔★★ **ولا يحتاج `QTMS_OWNER_UID`:** حارس المالك (`BR-M1-02`) يخصّ
+/// **حسابات المستخدمين** وحدها — ★ **وتفويضُ هذه العمليات أربعةُ مفاتيح**
+/// (`stocktakeWrite` · `stocktakeApprove` · `stocktakeAmend` ·
+/// `stocktakeCancel`) **مع نطاق المصادر** ⟵ **وخامسٌ لتاريخٍ سابق**
+/// (`stocktakePriorDay`)، وتُفحَص في `stocktakeGate` و`planStocktake`.
+///
+/// ⛔⛔★★★ **ولا `SackValuationHandler` ولا `OwnerLedgerSummaryHandler` في
+/// تبعياته** — ★ **والغيابُ مقصودٌ ومقروء:** ⟵ **تسويةُ الجرد لا تدخل سعرَ
+/// الجونية ولا بطاقةَ ضمار المالك** (`BR-M16-03` · `AT-66`)، ⛔ **وحقنُهما
+/// كان يُوهِم أن لها فيهما أثراً.**
+Future<Response> _stocktake(
+  Request request,
+  StocktakeOperation operation,
+) async {
+  final StocktakeHandler handler =
+      await (_stocktakeHandler ??= _buildStocktake());
+  return handler.handle(request, operation);
+}
+
+Future<StocktakeHandler> _buildStocktake() async {
+  final (
+    IdentityGateway identity,
+    AuditedTransaction transaction,
+    SackValuationHandler _,
+    OwnerLedgerSummaryHandler _,
+  ) = await _connectWritingDependencies();
+  return StocktakeHandler(identity: identity, transaction: transaction);
 }
 
 /// ★ المسار المشترك لعمليات القبض الأربع (`WU-007`).
@@ -451,6 +533,49 @@ Future<Response> bootstrapOwnerPermissions(Request request) async {
   final OwnerBootstrapHandler handler =
       await (_bootstrapHandler ??= _buildBootstrap(ownerUserId));
   return handler.handle(request);
+}
+
+/// `rebuildDayRetroactively` — ★★★ **يُعيد بناء مشتقّات يومٍ من دفاترها**
+/// (`WU-021` · `DEBT-01` · `RISK-08`).
+///
+/// ⛔ **لا يُستدعى من التطبيق** — إجراء تشغيلي موثَّق:
+/// `docs/13-operations/runbooks/RB-rebuild-summaries.md`.
+///
+/// ★ **وحارسُه هويةُ المالك المسجَّل وحدها** — ⛔ **لا مفتاحٌ من الكتالوج**:
+/// `permissions-catalog.md` §3 يُدرِج **«كتابة الأرصدة والملخصات»** في
+/// **ما *ليس* صلاحية**، ⟵ **فاختلاقُ مفتاحٍ لها مخالفةُ §6.**
+Future<Response> rebuildDayRetroactively(Request request) async {
+  final String? ownerUserId = _resolveOwnerUserId();
+  if (ownerUserId == null) {
+    // ★ الإعداد ناقص — ⛔ ولا يُخمَّن مالك. والرفض هو الافتراض الآمن.
+    return callableFailure(
+      CallableError.internal,
+      detail: 'متغيّر $_ownerUserIdVariable غائب — تعذّر تحديد المالك المسجَّل',
+    );
+  }
+  final RetroactiveRebuildHandler handler =
+      await (_rebuildHandler ??= _buildRebuild(ownerUserId));
+  return handler.handle(request);
+}
+
+Future<RetroactiveRebuildHandler> _buildRebuild(String ownerUserId) async {
+  final String? projectId = _resolveProjectId();
+  if (projectId == null) {
+    throw StateError('متغيّر $_projectIdVariable غائب — تعذّر تحديد المشروع');
+  }
+  // ★★ **كاتبٌ واحدٌ تشاركه بوابةُ الهوية والمُحتسِبُ والباني** — ⛔ **فلا
+  //    جلسةَ اعتمادٍ رابعة** (نفسُ منطق `_connectWritingDependencies`).
+  final FirestoreWriter store =
+      await FirestoreWriter.connect(projectId: projectId);
+  return RetroactiveRebuildHandler(
+    identity: await IdentityGateway.connect(
+      readUserCard: (String userId) => _readUserCard(store, userId),
+    ),
+    store: store,
+    valuation: SackValuationHandler(store),
+    summaries: OwnerLedgerSummaryHandler(store),
+    registeredOwnerUserId: ownerUserId,
+  );
 }
 
 /// `createUser` — ★ **ينشئ حساباً وبطاقة** (`FR-M1-01` · `IQ-015`).

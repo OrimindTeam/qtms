@@ -186,6 +186,14 @@ const MOVED_TO_CLOUD_WRITE = [
   'expenseCancel',
   'stocktakeAmend',
   'stocktakeCancel',
+  // ★★ WU-022 — مفتاحان جديدان بنفس منطق `stocktakeWrite` حرفياً:
+  //   إنفاذُهما في `functions/lib/src/stocktake.dart` (`stocktakeGate` ②
+  //   و`stocktakePriorDayRejection`)، ومسارُ `stocktakes` مغلقٌ للكتابة
+  //   أصلاً (ADR-0013 القاعدة 2). ⛔ ولا شرطَ لهما في القواعد.
+  //   ⚠️ و`stocktakeView` ليس منها — له شرطُ قراءةٍ حقيقيٌّ في §21،
+  //   فيُفحَص كأي مفتاح عرضٍ آخر ولو أُسقط الشرطُ لَفشلت هذه البوابة.
+  'stocktakeApprove',
+  'stocktakePriorDay',
   'disposalAmend',
   'disposalCancel',
   // ★★ WU-002 — البيانات المرجعية الخمسة انضمّت بنفس المنطق تماماً.

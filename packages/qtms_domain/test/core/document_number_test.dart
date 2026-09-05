@@ -5,7 +5,7 @@ void main() {
   final CalendarDay day = CalendarDay(2026, 8, 22);
 
   group('formatDocumentNumber — naming-conventions.md §5', () {
-    test('البادئات التسع منقولة حرفياً من الجدول', () {
+    test('البادئات العشر — تسعٌ من الجدول وواحدةٌ مُشتقّة', () {
       // ★ المتوقَّع هنا **من المستند لا من تشغيل الكود** — test-strategy §3
       //   القاعدة 1: «سجّل ما أخرجه البرنامج كمتوقَّع» يُثبّت الخطأ لا يكشفه.
       final Map<DocumentKind, String> expected = <DocumentKind, String>{
@@ -19,6 +19,11 @@ void main() {
         DocumentKind.expense: 'EXP-20260822-0007',
         // ★ الجرد بثلاث خانات وحده.
         DocumentKind.stocktake: 'STK-20260822-007',
+        // ★★ **والإتلاف بأربع كبقية مستندات الحركة** (`WU-020`) —
+        //    ⚠️ **وبادئتُه مُشتقّةٌ لا منقولة:** ⟵ **§5 لا يذكر مستندَ
+        //    الإتلاف أصلاً**، ★ **والاشتقاقُ من معجم §2 (`disposal`)**
+        //    ⛔ **وهي غيرُ مستعمَلةٍ في التسع** — راجع [DocumentKind.disposal].
+        DocumentKind.disposal: 'DSP-20260822-0007',
       };
 
       for (final MapEntry<DocumentKind, String> entry in expected.entries) {

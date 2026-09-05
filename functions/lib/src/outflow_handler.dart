@@ -33,6 +33,7 @@ library;
 import 'package:qtms_domain/qtms_domain.dart';
 import 'package:shelf/shelf.dart';
 
+import 'aged_remainder.dart';
 import 'audited_transaction.dart';
 import 'callable.dart';
 import 'sack_valuation_handler.dart';
@@ -343,6 +344,11 @@ final class OutflowHandler {
         }
 
         final OutflowAccepted accepted = plan as OutflowAccepted;
+        // ⛅★★★ **راصدُ المتبقي المتأخر** — `FR-M8-09` (`WU-019`):
+        //    ⟵ **يُكتب البندُ أو يُمحى في المعاملة نفسِها بحسب الرصيد
+        //    الناتج**، ⛔ **لا بمشغّلٍ يصل بعد الالتزام** (`aged_remainder.dart`).
+        final AgedRemainderSet aged =
+            agedRemaindersFromBalanceWrites(accepted.writes);
 
         return AuditedWrite<void>(
           documents: <PendingDocument>[
@@ -363,14 +369,18 @@ final class OutflowHandler {
               reads: reads,
               pricePaths: pricePaths,
             ),
+            ...aged.documents,
           ],
-          deletions: _pendingDeletionsOf(
-            accepted: accepted,
-            sourceId: sourceId,
-            day: day,
-            reads: reads,
-            pricePaths: pricePaths,
-          ),
+          deletions: <PendingDeletion>[
+            ..._pendingDeletionsOf(
+              accepted: accepted,
+              sourceId: sourceId,
+              day: day,
+              reads: reads,
+              pricePaths: pricePaths,
+            ),
+            ...aged.deletions,
+          ],
           entry: accepted.entry,
           result: null,
         );
@@ -521,6 +531,11 @@ final class OutflowHandler {
         }
 
         final OutflowAccepted accepted = plan as OutflowAccepted;
+        // ⛅★★★ **راصدُ المتبقي المتأخر** — `FR-M8-09` (`WU-019`):
+        //    ⟵ **يُكتب البندُ أو يُمحى في المعاملة نفسِها بحسب الرصيد
+        //    الناتج**، ⛔ **لا بمشغّلٍ يصل بعد الالتزام** (`aged_remainder.dart`).
+        final AgedRemainderSet aged =
+            agedRemaindersFromBalanceWrites(accepted.writes);
 
         return AuditedWrite<void>(
           documents: <PendingDocument>[
@@ -533,14 +548,18 @@ final class OutflowHandler {
               reads: reads,
               pricePaths: pricePaths,
             ),
+            ...aged.documents,
           ],
-          deletions: _pendingDeletionsOf(
-            accepted: accepted,
-            sourceId: sourceId,
-            day: day,
-            reads: reads,
-            pricePaths: pricePaths,
-          ),
+          deletions: <PendingDeletion>[
+            ..._pendingDeletionsOf(
+              accepted: accepted,
+              sourceId: sourceId,
+              day: day,
+              reads: reads,
+              pricePaths: pricePaths,
+            ),
+            ...aged.deletions,
+          ],
           entry: accepted.entry,
           result: null,
         );

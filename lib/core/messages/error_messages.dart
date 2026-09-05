@@ -192,6 +192,21 @@ enum CatalogMessageId {
   /// ⚠️ `ERR_PRICE_005` — **نوعٌ غير مسعَّر** (`FR-M11-06`) — ★ **تنبيهٌ لا منع**.
   itemNotPricedYet,
 
+  // ── الجرد (`WU-022`) — الكتالوج §`STOCK` ──
+  //
+  // ✅★★★ **ونصّاهما اعتمدهما صاحب المشروع صراحةً (2026-09-05 · `IQ-042`)**
+  //    — ⛔ **لا بصياغة اجتهادية** (`error-codes-catalog.md` §3 القاعدة 5).
+
+  /// ★★ `ERR_STOCK_006` — **جردٌ مفتوحٌ على المصدر واليوم نفسِهما** (`FR-M16-06`).
+  stocktakeInProgress,
+
+  /// ★★ `ERR_STOCK_007` — **حالةُ مستند الجرد لا تسمح بالعملية** (`FR-M16-09`).
+  ///
+  /// ⛔⛔ **ورمزٌ واحدٌ للحالتين معاً** — **اعتمادُ ما ليس مسوّدةً** و**تعديلُ
+  /// ما ليس معتمداً**: ⟵ **والفعلُ المُرشَد إليه واحد**، ⛔ **والتمييزُ في
+  /// السجلّ لا في الشاشة.**
+  stocktakeStateBlocked,
+
   /// ★ `ERR_CALL_500` — **فشل عملية غير متوقَّع**، ⛔ **ومصير كل رمز مجهول**.
   operationFailed,
 }
@@ -295,6 +310,12 @@ sealed class CatalogMessage {
   );
   static const CatalogMessage documentCancelled = CatalogEntry(
     CatalogMessageId.documentCancelled,
+  );
+  static const CatalogMessage stocktakeInProgress = CatalogEntry(
+    CatalogMessageId.stocktakeInProgress,
+  );
+  static const CatalogMessage stocktakeStateBlocked = CatalogEntry(
+    CatalogMessageId.stocktakeStateBlocked,
   );
   static const CatalogMessage sourceInactive = CatalogEntry(
     CatalogMessageId.sourceInactive,
@@ -472,6 +493,13 @@ String _entryText(CatalogMessageId message) => switch (message) {
         '❌ لا يمكن تنفيذ العملية — المستند ملغى.',
       CatalogMessageId.sourceInactive =>
         '❌ المصدر معطَّل — لا يمكن التوريد أو التوزيع منه.',
+      // ✅★★★ **منقولان حرفاً بحرف من `error-codes-catalog.md` §`STOCK`**
+      //    — ★ **باعتماد صاحب المشروع نصَّهما صراحةً** (`IQ-042` · 2026-09-05).
+      CatalogMessageId.stocktakeInProgress =>
+        '❌ يوجد جرد مفتوح لهذا المصدر في هذا اليوم — اعتمده أو ألغِه قبل بدء '
+            'جرد جديد.',
+      CatalogMessageId.stocktakeStateBlocked =>
+        '❌ حالة مستند الجرد لا تسمح بهذه العملية — حدّث الشاشة وأعد المحاولة.',
       // ★ **منقولٌ حرفاً بحرف من `error-codes-catalog.md` §`MONEY`.**
       CatalogMessageId.fractionalMoney =>
         '❌ المبلغ يجب أن يكون رقماً صحيحاً بالريال — بلا كسور عشرية.',
@@ -576,6 +604,9 @@ CatalogMessage callableErrorMessage(String code) => switch (code) {
       'ERR_PRICE_005' => CatalogMessage.itemNotPricedYet,
       // ── التسعير اليومي (`WU-005`) ──
       'ERR_MONEY_001' => CatalogMessage.fractionalMoney,
+      // ── الجرد (`WU-022`) ──
+      'ERR_STOCK_006' => CatalogMessage.stocktakeInProgress,
+      'ERR_STOCK_007' => CatalogMessage.stocktakeStateBlocked,
       // ⛔⛔★★★ **والمجهول يصل بنصّه لا برسالةٍ عامة** — `DEBT-52`:
       //   ★ **رمزٌ يُضيفه الخادم غداً يُقرأ فوراً** ⟵ **بلا جولة تشخيص**،
       //   ⛔ **والفارغ وحده يسقط إلى `ERR_CALL_500`** (في [_diagnosticText]).

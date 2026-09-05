@@ -32,6 +32,8 @@ import '../../../app/top_bar.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/hub_section.dart';
 import '../../../core/ui/needs_action_row.dart';
+import '../../inventory/application/aged_remainder_providers.dart';
+import '../../inventory/presentation/aged_remainder_screen.dart';
 import '../../inventory/presentation/sack_finance_screen.dart';
 import '../../inventory/presentation/supply_intake_screen.dart';
 import '../../oversight/application/pending_entries_providers.dart';
@@ -95,6 +97,21 @@ class HomeShell extends ConsumerWidget {
           // ⛔ **وبلا بوابة صلاحية** — ★ **لا مفتاح للمركز في الكتالوج §2**،
           //    ⟵ **والقاعدة تكتفي بالنطاق** (`pending_entries_providers.dart`).
           const _PendingEntriesRow(),
+          const SizedBox(height: Spacing.space12),
+
+          // 📦★★★ **التنبيه الدائم على متبقي الأيام السابقة** — `FR-M8-10`
+          //    (`GR-16`): «**يجب أن ينبّه النظام … حتى يُصرَّف بالكامل**».
+          //
+          // ⚠️⚠️ **وصفُّ «يحتاج إجراء» بعقده** (`design-system.md` §7)
+          //    ⛔ **لا بطاقةُ تنبيهٍ مربّعة** — `ui-guidelines.md` §3 نمط 1
+          //    القرار 2 نصّاً: «**المربعاتُ المتساوية تُسوّي بين متبقٍّ عمرُه
+          //    خمسةُ أيام وبين عدّادٍ للعلم**». ⟵ **وهذا هو المثالُ الذي
+          //    ضربه القرارُ نفسُه** ⛔ **فلا يُنقَض في أول تطبيقٍ له.**
+          //
+          // ⛔ **وبلا بوابة صلاحية** — ★ **لا مفتاح «عرض المتبقي المتأخر» في
+          //    الكتالوج §2**، ⟵ **والقاعدة تكتفي بالنطاق**
+          //    (`aged_remainder_providers.dart`).
+          const _AgedRemainderRow(),
           const SizedBox(height: Spacing.space24),
 
           // ③ ⛔⛔★★★ **والترتيب بالتكرار اليومي لا بالتسلسل الإداري.**
@@ -267,6 +284,39 @@ class HomeShell extends ConsumerWidget {
                   onPressed: () => context.go(dailyPricingRoute),
                 ),
               ),
+              // ★★ **والإتلافُ ببوابة مفتاحه** (`WU-020` · `FR-M8-16`) —
+              //    ⛔ **بخلاف مخزون اليوم والتسعير**: ⟵ **`disposalCreate`
+              //    مفتاحٌ قائمٌ في الكتالوج §2.4**، ★ **ومن لا يملكه لا
+              //    مسارَ كتابةٍ له أصلاً.** ⚠️ **وإخفاءٌ لا حماية** (`RISK-02`).
+              PermissionGate(
+                permission: Permission.disposalCreate,
+                child: QtmsHubButton(
+                  entry: QtmsHubEntry(
+                    label: 'الإتلاف',
+                    // ⛔⛔★★ **ولا أيقونةَ حذفٍ هنا** — ★ **بوابةُ `GR-07`
+                    //    ترفض `Icons.delete*` في أي شاشة**: ⟵ **والإتلافُ
+                    //    خروجٌ مخزنيٌّ لا حذفُ سجل** ⛔ **فالأيقونةُ تقول
+                    //    «بضاعةٌ لم تعد صالحة» لا «امحُ المستند».**
+                    icon: Icons.no_food_outlined,
+                    onPressed: () => context.go(disposalRoute),
+                  ),
+                ),
+              ),
+              // ★★ **والجردُ ببوابة مفتاحه** (`WU-022` · `FR-M16-09`) —
+              //    ★ **`stocktakeWrite` يُتيح *بدء* الجرد**، ⛔ **والاعتمادُ
+              //    مفتاحٌ آخر يُفحَص داخل الشاشة وفي السحابة معاً**:
+              //    ⟵ **فمن يبدأ لا يعتمد بالضرورة.** ⚠️ **وإخفاءٌ لا حماية**
+              //    (`RISK-02`).
+              PermissionGate(
+                permission: Permission.stocktakeWrite,
+                child: QtmsHubButton(
+                  entry: QtmsHubEntry(
+                    label: 'الجرد',
+                    icon: Icons.fact_check_outlined,
+                    onPressed: () => context.go(stocktakeRoute),
+                  ),
+                ),
+              ),
             ],
           ),
 
@@ -423,6 +473,49 @@ class HomeShell extends ConsumerWidget {
 ///
 /// ⚠️ **وأثناء التحميل يُعرَض بلا رقم** — ⛔ **ولا صفرٌ مؤقّت**: ★ **عدّادٌ
 /// يقول «٠» ثم يصير «٧» يُقرأ عطلاً** (`pendingEntriesCountProvider`).
+/// ★★★ صفُّ المتبقي المتأخر — `FR-M8-10` (`WU-019`).
+///
+/// ⛔⛔★★ **والعدّادُ عددُ الأيام لا عددُ البنود** — `UC-004` ① نصّاً:
+/// «**📦 متبقي أيام سابقة: {العدد} أيام**» — ⟵ **فالسؤالُ «كم يوماً لم
+/// يُقفَل؟»** ⛔ **لا «كم صنفاً بقي؟»**، ★ **والصنفُ تفصيلُ الشاشة.**
+///
+/// ⛔⛔★★ **والحالةُ الهادئة تُعرَض ولا تُخفى** (`design-system.md` §7 ·
+/// `ui-guidelines.md` §3 نمط 1): ★ **«لا متبقي من أيام سابقة» بأيقونةٍ
+/// هادئة** — ⟵ **فاختفاءُ الصفّ يجعل المستخدم يشكّ: أهو صفرٌ أم عطل؟**
+class _AgedRemainderRow extends ConsumerWidget {
+  const _AgedRemainderRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<AgedRemainderAlert> alert =
+        ref.watch(agedRemainderAlertProvider);
+    final AgedRemainderAlert? value = alert.hasError ? null : alert.value;
+    final bool hasWork = value != null && value.hasWork;
+
+    return QtmsNeedsActionRow(
+      // ★ **والأيقونةُ تتبع الحدّة** — ⛔ **ولا لونَ وحده يحمل المعنى** (§8).
+      icon: hasWork
+          ? agedSeverityIcon(value.severity)
+          : Icons.event_available_outlined,
+      title: 'متبقي أيام سابقة',
+      destination: hasWork
+          ? '${agedAgeLabel(value.oldestAgeInDays)} لأقدمها — '
+              'افتح الشاشة لتصريفه على يومه'
+          : 'كل مخزون الأيام الماضية صُرِّف بالكامل',
+      // ★★ **الحدّةُ تصل ثلاثيةً جاهزة** — §5.1: ⛔ **ولا يقارن المكوّن رقماً.**
+      triad: hasWork ? agedSeverityTriad(value.severity) : SemanticTriads.neutral,
+      count: value?.dayCount ?? 0,
+      countLabel: switch (value?.dayCount) {
+        null when alert.hasError => 'تعذّر',
+        null => '—',
+        0 => 'لا شيء',
+        _ => null,
+      },
+      onTap: () => context.go(agedRemainderRoute),
+    );
+  }
+}
+
 class _PendingEntriesRow extends ConsumerWidget {
   const _PendingEntriesRow();
 

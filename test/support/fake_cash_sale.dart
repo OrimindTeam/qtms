@@ -72,10 +72,17 @@ final class FakeCashSaleAdmin implements CashSaleAdminRepository {
   /// رفضٌ مُبرمَج — ★ **لاختبار عرض رسالة الكتالوج**.
   AppError? rejection;
 
+  /// ★★ تاريخُ المخزون المُرسَل في آخر إنشاء — و`null` **لم يُرسَل** (`WU-019`).
+  CalendarDay? lastCreateStockDate;
+
   @override
-  Future<Outcome<String>> createCashSale(ValidatedCashSale sale) async {
+  Future<Outcome<String>> createCashSale(
+    ValidatedCashSale sale, {
+    CalendarDay? stockDate,
+  }) async {
     createCalls++;
     lastSale = sale;
+    lastCreateStockDate = stockDate;
     final AppError? error = rejection;
     return error == null
         ? const Success<String>('CSH-20260827-0001')

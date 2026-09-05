@@ -275,6 +275,28 @@
       ]
     },
     {
+      "collectionGroup": "stocktakes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sourceId", "order": "ASCENDING" },
+        { "fieldPath": "stockDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "disposals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sourceId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "stockDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "sacks",
       "queryScope": "COLLECTION",
       "fields": [
@@ -464,6 +486,20 @@
         },
         {
           "fieldPath": "balance",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "stockDate",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "aged_remainders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sourceId",
           "order": "ASCENDING"
         },
         {

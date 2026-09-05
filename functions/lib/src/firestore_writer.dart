@@ -339,6 +339,40 @@ final class FirestoreWriter {
         ]);
   }
 
+  /// ★★★ **يقرأ ساعةَ المنصّة** — و`null` تعني **تعذّر قياسُها**.
+  ///
+  /// ⛔⛔★★★ **ولماذا استعلامٌ لا `DateTime.now()`:** `GR-54` و`E-41` —
+  /// ★ **كلُّ حقلِ وقتٍ من توقيت خوادم المنصّة** ⛔ **لا من ساعةِ الحاوية**:
+  /// ⟵ **وحاويةٌ منزاحةُ الساعة كانت ستَسِم بطاقةَ اليوم الجاري
+  /// «⟳ مُحدَّث بأثر رجعي»** أو **تترك يومَ أمس بلا وسم** — ★ **وكلاهما رقمٌ
+  /// خاطئٌ بصمت.**
+  ///
+  /// ★★ **ونظيرُ `TransactionReads.readTime` خارج المعاملة** — ⟵ **فالمُعيدُ
+  /// بأثرٍ رجعي مشتقٌّ لا كتابةُ مستخدم** (`ADR-0008`)، ⛔ **ولا معاملةَ له
+  /// يقرأ زمنَها** (نفسُ علّة `queryDocuments` أعلاه).
+  ///
+  /// ⚠️ **والاستعلامُ بلا مرشّحٍ هنا مقصودٌ ومحدود:** ★ **`limit = 1`**
+  /// ⟵ **فالكلفةُ قراءةٌ واحدةٌ لا مسحٌ كامل**، ⛔ **والمطلوبُ الزمنُ لا
+  /// المستند** — ★ **ويصل مع عنصرٍ بلا مستندٍ كذلك** فتصلح مجموعةٌ فارغة.
+  Future<DateTime?> readPlatformTime({required String collectionId}) async {
+    final firestore.RunQueryResponse rows =
+        await _api.projects.databases.documents.runQuery(
+      firestore.RunQueryRequest()
+        ..structuredQuery = (firestore.StructuredQuery()
+          ..from = <firestore.CollectionSelector>[
+            firestore.CollectionSelector()..collectionId = collectionId,
+          ]
+          ..limit = 1),
+      _documentsRoot,
+    );
+    for (final firestore.RunQueryResponseElement row in rows) {
+      if (row.readTime case final String stamp) {
+        return DateTime.parse(stamp).toUtc();
+      }
+    }
+    return null;
+  }
+
   /// يقرأ مستنداً، أو `null` إن لم يكن موجوداً.
   ///
   /// ★ **أُضيف لـ`ADR-0016`:** الصلاحيات خرجت من الرمز إلى بطاقة المستخدم،

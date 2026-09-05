@@ -24,6 +24,7 @@ import '../../../core/money.dart';
 import '../../financial_outflow/domain/outflow.dart';
 import '../../financial_outflow/domain/outflow_repository.dart';
 import '../../financial_outflow/domain/owner_ledger_summary.dart';
+import '../../inventory/domain/disposal_repository.dart';
 import '../../inventory/domain/inventory_repository.dart';
 import '../../inventory/domain/sack_intake_repository.dart';
 import '../../inventory/domain/sack_valuation_repository.dart';
@@ -195,6 +196,20 @@ abstract interface class ReportDirectory {
   ///
   /// ★ **الفهرس:** `sourceId ↑ · stockDate ↓`.
   Future<List<SackCard>> sacks({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit,
+  });
+
+  /// ★★ `R-07` — **مستنداتُ الإتلاف في فترة** (`WU-020`).
+  ///
+  /// ★ **الفهرس:** `sourceId ↑ · stockDate ↓` — ★ **نفسُ شكل [sacks]**،
+  /// ⛔ **ولا فهرسَ ثانٍ يُخترَع.**
+  ///
+  /// ⛔⛔★★ **ولا مفتاحَ عرضٍ زائدٌ لها** — ★ **شرطُ قراءة `disposals`
+  /// النطاقُ وحده** (`firestore.rules` §22): ⟵ **ولا حقلَ ماليَّ فيها
+  /// يُحجَب** (`FR-M8-16`).
+  Future<List<DisposalCard>> disposals({
     required String sourceId,
     required ReportPeriod period,
     int limit,

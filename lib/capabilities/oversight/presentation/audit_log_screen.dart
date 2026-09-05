@@ -168,11 +168,10 @@ class _FilterBar extends ConsumerWidget {
 /// ★ الأفعال المعروضة في الفلتر — ⛔ **ولا فعلٌ بلا كاتبٍ له اليوم**.
 ///
 /// ⚠️⚠️ **ولماذا قائمةٌ منتقاة لا [AuditAction.values]:** ★ **الأفعال التي
-/// لا كاتبَ لها بعد** (الإتلاف · التصريف المتأخر · تأكيد الإيداع · التصدير)
-/// **تُنتج فلتراً يعرض فراغاً دائماً** — ⟵ **ويقرؤه المستخدم عطلاً في
-/// الشاشة** لا غياباً للبيانات. ★ **وتُضاف كلٌّ منها في زيادتها**، بنفس
-/// قاعدة `SourceDocumentType` في `inventory.dart` («⛔ لا تُملأ استباقاً
-/// بقيمٍ لا كاتب لها»).
+/// لا كاتبَ لها بعد** (تأكيد الإيداع · التصدير) **تُنتج فلتراً يعرض فراغاً
+/// دائماً** — ⟵ **ويقرؤه المستخدم عطلاً في الشاشة** لا غياباً للبيانات.
+/// ★ **وتُضاف كلٌّ منها في زيادتها**، بنفس قاعدة `SourceDocumentType` في
+/// `inventory.dart` («⛔ لا تُملأ استباقاً بقيمٍ لا كاتب لها»).
 const List<AuditAction> _filterableActions = <AuditAction>[
   AuditAction.create,
   AuditAction.amend,
@@ -180,4 +179,9 @@ const List<AuditAction> _filterableActions = <AuditAction>[
   AuditAction.disable,
   AuditAction.permissionChange,
   AuditAction.delete,
+  // ✅★★ **وأُضيف في `WU-020` — ★ وله كاتبٌ فعليٌّ في نفس الزيادة:**
+  //    `disposal.dart` **يكتب `AuditAction.disposal` باسمه في كل إنشاء**
+  //    (`FR-M18-08`: **«إجراءاتٌ جديدة واجبة التسجيل: الإتلاف …»**):
+  //    ⟵ **ففلترُه يعرض قيوداً حقيقية** ⛔ **لا فراغاً دائماً.**
+  AuditAction.disposal,
 ];

@@ -28,6 +28,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../financial_outflow/infrastructure/firestore_outflow_directory.dart';
 import '../../financial_outflow/infrastructure/firestore_owner_ledger_directory.dart';
+import '../../inventory/infrastructure/firestore_disposal_directory.dart';
 import '../../inventory/infrastructure/firestore_inventory_directory.dart';
 import '../../inventory/infrastructure/firestore_sack_directory.dart';
 import '../../inventory/infrastructure/firestore_sack_valuation_directory.dart';
@@ -129,6 +130,29 @@ final class FirestoreReportDirectory implements ReportDirectory {
       for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
           in snapshot.docs)
         FirestoreSackDirectory.sackOf(doc.id, doc.data(), period.to),
+    ];
+  }
+
+  /// ★★ `R-07` — مستنداتُ الإتلاف في فترة (`WU-020`).
+  @override
+  Future<List<DisposalCard>> disposals({
+    required String sourceId,
+    required ReportPeriod period,
+    int limit = reportPageSize,
+  }) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _dayRange(
+      _firestore
+          .collection(disposalsCollection)
+          .where('sourceId', isEqualTo: sourceId),
+      field: 'stockDate',
+      period: period,
+    ).orderBy('stockDate', descending: true).limit(limit).get();
+
+    return <DisposalCard>[
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in snapshot.docs)
+        if (disposalCardOf(doc.id, doc.data()) case final DisposalCard card)
+          card,
     ];
   }
 

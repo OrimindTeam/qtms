@@ -63,6 +63,35 @@ void main() {
       );
     });
 
+    test(
+      '✅★★★ IQ-042 — نصّا الجرد المعتمَدان حرفاً بحرف ⛔ ولا سقوطَ إلى العام',
+      () {
+        // ⛔⛔★★ **والنصُّ مقارَنٌ حرفياً لا بـ`contains`** — ★ **لأن البند
+        //    اعتمده صاحبُ المشروع بنصِّه**: ⟵ **وأيُّ تحريرٍ لاحقٍ يُسقِط
+        //    هذا الاختبار** ⛔ **ولا يمرّ صامتاً** (`error-codes-catalog.md`
+        //    §3 القاعدة 5).
+        expect(
+          catalogText(callableErrorMessage('ERR_STOCK_006')),
+          '❌ يوجد جرد مفتوح لهذا المصدر في هذا اليوم — اعتمده أو ألغِه قبل '
+              'بدء جرد جديد.',
+        );
+        expect(
+          catalogText(callableErrorMessage('ERR_STOCK_007')),
+          '❌ حالة مستند الجرد لا تسمح بهذه العملية — حدّث الشاشة وأعد '
+              'المحاولة.',
+        );
+        // ⛔⛔ **ولا واحدٌ منهما يسقط إلى النصّ التشخيصي ولا إلى العام.**
+        expect(
+          catalogText(callableErrorMessage('ERR_STOCK_006')),
+          isNot(contains('ERR_STOCK_006')),
+        );
+        expect(
+          catalogText(callableErrorMessage('ERR_STOCK_007')),
+          isNot(catalogText(CatalogMessage.operationFailed)),
+        );
+      },
+    );
+
     test('★ وأخطاء النطاق المصنَّفة تبقى على مداخلها', () {
       expect(
         appErrorMessage(const ConnectivityError()),

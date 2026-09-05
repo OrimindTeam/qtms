@@ -26,6 +26,7 @@ import '../../financial_outflow/domain/outflow.dart';
 import '../../financial_outflow/domain/outflow_repository.dart';
 import '../../financial_outflow/domain/owner_ledger_summary.dart';
 import '../../inventory/domain/counted_intake.dart';
+import '../../inventory/domain/disposal_repository.dart';
 import '../../inventory/domain/inventory.dart';
 import '../../inventory/domain/inventory_repository.dart';
 import '../../inventory/domain/sack_intake.dart';
@@ -303,6 +304,146 @@ ReportTable buildTodayRemainderReport({
         ]),
       ),
       ExportField('عدد الأنواع', '${visible.length}'),
+    ],
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// `R-07` — الوزن الضائع والسكرب والإتلاف (`WU-020`)
+// ═════════════════════════════════════════════════════════════════════════
+
+/// ★★★ يبني `R-07` — **ثلاثةُ بنودٍ يجمعها أنها خروجٌ بلا استحقاق**.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **وما يجمعها قاعدةٌ واحدة لا تصنيفٌ شكليّ** (`A-15` ·
+/// `design-overview.md` §2.2): ★ **الوزنُ الضائع والسكربُ والإتلاف ثلاثتُها
+/// تخرج من الجونية أو المخزن ⛔ بلا أن يستحق الرعوي ثمنَها ولا أن تدخل سعرَ
+/// الجونية** — ⟵ **ولذلك جمعها `FR-M19` §2 في تقريرٍ واحد بعنوانه هذا.**
+///
+/// ★★ **والوزنُ الضائع صفرٌ ما لم يُؤكَّد صراحةً** (`BR-M7-12` · `FR-M7-19`)
+/// — ⛔ **ولا يُشتقّ من المتبقي هنا**: ⟵ **[SackWeightExplanation.lostWeight]
+/// هي الدالةُ الوحيدة الحاكمة**، ⛔ **ولا يُعاد بناء الشرط في تقرير.**
+///
+/// ⛔⛔★★ **والملغى يُعرَض ولا يدخل إجمالياً** (`A-14`) — ★ **جونيةً كان أو
+/// مستندَ إتلاف.**
+///
+/// ⚠️ **وفلترُ الرعوي على الجونية وحدها** — ★ **ومستندُ الإتلاف لا رعويَّ
+/// له** (`data-dictionary.md` §`disposals`): ⟵ **فيُستبعَد كلُّه متى فُلتِر
+/// برعويّ**، ⛔ **ولا يُنسَب لرعويٍّ بالتخمين من جونيته.**
+/// ═══════════════════════════════════════════════════════════════════════
+ReportTable buildWasteAndDisposalReport({
+  required ReportPeriod period,
+  required List<SackCard> sacks,
+  required List<DisposalCard> disposals,
+  Map<String, String> supplierNames = const <String, String>{},
+  String? supplierId,
+}) {
+  final List<SackCard> visibleSacks = <SackCard>[
+    for (final SackCard sack in sacks)
+      if (supplierId == null || sack.supplierId == supplierId) sack,
+  ];
+  // ★ **ومستندُ الإتلاف لا رعويَّ له** — راجع ترويسة الدالة.
+  final List<DisposalCard> visibleDisposals = <DisposalCard>[
+    if (supplierId == null) ...disposals,
+  ];
+
+  final List<ReportRow> rows = <ReportRow>[];
+  final List<StockQuantity> lostTotals = <StockQuantity>[];
+  final List<StockQuantity> scrapTotals = <StockQuantity>[];
+  final List<StockQuantity> disposedPieces = <StockQuantity>[];
+  final List<StockQuantity> disposedWeights = <StockQuantity>[];
+
+  for (final SackCard sack in visibleSacks) {
+    final bool cancelled = sack.status == SackStatus.cancelled;
+    if (sack.explanation.lostWeight.kilograms > 0) {
+      rows.add(
+        ReportRow(
+          <String>[
+            sack.stockDate.formatReadable(),
+            'وزن ضائع',
+            sack.displayName,
+            sack.supplierName ?? 'بلا رعوي',
+            formatQuantity(WeightQuantity(sack.explanation.lostWeight)),
+            sack.lostWeightNote ?? '—',
+          ],
+          isCancelled: cancelled,
+        ),
+      );
+      if (!cancelled) {
+        lostTotals.add(WeightQuantity(sack.explanation.lostWeight));
+      }
+    }
+    if (sack.weights.scrapWeight.kilograms > 0) {
+      rows.add(
+        ReportRow(
+          <String>[
+            sack.stockDate.formatReadable(),
+            'سكرب',
+            sack.displayName,
+            sack.supplierName ?? 'بلا رعوي',
+            formatQuantity(WeightQuantity(sack.weights.scrapWeight)),
+            '—',
+          ],
+          isCancelled: cancelled,
+        ),
+      );
+      if (!cancelled) {
+        scrapTotals.add(WeightQuantity(sack.weights.scrapWeight));
+      }
+    }
+  }
+
+  for (final DisposalCard disposal in visibleDisposals) {
+    for (final DisposalCardLine line in disposal.lines) {
+      rows.add(
+        ReportRow(
+          <String>[
+            disposal.stockDate.formatReadable(),
+            'إتلاف',
+            line.itemName,
+            disposal.documentNumber,
+            formatQuantity(line.quantity),
+            disposal.reason ?? '—',
+          ],
+          isCancelled: disposal.isCancelled,
+        ),
+      );
+      if (disposal.isCancelled) continue;
+      switch (line.quantity) {
+        case PieceQuantity():
+          disposedPieces.add(line.quantity);
+        case WeightQuantity():
+          disposedWeights.add(line.quantity);
+      }
+    }
+  }
+
+  return ReportTable(
+    report: ReportId.wasteAndDisposal,
+    header: <ExportField>[
+      ExportField('الفترة', period.label),
+      if (supplierId case final String supplier)
+        ExportField('الرعوي', supplierNames[supplier] ?? supplier),
+    ],
+    columns: const <ReportColumn>[
+      ReportColumn('تاريخ المخزون'),
+      ReportColumn('البند'),
+      ReportColumn('الجونية أو النوع'),
+      ReportColumn('الرعوي أو المستند'),
+      ReportColumn('الكمية', numeric: true),
+      ReportColumn('البيان'),
+    ],
+    rows: rows,
+    totals: <ExportField>[
+      ExportField('إجمالي الوزن الضائع', formatTotals(lostTotals)),
+      ExportField('إجمالي السكرب', formatTotals(scrapTotals)),
+      // ⛔⛔★★ **وإجمالياً الإتلاف منفصلان** — `GR-19` · `E-31`: ⟵ **فالمُتلَف
+      //    قد يكون حبّاتٍ وقد يكون وزناً**، ⛔ **ولا يُجمعان.**
+      ExportField(
+        'إجمالي المُتلَف',
+        formatTotals(<StockQuantity>[...disposedPieces, ...disposedWeights]),
+      ),
+      ExportField('عدد بنود الإتلاف', '${disposedPieces.length + disposedWeights.length}'),
     ],
   );
 }

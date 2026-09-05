@@ -28,6 +28,7 @@ library;
 import 'package:qtms_domain/qtms_domain.dart';
 import 'package:shelf/shelf.dart';
 
+import 'aged_remainder.dart';
 import 'audited_transaction.dart';
 import 'callable.dart';
 import 'sack_valuation_handler.dart';
@@ -51,6 +52,13 @@ import 'permission_sync_handler.dart' show requestIdField;
 
 /// اسم حقل سبب التعديل أو الإلغاء في الحمولة.
 const String distributionReasonField = 'reason';
+
+/// ★★ اسمُ حقل **تاريخ المخزون المطلوب** في الحمولة — `YYYYMMDD`.
+///
+/// ⛔⛔★★★ **اختياريٌّ عمداً — وغيابُه هو الوضع الطبيعي** (`FR-M10-03`):
+/// ★ **يُرسَل من شاشة المتبقي المتأخر وحدها** (`FR-M8-11`)، ⟵ **وإرسالُه
+/// بيومٍ أقدم يشترط `agedRemainderClear`** ⛔ **وبيومٍ أحدث مرفوضٌ للجميع.**
+const String distributionStockDateField = 'stockDate';
 
 /// مفتاح استعلام قيود دفتر المقوت داخل المعاملة.
 const String dealerLedgerQueryKey = 'dealerLedger';
@@ -174,7 +182,21 @@ final class DistributionHandler {
       return callableFailure(CallableError.invalidArgument);
     }
 
-    CalendarDay day = CalendarDay.fromUtc(_now());
+    // ★★★ **تاريخُ المخزون المطلوب — مسارُ التصريف المتأخر وحده** (`WU-019`):
+    //    ⛔⛔ **وغيابُه هو الحالُ الأصلي** (`FR-M10-03`: **يومُ المنصّة**)،
+    //    ★ **ووجودُه يُثبِّت اليوم ويُخضِع الطلبَ لـ`agedRemainderClear`**
+    //    داخل [planDistribution] — ⛔ **ولا يُصدَّق هنا بلا حكم.**
+    final String? requestedDay = call.readString(distributionStockDateField);
+    final CalendarDay? pinnedDay =
+        requestedDay == null ? null : CalendarDay.tryParseCompact(requestedDay);
+    // ⛔ **ونصٌّ مشوَّه رفضٌ صريح** — ⛔ **لا سقوطٌ صامتٌ إلى «اليوم»**:
+    //    ⟵ **فتاريخٌ أُهمِل يكتب في دفتر يومٍ آخر بلا إنذار** (`RISK-07`).
+    if (requestedDay != null && pinnedDay == null) {
+      return callableFailure(CallableError.invalidArgument);
+    }
+
+    CalendarDay day = pinnedDay ?? CalendarDay.fromUtc(_now());
+    CalendarDay? platformDay;
     String? number;
     String? id;
     // ★ **محاولتان لا أكثر** — ⟵ **فانقلابُ منتصف الليل يُصحَّح مرة واحدة.**
@@ -187,6 +209,8 @@ final class DistributionHandler {
         dealerId: dealerId,
         lines: lines,
         day: day,
+        isPinned: pinnedDay != null,
+        onPlatformDay: (CalendarDay observed) => platformDay = observed,
         onAllocated: (String allocated, String compositeId) {
           number = allocated;
           id = compositeId;
@@ -202,12 +226,19 @@ final class DistributionHandler {
           stockDate: day,
         );
         // ⛅★★★ **وتُعاد بناءُ بطاقة ضمار المالك** — `FR-M15-13`.
+        // ⛅★★★ **وتُعاد بناءُ بطاقة ضمار المالك** — `FR-M15-13`.
+        //
+        // ⛔⛔★★★ **و«اليوم» يومُ المنصّة لا يومُ المخزون** (`WU-019`):
+        //    ⟵ **`markRetro = date < today`** — ★ **فتصريفُ متبقٍّ متأخر
+        //    يَسِم بطاقةَ يومِه «⟳ مُحدَّث بأثر رجعي»** (`FR-M8-15` ·
+        //    `FR-M15-12` · `GR-17`)، ⛔ **وتمريرُ يومِ المخزون مكانَه كان
+        //    يُسقِط الوسمَ في المسار الوحيد الذي وُجد لأجله.**
         await buildDailySummariesAfterCommit(
           _summaries,
           days: <OwnerLedgerDay>{
             OwnerLedgerDay(sourceId: sourceId, date: day),
           },
-          today: day,
+          today: platformDay ?? day,
         );
         return callableSuccess(<String, Object?>{
           'documentNumber': number,
@@ -231,6 +262,8 @@ final class DistributionHandler {
     required String dealerId,
     required List<_LineRequest> lines,
     required CalendarDay day,
+    required bool isPinned,
+    required void Function(CalendarDay) onPlatformDay,
     required void Function(String, String) onAllocated,
   }) async {
     final String compositeId = distributionId(
@@ -305,7 +338,12 @@ final class DistributionHandler {
         if (observed == null) {
           throw const AbortTransaction(CallableError.internal);
         }
-        if (observed != day) {
+        onPlatformDay(observed);
+        // ⛔⛔★★★ **والانقلابُ يُصحَّح في المسار غير المثبَّت وحده** —
+        //    ★ **واليومُ المثبَّت مقصودٌ لا انزلاق** (`WU-019`): ⟵ **فحكمُه
+        //    بوابةُ [agedClearanceRejection] داخل [planDistribution]**
+        //    ⛔ **لا مساواتُه بيوم المنصّة.**
+        if (!isPinned && observed != day) {
           drift = _DayMismatch(observed);
           throw const AbortTransaction(CallableError.concurrency);
         }
@@ -350,6 +388,9 @@ final class DistributionHandler {
             dealerId: dealerId,
             documentNumber: number,
             stockDate: day,
+            // ★★★ **ويومُ المنصّة يبلغ المُخطِّط الخالص** — ⟵ **فبوابةُ
+            //    التصريف المتأخر تُقرَّر هناك** (`ADR-0013` القاعدة 3).
+            serverDay: observed,
             distribution: (validated as Success<ValidatedDistribution>).value,
             storedSource: reads.document(sourcePath),
             storedDealer: reads.document(dealerPath),
@@ -370,6 +411,11 @@ final class DistributionHandler {
         }
 
         final DistributionAccepted accepted = plan as DistributionAccepted;
+        // ⛅★★★ **راصدُ المتبقي المتأخر** — `FR-M8-09` (`WU-019`):
+        //    ⟵ **يُكتب البندُ أو يُمحى في المعاملة نفسِها بحسب الرصيد
+        //    الناتج**، ⛔ **لا بمشغّلٍ يصل بعد الالتزام** (`aged_remainder.dart`).
+        final AgedRemainderSet aged =
+            agedRemaindersFromBalanceWrites(accepted.writes);
 
         // ⏳★★★ **بندُ التوزيعة وبنودُ التسعير معاً** (`WU-009`) —
         //    `FR-M10-08` (**سطرٌ بلا سعر يدخل المركز**) · `AT-23` · `AT-24`.
@@ -407,8 +453,12 @@ final class DistributionHandler {
               updateMask: const <String>[counterValueField],
             ),
             ...pendingEntryDocuments(pending),
+            ...aged.documents,
           ],
-          deletions: pendingEntryDeletions(pending),
+          deletions: <PendingDeletion>[
+            ...pendingEntryDeletions(pending),
+            ...aged.deletions,
+          ],
           entry: accepted.entry,
           result: null,
         );
@@ -573,6 +623,11 @@ final class DistributionHandler {
         }
 
         final DistributionAccepted accepted = plan as DistributionAccepted;
+        // ⛅★★★ **راصدُ المتبقي المتأخر** — `FR-M8-09` (`WU-019`):
+        //    ⟵ **يُكتب البندُ أو يُمحى في المعاملة نفسِها بحسب الرصيد
+        //    الناتج**، ⛔ **لا بمشغّلٍ يصل بعد الالتزام** (`aged_remainder.dart`).
+        final AgedRemainderSet aged =
+            agedRemaindersFromBalanceWrites(accepted.writes);
 
         // ⏳★★★ **وبندُ التوزيعة يُعاد ملاءمته** — ★ **والإلغاء يُخليه**
         //    (`GR-06` · `FR-M10-18`)، ★ **وتسعيرُ الباقي يُزيله** (`AT-24`).
@@ -602,8 +657,12 @@ final class DistributionHandler {
             for (final InventoryWrite write in accepted.writes)
               _toPending(write),
             ...pendingEntryDocuments(pending),
+            ...aged.documents,
           ],
-          deletions: pendingEntryDeletions(pending),
+          deletions: <PendingDeletion>[
+            ...pendingEntryDeletions(pending),
+            ...aged.deletions,
+          ],
           entry: accepted.entry,
           result: null,
         );

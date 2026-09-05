@@ -176,6 +176,16 @@ void main() {
         cards: cards,
       );
 
+      // ★★ **ويُمرَّر إليه قبل القياس** — ⛔ **ولا يُضعَّف الشرط:**
+      //    ⟵ **جسمُ الصدَفة `ListView` يبني كسولاً**، ★ **وصفُّ «متبقي أيام
+      //    سابقة» في `WU-019` أزاح الأقسام تحت الطيّة** — ⛔ **فغيابُ الودجت
+      //    من شجرة البناء ليس غياباً من الشاشة.** ★ **والقياسُ يبقى قياسَ
+      //    ظهورٍ فعليٍّ لمن يملك المفتاح** (ويقابله الاختبارُ السالب أدناه).
+      await tester.scrollUntilVisible(
+        find.text('إدارة المستخدمين'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('إدارة المستخدمين'), findsOneWidget);
       auth.dispose();
       cards.dispose();
@@ -192,9 +202,32 @@ void main() {
         cards: cards,
       );
 
+      // ⛔⛔★★ **ويُمرَّر إلى آخر الصدَفة قبل نفي الظهور** — ★ **وإلا صار
+      //    النفيُ صادقاً لأن القائمة الكسولة لم تبنِ القسمَ بعد** ⛔ **لا
+      //    لأن البوابة أخفته**: ⟵ **وهو نفيٌ فارغ يمرّ على شاشةٍ معطوبة.**
+      await scrollShellToEnd(tester);
       expect(find.text('إدارة المستخدمين'), findsNothing);
+      // ★ **وشاهدٌ حيٌّ على أن الشجرة بُنيت فعلاً** — ★ **«التسعير اليومي»
+      //   مدخلٌ بلا بوابة** (`home_shell.dart`: **النطاقُ وحده يحكم**):
+      //   ⟵ **فظهورُه يُثبت أن الأقسام بُنيت**، ⛔ **والنفيُ أعلاه ليس نفيَ
+      //   قائمةٍ لم تُبنَ.**
+      expect(find.text('التسعير اليومي'), findsOneWidget);
       auth.dispose();
       cards.dispose();
     });
   });
+}
+
+/// ★★ يُمرِّر جسمَ الصدَفة إلى نهايته — ⛔ **ولا يكتفي بقفزةٍ واحدة:**
+/// ⟵ **`ListView` الكسول لا يعرف مداه الأقصى إلا بقدر ما بنى**، ★ **فيُعاد
+/// القفزُ حتى يثبت المدى.**
+Future<void> scrollShellToEnd(WidgetTester tester) async {
+  final ScrollableState state =
+      tester.state<ScrollableState>(find.byType(Scrollable).first);
+  double previous = -1;
+  while (state.position.maxScrollExtent > previous) {
+    previous = state.position.maxScrollExtent;
+    state.position.jumpTo(previous);
+    await tester.pumpAndSettle();
+  }
 }

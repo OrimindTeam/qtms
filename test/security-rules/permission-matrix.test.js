@@ -380,6 +380,12 @@ const MATRIX = [
     key: 'expenseView', mode: 'read', path: 'outflows/OF-E1',
     seed: () => ({ sourceId: SRC, ledgerType: 'expense', grandTotal: 300 }),
   },
+  {
+    // ★★★ WU-022 — «عرض الجرد» (`FR-M16` §3): شرطُ قراءةٍ حقيقيٌّ في §21،
+    //   ⛔ ولا يُغني عنه نطاقُ المصادر وحده.
+    key: 'stocktakeView', mode: 'read', path: 'stocktakes/STK-20260905-001',
+    seed: () => ({ sourceId: SRC, stockDate: todayUtc(), status: 'draft' }),
+  },
 
   // ---- 2.7 المالية والرقابة (6 مُنفَّذة) ----
   {

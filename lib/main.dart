@@ -33,6 +33,14 @@ import 'capabilities/identity_access/infrastructure/functions_user_admin_reposit
 import 'capabilities/inventory/application/inventory_providers.dart';
 import 'capabilities/inventory/application/sack_valuation_providers.dart';
 import 'capabilities/inventory/infrastructure/firestore_daily_pricing_directory.dart';
+import 'capabilities/inventory/application/aged_remainder_providers.dart';
+import 'capabilities/inventory/application/disposal_providers.dart';
+import 'capabilities/inventory/application/stocktake_providers.dart';
+import 'capabilities/inventory/infrastructure/firestore_aged_remainder_directory.dart';
+import 'capabilities/inventory/infrastructure/firestore_disposal_directory.dart';
+import 'capabilities/inventory/infrastructure/functions_disposal_repository.dart';
+import 'capabilities/inventory/infrastructure/firestore_stocktake_directory.dart';
+import 'capabilities/inventory/infrastructure/functions_stocktake_repository.dart';
 import 'capabilities/inventory/infrastructure/firestore_inventory_directory.dart';
 import 'capabilities/inventory/infrastructure/firestore_sack_directory.dart';
 import 'capabilities/inventory/infrastructure/firestore_sack_valuation_directory.dart';
@@ -193,6 +201,40 @@ Future<void> main() async {
               ),
               inventoryAdminProvider.overrideWithValue(
                 FunctionsInventoryRepository(
+                  client: _callableClient(),
+                  newRequestId: _newRequestId,
+                ),
+              ),
+              // ⛅★★ `WU-019` — **المتبقي المتأخر: قراءةٌ فقط** (`ADR-0013`
+              //    القاعدة 4): ⛔ **ولا مستودعَ كتابةٍ له** — ★ **يكتبه
+              //    راصدُ السحابة داخل معاملة الحركة**، ⟵ **والتصريفُ يمرّ
+              //    بعمليتَي التوزيع والبيع النقدي نفسِهما.**
+              agedRemainderDirectoryProvider.overrideWithValue(
+                FirestoreAgedRemainderDirectory(FirebaseFirestore.instance),
+              ),
+              // ⛅★★ `WU-020` — **الإتلاف: قراءةٌ مباشرة وكتابةٌ عبر العمليات
+              //    المستدعاة الثلاث** (`ADR-0013` القاعدتان 2 و4).
+              //    ⛔⛔★★★ **ولا مستودعَ يحمل مبلغاً** — `FR-M8-16`:
+              //    ⟵ **فلا حقلَ ماليَّ يعبر هذا المسار أصلاً.**
+              disposalDirectoryProvider.overrideWithValue(
+                FirestoreDisposalDirectory(FirebaseFirestore.instance),
+              ),
+              disposalAdminProvider.overrideWithValue(
+                FunctionsDisposalRepository(
+                  client: _callableClient(),
+                  newRequestId: _newRequestId,
+                ),
+              ),
+              // ⛅★★ `WU-022` — **الجرد: قراءةٌ مباشرة وكتابةٌ عبر العمليات
+              //    المستدعاة الأربع** (`ADR-0013` القاعدتان 2 و4).
+              //    ⛔⛔★★★ **ولا مستودعَ يحمل مبلغاً ولا رصيداً دفترياً** —
+              //    `FR-M16-01`: ⟵ **الرصيدُ تقيسه السحابةُ وتُجمِّده**،
+              //    ⛔ **ولا يعبر هذا المسار من الجهاز.**
+              stocktakeDirectoryProvider.overrideWithValue(
+                FirestoreStocktakeDirectory(FirebaseFirestore.instance),
+              ),
+              stocktakeAdminProvider.overrideWithValue(
+                FunctionsStocktakeRepository(
                   client: _callableClient(),
                   newRequestId: _newRequestId,
                 ),

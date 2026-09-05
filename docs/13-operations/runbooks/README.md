@@ -28,6 +28,7 @@ RB-<السيناريو>.md
 | [`RB-step-zero-console-setup`](RB-step-zero-console-setup.md) | ★ **تأسيس المشروعين السحابيين** («الخطوة صفر» 1·2·3·4·8) | 🔴 · ✅ **نُفِّذ 2026-08-22** |
 | [`RB-bootstrap-owner-permissions`](RB-bootstrap-owner-permissions.md) | ★ **إقلاع صلاحيات المالك الأول** — يكسر حلقة `IQ-007` | 🔴 · ⏳ **لم يُشغَّل بعد** |
 | [`RB-staging-qa-account`](RB-staging-qa-account.md) | ★★ **حساب اختبار (QA) كامل الصلاحيات — ⛅ التجريبية حصراً** (`AM-004`) | 🟠 · ⏳ **لم يُشغَّل بعد** |
+| [`RB-rebuild-summaries`](RB-rebuild-summaries.md) | ★★★ **إعادة بناء مشتقّات يومٍ من دفاترها** — يسدّ `DEBT-01` (`WU-021`) | 🔴 · ★ **الإجراء الفعلي للخطوة ⑤ في `RB-summary-drift`** |
 
 > **أدلة أخرى تُكتب عند تكرار الحالة مرتين** — ولا تُكتب استباقاً بلا حاجة.
 

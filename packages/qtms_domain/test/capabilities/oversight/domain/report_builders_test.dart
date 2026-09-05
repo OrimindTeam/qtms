@@ -550,8 +550,21 @@ void main() {
       }
     });
 
-    test('⛔⛔ و`R-07` غيرُ مبنيٍّ — لا كاتبَ للإتلاف بعد', () {
-      expect(ReportId.tryParse('R-07'), isNull);
+    // ═══════════════════ زيادةُ `WU-020` — الإتلاف ═══════════════════
+
+    test('✅★★ و`R-07` صار مبنيّاً حين صار للإتلاف كاتب — WU-020', () {
+      expect(ReportId.tryParse('R-07'), ReportId.wasteAndDisposal);
+      expect(
+        ReportId.wasteAndDisposal.title,
+        'الوزن الضائع والسكرب والإتلاف',
+      );
+      expect(ReportId.wasteAndDisposal.family, ReportFamily.inventory);
+      // ⛔ **ولا مفتاحَ زائدٌ له** — ★ **يقرأ `sacks` و`disposals`**،
+      //    ⟵ **وشرطُ قراءتهما النطاقُ وحده** (`firestore.rules`).
+      expect(
+        ReportId.wasteAndDisposal.requiredPermissions,
+        <Permission>[Permission.reportInventoryView],
+      );
     });
 
     test('★★ و`R-23` يشترط مفتاحَه المستقل مع مفتاح الملخصات', () {

@@ -107,6 +107,23 @@ const String expenseEntityType = 'expense';
 
 const String userEntityType = 'user';
 
+/// ★★ **مستند الإتلاف** — `M8` (`WU-020`).
+///
+/// ⚠️ **ومعرّفه رقم المستند `DSP-YYYYMMDD-####`** — ★ **بخلاف
+/// [distributionEntityType] الذي معرّفه مركّب**: ⟵ **لأن `disposals`
+/// مفتاحُها `documentNumber` نفسُه**، ★ **والسجل السياقي 🕘 يستعلم بما
+/// يُفتَح به المستند فعلاً** (`FR-M18-10`).
+const String disposalEntityType = 'disposal';
+
+/// ★★ **مستند الجرد** — `M16` (`WU-022`).
+///
+/// ⚠️ **ومعرّفه رقم المستند `STK-YYYYMMDD-###`** — ★ **بخلاف
+/// [distributionEntityType] الذي معرّفه مركّب**: ⟵ **لأن `stocktakes`
+/// مفتاحُها `documentNumber` نفسُه** (`schema/stocktakes.md`)، ★ **والسجل
+/// السياقي 🕘 يستعلم بما يُفتَح به المستند فعلاً** (`FR-M16-10` ·
+/// `FR-M18-10`).
+const String stocktakeEntityType = 'stocktake';
+
 /// قالب الدور — `M1`.
 const String roleEntityType = 'role';
 
@@ -158,6 +175,20 @@ const List<String> auditEntityTypes = <String>[
   //    ★ **وهو حرفياً ما وقع لسند القبض في `WU-010` وللتقرير في `WU-011`
   //    وللبيع النقدي في `WU-012`** ⟵ **رابعُ تكرارٍ للعطل نفسِه.**
   discountEntityType,
+  // ⚠️★★ **أُضيف في `WU-020` — ★ وله كاتبٌ فعليٌّ في نفس الزيادة:**
+  //    ★ **`disposal.dart` يكتبه في `entityType` لكل إنشاءٍ وتعديلٍ وإلغاء**،
+  //    ⟵ **وحارسُ `planExportLog` يقرأ هذه القائمةَ نفسَها** (`IQ-032`):
+  //    ⛔ **فبلا هذا السطر يُرفَض تصديرُ كل مستند إتلاف** — ★ **وهو حرفياً
+  //    ما وقع لسند القبض في `WU-010` وللتقرير في `WU-011` وللبيع النقدي
+  //    في `WU-012` وللخصم في `WU-013`.**
+  disposalEntityType,
+  // ⚠️★★ **أُضيف في `WU-022` — ★ وله كاتبٌ فعليٌّ في نفس الزيادة:**
+  //    ★ **`stocktake.dart` يكتبه في `entityType` لكل بدءٍ واعتمادٍ وتعديلٍ
+  //    وإلغاء**، ⟵ **وحارسُ `planExportLog` يقرأ هذه القائمةَ نفسَها**
+  //    (`IQ-032`): ⛔ **فبلا هذا السطر يُرفَض تصديرُ كل مستند جرد** —
+  //    ★ **وهو حرفياً ما وقع لسند القبض في `WU-010` وللتقرير في `WU-011`
+  //    وللبيع النقدي في `WU-012` وللخصم في `WU-013` وللإتلاف في `WU-020`.**
+  stocktakeEntityType,
   userEntityType,
   roleEntityType,
 ];

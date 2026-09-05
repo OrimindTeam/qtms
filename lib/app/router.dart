@@ -21,7 +21,10 @@ import '../capabilities/identity_access/presentation/roles_screen.dart';
 import '../capabilities/identity_access/presentation/session_blocked_screen.dart';
 import '../capabilities/identity_access/presentation/users_screen.dart';
 import '../capabilities/inventory/presentation/supply_intake_screen.dart';
+import '../capabilities/inventory/presentation/aged_remainder_screen.dart';
 import '../capabilities/inventory/presentation/daily_pricing_screen.dart';
+import '../capabilities/inventory/presentation/disposal_screen.dart';
+import '../capabilities/inventory/presentation/stocktake_screen.dart';
 import '../capabilities/inventory/presentation/sack_finance_screen.dart';
 import '../capabilities/inventory/presentation/today_stock_screen.dart';
 import '../capabilities/oversight/presentation/audit_log_screen.dart';
@@ -127,6 +130,28 @@ const String supplyIntakeRoute = '/home/supply';
 /// ⟵ **ومسارٌ يقبل تاريخاً كان سيصير متصفّح تاريخٍ محذوفاً بقرار المالك**
 /// (`BR-M8-06` · `GR-55`).
 const String todayStockRoute = '/home/stock';
+
+/// ★★ مسار متبقي الأيام السابقة (`FR-M8` الشاشة الثانية · `WU-019`) —
+/// **مستويان**.
+///
+/// ⛔⛔★★ **ولا معامل تاريخ في المسار كذلك** — ★ **الشاشةُ تعرض *كلَّ* الأيام
+/// غير المصفَّاة مجمَّعةً** (`UC-004` ②): ⟵ **فاليومُ سطرٌ في القائمة لا
+/// معاملٌ في الرابط**، ⛔ **ومسارٌ يقبله كان يُنتج شاشةً بيومٍ واحدٍ فارغ.**
+const String agedRemainderRoute = '/home/aged-remainder';
+
+/// ★★ مسار الإتلاف (`FR-M8-16` · `WU-020`) — **مستويان**.
+///
+/// ⛔⛔★★ **ولا معامل تاريخ في المسار** — ★ **تاريخُ المخزون من المنصّة**،
+/// ⟵ **والتثبيتُ على يومٍ قديم يأتي من شاشة المتبقي المتأخر بالمزوّد**
+/// (`agedClearanceFocusProvider`) ⛔ **لا برابطٍ يُكتَب باليد.**
+const String disposalRoute = '/home/disposal';
+
+/// ★★ مسار الجرد (`FR-M16` · `WU-022`) — **مستويان**.
+///
+/// ⛔⛔★★ **ولا معامل تاريخ ولا رقم مستند في المسار** — ★ **تاريخُ المخزون
+/// من المنصّة أو من منتقي «جرد يوم سابق» داخل الشاشة** (`FR-M16-08`)،
+/// ⟵ **والمسوّدةُ القائمة تُقرأ من الدليل** ⛔ **لا من رابطٍ يُكتَب باليد.**
+const String stocktakeRoute = '/home/stocktake';
 
 /// ★ مسار التسعير اليومي (`FR-M9`) — **مستويان**.
 ///
@@ -364,6 +389,24 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             path: 'stock',
             builder: (BuildContext context, GoRouterState state) =>
                 const TodayStockScreen(),
+          ),
+          // ── ★★ متبقي الأيام السابقة (`WU-019`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'aged-remainder',
+            builder: (BuildContext context, GoRouterState state) =>
+                const AgedRemainderScreen(),
+          ),
+          // ── ★★ الإتلاف (`WU-020`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'disposal',
+            builder: (BuildContext context, GoRouterState state) =>
+                const DisposalScreen(),
+          ),
+          // ── ★★ الجرد (`WU-022`) — شاشةٌ بمستويين ──
+          GoRoute(
+            path: 'stocktake',
+            builder: (BuildContext context, GoRouterState state) =>
+                const StocktakeScreen(),
           ),
           // ── التسعير اليومي (`WU-005`) — شاشةٌ بمستويين ──
           GoRoute(

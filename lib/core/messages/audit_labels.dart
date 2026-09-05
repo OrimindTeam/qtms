@@ -94,6 +94,12 @@ const Map<String, String> _entityTypeLabels = <String, String>{
   discountEntityType: 'سند خصم',
   withdrawalEntityType: 'سحبية',
   expenseEntityType: 'خرجية',
+  // ★★ **والإتلاف كيانٌ مستقل منذ `WU-020`** — `FR-M8-16`: ⟵ **ومرشِّحُ
+  //   السجل يفصله عن الصرف**، ★ **فهو خروجٌ بلا مقابل.**
+  disposalEntityType: 'مستند إتلاف',
+  // ★★ **والجردُ كيانٌ مستقل منذ `WU-022`** — `FR-M16-10`: ⟵ **والسجلُّ
+  //   السياقي 🕘 أمام كل مستند جرد يستعلم بهذا النوع ورقم المستند.**
+  stocktakeEntityType: 'مستند جرد',
   // ── الرقابة والهوية — `M1` · `M18` · `M19` · `M21` ──
   reportEntityType: 'التقارير',
   userEntityType: 'المستخدمون',
@@ -333,6 +339,11 @@ const Map<String, String> _fieldLabels = <String, String>{
   'grandTotal': 'الإجمالي النهائي',
   'unpricedItemCount': 'بنود بلا سعر',
   'ledgerEntryCount': 'عدد سطور الدفتر',
+  // ★★ **وأُضيف في `WU-020`** — ⛔ **ورُصد خاماً على المحاكي**: ★ **`lineCount`
+  //   ظهر بالإنجليزية في بطاقة القيد** (`ui-guidelines.md` §6: ⛔ **لا كلمة
+  //   إنجليزية في أي شاشة**)، ⟵ **فالحقلُ الجديد يحتاج اسمَه العربي معه**
+  //   ⛔ **لا بعد أن يُرى.**
+  'lineCount': 'عدد السطور',
   'settlementStatus': 'حالة التسوية',
   'settledAmount': 'المسدَّد',
   'discountedAmount': 'المخصوم',

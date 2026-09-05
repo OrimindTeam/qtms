@@ -40,6 +40,7 @@ library;
 
 import 'package:qtms_domain/qtms_domain.dart';
 
+import 'aged_remainder.dart';
 import 'callable.dart';
 import 'firestore_value.dart' show DecimalValue;
 import 'identity_gateway.dart';
@@ -119,6 +120,7 @@ final class CashSaleRequest {
     required this.sourceId,
     required this.documentNumber,
     required this.stockDate,
+    this.serverDay,
     this.sale,
     this.storedSource,
     this.storedDocument,
@@ -142,7 +144,21 @@ final class CashSaleRequest {
   final String documentNumber;
 
   /// ★★ **تاريخ المخزون** — ⛔ **من زمن المنصّة داخل المعاملة**.
+  ///
+  /// ⚠️★★ **ويقبل يوماً أقدم في مسار التصريف المتأخر وحده** (`WU-019`) —
+  /// ★ **بشرط [serverDay] و`agedRemainderClear` معاً** (`FR-M8-11` · `A1`
+  /// من `UC-004`: **يُحتسب في «نقدي» ذلك اليوم لا اليوم الحالي**).
   final CalendarDay stockDate;
+
+  /// ★★★ **يوم المنصّة كما قُرئ داخل المعاملة** — و`null` **«غيرُ معلوم»**.
+  ///
+  /// ⛔⛔ **ويُمرَّر في مسار الإنشاء وحده** — ★ **والتعديلُ والإلغاءُ يومُهما
+  /// محفورٌ في رقم المستند** ⛔ **فلا يُعاد تقريرُه** ([isAgedClearanceOn]).
+  final CalendarDay? serverDay;
+
+  /// ★ هل هذه العملية **تصريفُ متبقٍّ متأخر**؟ — `FR-M8-11`.
+  bool get isAgedClearance =>
+      isAgedClearanceOn(stockDate: stockDate, serverDay: serverDay);
 
   /// المستند المُتحقَّق منه — `null` للإلغاء.
   final ValidatedCashSale? sale;
@@ -226,6 +242,18 @@ CashSalePlan planCashSale(
   final CashSaleRejected? source = _sourceGate(request, operation);
   if (source != null) return source;
 
+  // ★★★ **تاريخ المخزون = يوم المنصّة — إلا بمفتاح التصريف المتأخر**
+  //    (`FR-M11-10` · `FR-M8-11`): ⟵ **والحُكمُ في الدالة الخالصة** ⛔ **لا
+  //    في المنفِّذ** — ★ **فالقاعدة لا تحرس هذا المسار** (`ADR-0013` ③).
+  if (request.serverDay case final CalendarDay serverDay) {
+    final CallableError? denied = agedClearanceRejection(
+      actor: request.actor,
+      stockDate: request.stockDate,
+      serverDay: serverDay,
+    );
+    if (denied != null) return CashSaleRejected(denied);
+  }
+
   return operation.isCancel
       ? _planCancellation(request, reason)
       : _planSale(request, operation, reason);
@@ -305,7 +333,10 @@ CashSalePlan _planSale(
     writes: writes,
     entry: _entry(
       request: request,
-      action: operation.isCreate ? AuditAction.create : AuditAction.amend,
+      // ★★★ **وفعلُ التصريف المتأخر باسمه** — `FR-M18-08`.
+      action: request.isAgedClearance
+          ? AuditAction.agedRemainderClear
+          : (operation.isCreate ? AuditAction.create : AuditAction.amend),
       reason: reason,
       valuesBefore: operation.isCreate
           ? const <String, Object?>{}
@@ -829,6 +860,8 @@ AuditEntry _entry({
         //   يُفتَح به المستند فعلاً** (`FR-M18-10`).
         entityId: request.documentNumber,
         sourceId: request.sourceId,
+        // ★★★ **والتاريخان معاً في القيد** — `AT-52` · `FR-SYS-18`.
+        stockDate: request.stockDate,
       ),
       // ⛔⛔★★★ **وتُمرَّر كما هي** — ★ **والوزن يبقى [DecimalValue] مغلَّفاً:**
       //    ⟵ **وفكُّ الغلاف يُفشِل الالتزام كلَّه** (`DEBT-41`).

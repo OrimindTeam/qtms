@@ -37,7 +37,7 @@
       • تراكم بدل إعادة بناء؟      ⟵ ★ خلل كود — بلّغ فوراً
       • تصفية متأخرة لم تُعِد البناء؟ ⟵ ★ السبب الأشيع
       • استرجاع أو تراجع حديث؟     ⟵ متوقَّع
-⑤ ★ أعد بناء ملخصات النطاق من الدفاتر
+⑤ ★ أعد بناء ملخصات النطاق من الدفاتر ⟵ ★★ RB-rebuild-summaries §4
 ⑥ ★ إن كانت تصفية بأثر رجعي: تأكد من إعادة بناء اليوم الأصلي ووسمه
 ⑦ تحقق (§4)
 ⑧ قيد في سجل التدقيق + بلاغ للمالك
@@ -62,12 +62,13 @@
 
 | # | البند |
 |---|---|
-| 1 | ★ **أداة إعادة بناء شاملة** — `DEBT-01` **لازمة قبل النشر الإنتاجي** |
+| 1 | ✅★★ **أداة إعادة بناء شاملة** — ★ **بُنيت في `WU-021` (2026-09-05)**: العملية `rebuildDayRetroactively` وأداتُها [`rebuild_day_retroactively.py`](../../../tools/staging/rebuild_day_retroactively.py) · **الإجراء في** [`RB-rebuild-summaries.md`](RB-rebuild-summaries.md) |
 | 2 | ★ **فحص اتساق دوري مؤتمت** — `DEBT-02` |
 | 3 | **مراقبة فشل العمليات السحابية** |
 
 ## 7. المرتبطات
 
+★★ [`RB-rebuild-summaries.md`](RB-rebuild-summaries.md) — **الإجراء الفعلي للخطوة ⑤** ·
 [`../health-checks.md`](../health-checks.md) ·
 [`../../06-database/backup-and-recovery-policy.md`](../../06-database/backup-and-recovery-policy.md) §5 ·
 [`../../08-testing-and-qa/test-cases/TC-LDG-001-ledger-balance-invariant.md`](../../08-testing-and-qa/test-cases/TC-LDG-001-ledger-balance-invariant.md)

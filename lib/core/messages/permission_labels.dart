@@ -59,9 +59,12 @@ String permissionLabel(Permission permission) => switch (permission) {
       Permission.cashSaleCreate => 'إضافة بيع نقدي',
       Permission.cashSaleBelowMinimum => 'البيع دون الحد الأدنى',
       Permission.agedRemainderClear => 'تصريف المتبقي المتأخر',
-      // ── الإتلاف والجرد (2) ──
+      // ── الإتلاف والجرد (5) ── ★ **وثلاثةُ `WU-022` يُسمّيها `FR-M16` §3**
       Permission.disposalCreate => 'الإتلاف',
-      Permission.stocktakeWrite => 'الجرد',
+      Permission.stocktakeWrite => 'تنفيذ الجرد',
+      Permission.stocktakeView => 'عرض الجرد',
+      Permission.stocktakeApprove => 'اعتماد الجرد',
+      Permission.stocktakePriorDay => 'جرد يوم سابق',
       // ── التحصيل والذمم (9) ── ★ **ومفتاحا `IQ-040` آخرُها**
       Permission.receiptCreate => 'إضافة سند قبض',
       Permission.receiptBackdate => 'قبض بتاريخ سابق',
@@ -180,6 +183,9 @@ const List<PermissionGroup> permissionGroups = <PermissionGroup>[
     permissions: <Permission>[
       Permission.disposalCreate,
       Permission.stocktakeWrite,
+      Permission.stocktakeView,
+      Permission.stocktakeApprove,
+      Permission.stocktakePriorDay,
     ],
   ),
   PermissionGroup(

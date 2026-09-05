@@ -35,13 +35,20 @@ final class FunctionsCashSaleRepository implements CashSaleAdminRepository {
   final RequestIdFactory _newRequestId;
 
   @override
-  Future<Outcome<String>> createCashSale(ValidatedCashSale sale) async {
+  Future<Outcome<String>> createCashSale(
+    ValidatedCashSale sale, {
+    CalendarDay? stockDate,
+  }) async {
     final Outcome<Map<String, Object?>> result = await _client.call(
       'createCashSale',
       <String, Object?>{
         'requestId': _newRequestId(),
         'sourceId': sale.sourceId,
         'notes': ?sale.notes,
+        // ★★★ **تاريخُ المخزون في مسار التصريف المتأخر وحده** (`WU-019`) —
+        //    ⛔⛔ **ولا يُرسَل في البيع العادي إطلاقاً**: ⟵ **فحقلٌ غائبٌ
+        //    يعني «يومُ المنصّة»**، ★ **والحاضرُ يُحاكَم في السحابة.**
+        'stockDate': ?stockDate?.format(),
         'lines': _linesOf(sale),
       },
     );

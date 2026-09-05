@@ -490,4 +490,98 @@ void _belowMinimumGuardTests() {
       expect(admin.createCalls, 1);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  group('★★★ WU-019 — بيعُ متبقٍّ متأخر على يومه', () {
+    /// ★ **يومُ مخزونٍ أقدمُ من [fixedDay].**
+    final CalendarDay pinnedDay = CalendarDay(2026, 8, 25);
+
+    Future<void> pumpPinnedForm(WidgetTester tester) async {
+      final FakeAuthRepository auth = FakeAuthRepository();
+      final FakeUserCardRepository cards = FakeUserCardRepository();
+      auth.emitIdentity(
+        const AuthenticatedIdentity(userId: 'U-001', sourceScope: AllSources()),
+      );
+      cards.emitCard(
+        'U-001',
+        testCard(
+          permissions: <Permission>{
+            ...fullPermissions,
+            Permission.agedRemainderClear,
+          },
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(auth),
+            userCardRepositoryProvider.overrideWithValue(cards),
+            masterDataDirectoryProvider.overrideWithValue(masterData),
+            masterDataAdminProvider.overrideWithValue(FakeMasterDataAdmin()),
+            contactPickerProvider.overrideWithValue(null),
+            inventoryDirectoryProvider.overrideWithValue(inventory),
+            inventoryAdminProvider.overrideWithValue(FakeInventoryAdmin()),
+            dailyPricingDirectoryProvider.overrideWithValue(pricing),
+            cashSaleDirectoryProvider.overrideWithValue(sales),
+            cashSaleAdminProvider.overrideWithValue(admin),
+            todayProvider.overrideWithValue(fixedDay),
+          ],
+          child: MaterialApp(
+            locale: const Locale('ar'),
+            home: Scaffold(
+              body: CashSaleFormSheet(
+                sourceId: 'SRC-001',
+                pinnedStockDate: pinnedDay,
+                pinnedItemKey: 'ITM-0002',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    testWidgets('⚠️★★★ شريطُ التنبيه بنصّ المتطلب — FR-M8-12',
+        (WidgetTester tester) async {
+      await pumpPinnedForm(tester);
+
+      expect(
+        find.textContaining('أنت تصرّف مخزون يوم 2026/08/25'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('🔒★★★ والمصدرُ مقفل', (WidgetTester tester) async {
+      await pumpPinnedForm(tester);
+
+      final DropdownButtonFormField<String> source =
+          tester.widget<DropdownButtonFormField<String>>(
+        find.byType(DropdownButtonFormField<String>),
+      );
+      expect(source.onChanged, isNull);
+    });
+
+    testWidgets(
+      '⛔⛔★★★ وتاريخُ المخزون يُرسَل مع الإنشاء — E-24: «نقدي» ذلك اليوم',
+      (WidgetTester tester) async {
+        await pumpPinnedForm(tester);
+        await tester.enterText(
+          find.widgetWithText(TextField, 'الكمية').last,
+          '5',
+        );
+        await tester.pump();
+        await tester.enterText(
+          find.widgetWithText(TextField, 'السعر').last,
+          '700',
+        );
+        await tester.pump();
+        await save(tester);
+
+        expect(admin.createCalls, 1);
+        expect(admin.lastCreateStockDate, pinnedDay);
+      },
+    );
+  });
 }

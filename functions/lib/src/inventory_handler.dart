@@ -37,6 +37,7 @@ library;
 import 'package:qtms_domain/qtms_domain.dart';
 import 'package:shelf/shelf.dart';
 
+import 'aged_remainder.dart';
 import 'audited_transaction.dart';
 import 'callable.dart';
 import 'counter_allocator.dart' show counterValueField;
@@ -554,6 +555,11 @@ final class InventoryHandler {
         }
 
         final InventoryAccepted accepted = plan as InventoryAccepted;
+        // ⛅★★★ **راصدُ المتبقي المتأخر** — `FR-M8-09` (`WU-019`):
+        //    ⟵ **يُكتب البندُ أو يُمحى في المعاملة نفسِها بحسب الرصيد
+        //    الناتج**، ⛔ **لا بمشغّلٍ يصل بعد الالتزام** (`aged_remainder.dart`).
+        final AgedRemainderSet aged =
+            agedRemaindersFromBalanceWrites(accepted.writes);
 
         // ⏳★★★ **بنود `M9` من الرصيد الناتج** (`FR-M9-10` · `WU-009`) —
         //    ⟵ **فنوعٌ ورد اليوم بلا سعرٍ يظهر في المركز فوراً**،
@@ -582,8 +588,12 @@ final class InventoryHandler {
               updateMask: const <String>[counterValueField],
             ),
             ...pendingEntryDocuments(pending),
+            ...aged.documents,
           ],
-          deletions: pendingEntryDeletions(pending),
+          deletions: <PendingDeletion>[
+            ...pendingEntryDeletions(pending),
+            ...aged.deletions,
+          ],
           entry: accepted.entry,
           result: null,
         );
@@ -722,6 +732,11 @@ final class InventoryHandler {
         }
 
         final InventoryAccepted accepted = plan as InventoryAccepted;
+        // ⛅★★★ **راصدُ المتبقي المتأخر** — `FR-M8-09` (`WU-019`):
+        //    ⟵ **يُكتب البندُ أو يُمحى في المعاملة نفسِها بحسب الرصيد
+        //    الناتج**، ⛔ **لا بمشغّلٍ يصل بعد الالتزام** (`aged_remainder.dart`).
+        final AgedRemainderSet aged =
+            agedRemaindersFromBalanceWrites(accepted.writes);
 
         // ⏳★★ **وبنود `M9` تُعاد ملاءمتها للرصيد الناتج** — §9: **نوع نفد
         //    رصيدُه اليوم يختفي بند تسعيره.**
@@ -740,8 +755,12 @@ final class InventoryHandler {
             for (final InventoryWrite write in accepted.writes)
               _toPending(write),
             ...pendingEntryDocuments(pending),
+            ...aged.documents,
           ],
-          deletions: pendingEntryDeletions(pending),
+          deletions: <PendingDeletion>[
+            ...pendingEntryDeletions(pending),
+            ...aged.deletions,
+          ],
           entry: accepted.entry,
           result: null,
         );

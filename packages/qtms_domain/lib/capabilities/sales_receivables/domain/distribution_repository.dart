@@ -265,7 +265,14 @@ abstract interface class DistributionAdminRepository {
   /// ⚠️⚠️ **ويُرفَض الإنشاء إن وُجدت توزيعةٌ بنفس المفتاح** برمز
   /// `ERR_DIST_001` (`GR-18` · `E-04`) — ★ **والواجهة تفتح الموجودة
   /// للتعديل** ⛔ **ولا تُنشئ ثانية.**
-  Future<Outcome<String>> createDistribution(ValidatedDistribution distribution);
+  /// ★★★ **و[stockDate] مسارُ التصريف المتأخر وحده** (`WU-019` · `FR-M8-11`):
+  /// ⛔⛔ **وغيابُه هو الحالُ الأصلي** — `FR-M10-03`: **تاريخُ المخزون من
+  /// المنصّة ولا يُغيَّر يدوياً**، ⟵ **ووجودُه بيومٍ أقدم يشترط
+  /// `agedRemainderClear`** ⛔ **وبيومٍ أحدث مرفوضٌ للجميع** (`GR-13`).
+  Future<Outcome<String>> createDistribution(
+    ValidatedDistribution distribution, {
+    CalendarDay? stockDate,
+  });
 
   /// ★ يعدّل توزيعةً معتمدة — **بصلاحية `distributionAmend` وسببٍ نصّي
   /// إلزامي** (`FR-M10-16` · `ADR-0004`).

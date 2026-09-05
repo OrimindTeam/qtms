@@ -592,6 +592,30 @@ Future<ReportTable?> _buildTable(Ref ref) async {
         sackId: request.sackId,
       );
 
+    // ★★ `R-07` — الوزنُ الضائع والسكربُ والإتلاف (`WU-020`).
+    //    ⛔⛔★★ **ومصدران لا واحد** — ★ **الجواني للضائع والسكرب**،
+    //    ★ **ومستنداتُ الإتلاف لثالثها**: ⟵ **ويجمعهما الباني في جدولٍ
+    //    واحد** (`FR-M19` §2) ⛔ **لا استعلامٌ ثالثٌ يُخترَع.**
+    case ReportId.wasteAndDisposal:
+      final List<SackCard> wasteSacks = <SackCard>[
+        for (final String sourceId in sources)
+          ...await directory.sacks(sourceId: sourceId, period: request.period),
+      ];
+      final List<DisposalCard> disposed = <DisposalCard>[
+        for (final String sourceId in sources)
+          ...await directory.disposals(
+            sourceId: sourceId,
+            period: request.period,
+          ),
+      ];
+      return buildWasteAndDisposalReport(
+        period: request.period,
+        sacks: wasteSacks,
+        disposals: disposed,
+        supplierNames: supplierNames,
+        supplierId: request.supplierId,
+      );
+
     case ReportId.distributions:
       return buildDistributionsReport(
         period: request.period,
