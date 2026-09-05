@@ -74,3 +74,7 @@ functions/bin/server.exe
 
 # ⛔ هدف تحويل TEMP لبناء Gradle (DEBT-11) — مؤقتاتٌ لا تدخل التاريخ
 /.buildtmp/
+
+# حزم التوزيع — ثنائيات ضخمة تُبنى ولا تُلتزَم (dist/README.md مستثنى)
+/dist/*
+!/dist/README.md
