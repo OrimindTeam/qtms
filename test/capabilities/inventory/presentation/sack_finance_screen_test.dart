@@ -134,9 +134,9 @@ void main() {
         masterData: masterData,
       );
 
-      expect(find.textContaining('37300'), findsWidgets);
-      expect(find.textContaining('الضريبة 1125'), findsOneWidget);
-      expect(find.textContaining('الصافي 36175'), findsOneWidget);
+      expect(find.textContaining('37,300'), findsWidgets);
+      expect(find.textContaining('الضريبة 1,125'), findsOneWidget);
+      expect(find.textContaining('الصافي 36,175'), findsOneWidget);
     });
 
     testWidgets('★★ وإجمالياتُ اليوم تُبنى بدالة النطاق لا بجمعٍ في الشاشة',
@@ -165,9 +165,9 @@ void main() {
 
       // ★ **57,300 = 37,300 + 20,000** · **1,625 = 1,125 + 500** ·
       //   **55,675 = الفرق** — ⟵ **وكلُّها من `computeSupplierSourceTotals`.**
-      expect(find.textContaining('57300'), findsOneWidget);
-      expect(find.textContaining('1625'), findsOneWidget);
-      expect(find.textContaining('55675'), findsOneWidget);
+      expect(find.textContaining('57,300'), findsOneWidget);
+      expect(find.textContaining('1,625'), findsOneWidget);
+      expect(find.textContaining('55,675'), findsOneWidget);
     });
 
     testWidgets('⛔ وبلا ماليةٍ مقروءة لا إجمالي ولا مبلغ — ADR-0011',
@@ -344,7 +344,7 @@ void main() {
       expect(find.text('توزيع'), findsOneWidget);
       expect(find.text('بيع نقدي'), findsOneWidget);
       // ★ **7,450 = 5,000 + 2,450** — ⟵ **من `computeSackRevenue` نفسِها.**
-      expect(find.textContaining('7450'), findsOneWidget);
+      expect(find.textContaining('7,450'), findsOneWidget);
     });
 
     testWidgets('★★ وحركةٌ بلا قيمة ظاهرة تُبقي المجموع «غير نهائي»',
@@ -463,7 +463,7 @@ void main() {
       // ⛔⛔ **قراءةٌ ثانيةٌ فعلية** — ★ **لا لقطةٌ مخزَّنة.**
       expect(valuation.breakdownCallCount, 2);
       expect(find.text('لم يخرج من هذه الجونية شيء بعد'), findsNothing);
-      expect(find.textContaining('20000'), findsWidgets);
+      expect(find.textContaining('20,000'), findsWidgets);
     });
   });
 
@@ -547,7 +547,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, '25');
       await tester.pumpAndSettle();
       // ★★ **المعاينة من دالة النطاق** — `25 × 45.000 = 1,125` (`AT-13`).
-      expect(find.textContaining('1125'), findsOneWidget);
+      expect(find.textContaining('1,125'), findsOneWidget);
 
       await tester.tap(find.text('حفظ الضريبة'));
       await tester.pumpAndSettle();

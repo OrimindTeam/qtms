@@ -183,7 +183,7 @@ void main() {
       await selectDealer(tester);
       // ⟵ **قبل أي إدخال** (`BR-M12-11`).
       expect(
-        find.textContaining('إجمالي الديون على المقوت: 50000'),
+        find.textContaining('إجمالي الديون على المقوت: 50,000'),
         findsOneWidget,
       );
     });
@@ -351,7 +351,7 @@ void main() {
 
       // ⛔ **تنبيهٌ لا منع** — `FR-M12-10`.
       expect(
-        find.textContaining('يوجد ضمارات مفتوحة بقيمة 30000'),
+        find.textContaining('يوجد ضمارات مفتوحة بقيمة 30,000'),
         findsOneWidget,
       );
       expect(find.text('حفظ سند القبض'), findsOneWidget);

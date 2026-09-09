@@ -49,6 +49,7 @@ Future<void> pumpCard(
   required OwnerLedgerSummaryView summary,
   void Function(String rowLabel)? onRowTap,
   VoidCallback? onShare,
+  bool initiallyExpanded = true,
 }) =>
     tester.pumpWidget(
       MaterialApp(
@@ -62,6 +63,7 @@ Future<void> pumpCard(
                 summary: summary,
                 onRowTap: onRowTap,
                 onShare: onShare,
+                initiallyExpanded: initiallyExpanded,
               ),
             ),
           ),
@@ -291,5 +293,53 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  group('★★★ الطيُّ والبسط — §7.1 القاعدة 8 (`AM-017` ①)', () {
+    testWidgets('⛔ المطويّةُ تُخفي سلسلة الحساب وتُبقي الصافي والدلتا',
+        (WidgetTester tester) async {
+      await pumpCard(
+        tester,
+        summary: view(),
+        initiallyExpanded: false,
+      );
+
+      // ★ **الترويسةُ والحصيلةُ الأولى والدلتا ظاهرةٌ في الحالتين.**
+      expect(find.text('ضمار المالك — اليوم'), findsOneWidget);
+      expect(find.text('الصافي النهائي'), findsOneWidget);
+      expect(find.text('760,650'), findsOneWidget);
+      expect(find.text('77% عن أمس'), findsOneWidget);
+      // ⛔ **وسلسلةُ الاشتقاق والرِباطُ مطويّان.**
+      expect(find.text('إجمالي الضمار'), findsNothing);
+      expect(find.text('باقي الضمار بعد الخصم'), findsNothing);
+      expect(find.text('الصافي النهائي لليوم'), findsNothing);
+      expect(find.text('عرض التفاصيل'), findsOneWidget);
+    });
+
+    testWidgets('★★ والنقرُ على «عرض التفاصيل» يكشف السلسلة كاملةً',
+        (WidgetTester tester) async {
+      await pumpCard(
+        tester,
+        summary: view(),
+        initiallyExpanded: false,
+      );
+
+      await tester.tap(find.text('عرض التفاصيل'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('إجمالي الضمار'), findsOneWidget);
+      expect(find.text('باقي الضمار قبل الخصم'), findsOneWidget);
+      expect(find.text('باقي الضمار بعد الخصم'), findsOneWidget);
+      expect(find.text('الصافي النهائي لليوم'), findsOneWidget);
+      expect(find.text('إخفاء التفاصيل'), findsOneWidget);
+    });
+
+    testWidgets('★ والافتراضُ في شاشتها مبسوطٌ — ⛔ لا طيَّ بلا طلب',
+        (WidgetTester tester) async {
+      await pumpCard(tester, summary: view());
+
+      expect(find.text('إجمالي الضمار'), findsOneWidget);
+      expect(find.text('إخفاء التفاصيل'), findsOneWidget);
+    });
   });
 }

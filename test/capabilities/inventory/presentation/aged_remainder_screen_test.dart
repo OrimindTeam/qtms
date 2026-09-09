@@ -309,7 +309,14 @@ void main() {
       // ★ **يومان لا ثلاثةُ بنود** — ⛔ **والعدّادُ يجيب «كم يوماً لم يُقفَل؟».**
       expect(agedRow(tester).count, 2);
       expect(agedRow(tester).countLabel, isNull);
-      expect(find.textContaining('منذ 7 أيام'), findsOneWidget);
+      // ★ **والعمرُ في وصف الوجهة** — `FR-M8-18`.
+      expect(
+        find.text('منذ 7 أيام لأقدمها — افتح الشاشة لتصريفه على يومه'),
+        findsOneWidget,
+      );
+      // ★★ **ورقيقةٌ لكل يومٍ متأخّر تحت الصفّ** — `AM-017` ③:
+      //    ⟵ **فالعددُ الإجمالي مكسورٌ إلى أيامه بلا نقرة.**
+      expect(find.text('منذ 7 أيام'), findsOneWidget);
     });
 
     testWidgets('⛔⛔★★ والحالةُ الهادئة تُعرَض ولا تُخفى — §7',

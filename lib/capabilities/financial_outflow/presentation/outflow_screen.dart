@@ -511,10 +511,10 @@ class _OutflowFormState extends ConsumerState<_OutflowForm> {
         QtmsStickyActionBar(
           summary: QtmsLiveSummary(
             // ★★★ **الإجمالي النهائي** — `GR-42` · `AT-38`.
-            headline: 'الإجمالي النهائي: ${grandTotal.riyals} ريال',
+            headline: 'الإجمالي النهائي: ${formatRiyals(grandTotal)} ريال',
             details: <String>[
-              'قيمة القات: ${qatTotal.riyals}',
-              'المبالغ: ${cashTotal.riyals}',
+              'قيمة القات: ${formatRiyals(qatTotal)}',
+              'المبالغ: ${formatRiyals(cashTotal)}',
               // ⛔⛔★★★ **وتذكيرٌ صريح أنه لا يمسّ ذمّةَ أحد** — `GR-44`.
               'لا يمسّ حسابات المقاوته',
             ],

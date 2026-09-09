@@ -249,6 +249,17 @@ abstract final class Spacing {
 /// ★ **القاعدة: الحجم أكبر ⇒ الانحناء أكبر** — الانحناء يعبّر عن **مستوى
 /// العنصر في التسلسل** لا عن ذوق.
 abstract final class Radii {
+  /// ⛔⛔★★★ **صندوقُ الاختيار وحدَه — أصغرُ ضابطٍ في النظام** (`AM-015` ③).
+  ///
+  /// ★ **ضلعُه 18 منطقية** (`Checkbox.width`) — ⟵ **و`xs = 8` عليه انحناءٌ
+  /// يبلغ 89٪ من نصفِ ضلعه** ⟹ **فيُصيَّر دائرةً بصرياً ويُقرأ `Radio`.**
+  /// ⛔ **وشجرةُ الصلاحيات اختيارٌ متعدّد** — ★ **فتقديمُها بلغةِ الاختيار
+  /// الحصري يخالف §2 المبدأ 3 على أخطر شاشةٍ إدارية.**
+  ///
+  /// ★ **والقيمةُ مشتقّةٌ من السلّم لا رقمٌ حرّ:** `xs ~/ 2`
+  /// (`design-tokens.md` §7).
+  static const double control = xs / 2;
+
   static const double xs = 8;
   static const double sm = 12;
   static const double md = 14;
@@ -350,10 +361,23 @@ abstract final class Sizes {
   static const double iconSm = 16;
   static const double iconMd = 20;
   static const double iconLg = 24;
+
+  /// ★★ **أيقونةُ بلاطة الشبكة وحدَها** — `design-tokens.md` §10 (`AM-017`).
+  ///
+  /// ⟵ **البلاطةُ نصُّها سطران قصيران، والأيقونةُ فيها المعنى الأول** —
+  /// ⛔ **و[iconLg] يجعلها تابعاً للنصّ لا عنواناً له.**
+  /// ⛔ **ولا تُستعمَل في صفٍّ ولا شريطٍ ولا زرّ.**
+  static const double iconXl = 32;
   static const double avatarSm = 36;
   static const double avatarMd = 44;
   static const double avatarLg = 64;
   static const double borderWidth = 1;
+
+  /// ★★ **حدُّ ضوابط الاختيار الصغيرة** — `design-tokens.md` §10 (`AM-015` ③).
+  ///
+  /// ⟵ **حدٌّ بعرض 1 على مربّعٍ ضلعُه 18 يذوب على السطح** ⛔ **فيُقرأ فارغاً
+  /// لا غيرَ محدَّد.** ⛔ **ولا يُستعمل خارج ضوابط الاختيار.**
+  static const double borderWidthControl = 1.5;
   static const double focusWidth = 2;
 
   /// ★★ **الحد الأدنى لهدف اللمس** — §5 البند 3 من عقود المكوّنات.
@@ -362,6 +386,24 @@ abstract final class Sizes {
   /// (`ui-guidelines.md` §2)، ⟵ **وهدفٌ أصغر يُنتج ضغطةً خاطئة على مستندٍ
   /// مالي.**
   static const double minTouch = 48;
+
+  /// ★★★ **ارتفاعُ بلاطةِ مدخلِ الصدَفة** — `design-tokens.md` §10 (`AM-017`).
+  ///
+  /// ★ **مقيسٌ لا مختار:** [iconXl] **32** + فاصل **8** + **سطرا** تسميةٍ
+  /// بـ`TypeScale.label` (**≈36**) + حشوُ البلاطة **12×2** ⟹ **104.**
+  /// ⛔ **وأقلُّ منه يقصّ السطرَ الثاني في مثل «السحبيات والخرجيات».**
+  static const double hubTileHeight = 104;
+
+  /// ★★ **عرضُ بطاقةِ المصدر المصغّرة** في التمرير الأفقي — §10 (`AM-017`).
+  ///
+  /// ⟵ **يُظهِر بطاقةً ونصفاً على عرض 360** ⛔ **فيُقرأ الصفُّ قابلاً للسحب
+  /// بلا سهمٍ ولا تلميحٍ نصّي.**
+  static const double sourceCardWidth = 232;
+
+  /// ★ **ارتفاعُ شريط النسبة** — §10 (`AM-017` ④).
+  ///
+  /// ★ **يكفي لتمييز الجزأين لوناً** ⛔ **ولا يصير كتلةً تنافس الرقم.**
+  static const double proportionBarHeight = 8;
 }
 
 /// §5 — تكسير التجاوب.
@@ -381,6 +423,14 @@ abstract final class Breakpoints {
     if (width > expanded) return 6;
     return 4;
   }
+
+  /// ★★★ **أعمدةُ شبكةِ مداخل الصدَفة** — `design-system.md` §6.و (`AM-017`).
+  ///
+  /// ⛔⛔ **وهي غيرُ [gridColumns] عمداً ولا تُوحَّد معها:** ★ **تلك بلاطةٌ
+  /// صغيرةٌ بأيقونةٍ وشارةِ عدد**، ★ **وهذه بلاطةُ وجهةٍ تسميتُها عربيةٌ
+  /// مركّبة** («السحبيات والخرجيات» · «كشف حساب المقوت») — ⟵ **وأربعةُ أعمدةٍ
+  /// على عرض 360 تعطي البلاطةَ 78 بكسلاً** ⛔ **فتُقصّ كلُّ تسميةٍ ثنائية.**
+  static int hubColumns(double width) => width > expanded ? 3 : 2;
 
   /// ★ الهامش الأفقي المتجاوب — §5: **حشو 12 دون 360 · و24 فوق 600.**
   static double gutter(double width) {

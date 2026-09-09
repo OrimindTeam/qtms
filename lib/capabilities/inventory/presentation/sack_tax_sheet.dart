@@ -117,7 +117,7 @@ class _SackTaxSheetState extends ConsumerState<SackTaxSheet> {
                   ? 'ضريبة الجونية = قيمة ضريبة الكيلو × الوزن الكلي '
                       '(${widget.sack.weights.totalWeight.formatted()} كجم).'
                   : 'ضريبة الجونية = '
-                      '${sackTax(taxPerKilo: entered, totalWeight: widget.sack.weights.totalWeight).riyals}'
+                      '${formatRiyals(sackTax(taxPerKilo: entered, totalWeight: widget.sack.weights.totalWeight))}'
                       ' ريال — على الوزن الكلي لا المطالب به.',
             ),
             const SizedBox(height: Spacing.space12),

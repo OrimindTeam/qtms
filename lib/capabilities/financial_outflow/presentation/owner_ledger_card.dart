@@ -130,12 +130,13 @@ class OwnerLedgerSummaryView {
 }
 
 /// ★★★ بطاقة ضمار المالك — **البطاقةُ الرئيسية الوحيدة في شاشتها.**
-class OwnerLedgerCard extends StatelessWidget {
+class OwnerLedgerCard extends StatefulWidget {
   /// ينشئ البطاقة.
   const OwnerLedgerCard({
     required this.summary,
     this.onRowTap,
     this.onShare,
+    this.initiallyExpanded = true,
     super.key,
   });
 
@@ -148,9 +149,27 @@ class OwnerLedgerCard extends StatelessWidget {
   /// مشاركةُ ملخص اليوم.
   final VoidCallback? onShare;
 
+  /// ★★★ **مبسوطةٌ أم مطويّة عند أول رسم؟** — §7.1 القاعدة 8 (`AM-017` ①).
+  ///
+  /// ⛔ **مبسوطةٌ في شاشتها** (`/home/owner-ledger`) — ⟵ **من فتحها جاء
+  /// للتفصيل.** ★ **ومطويّةٌ في «لوحة اليوم»** — ⟵ **فاللوحةُ تُمسَح مسحاً
+  /// سريعاً، وتسعةُ بنودِ اشتقاقٍ فيها تدفع كلَّ ما تحتها خارج الشاشة.**
+  ///
+  /// ⛔⛔ **والطيُّ إخفاءُ تفصيلٍ لا إسقاطُ بند** — ★ **الصافي النهائي
+  /// والدلتا ظاهران في الحالتين.**
+  final bool initiallyExpanded;
+
+  @override
+  State<OwnerLedgerCard> createState() => _OwnerLedgerCardState();
+}
+
+class _OwnerLedgerCardState extends State<OwnerLedgerCard> {
+  late bool _expanded = widget.initiallyExpanded;
+
   @override
   Widget build(BuildContext context) {
     final QtmsHeroColors hero = context.hero;
+    final OwnerLedgerSummaryView summary = widget.summary;
 
     return Container(
       decoration: BoxDecoration(
@@ -164,14 +183,51 @@ class OwnerLedgerCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          _Header(summary: summary, onShare: onShare),
+          _Header(summary: summary, onShare: widget.onShare),
           _HeroNumber(summary: summary),
-          _Ledger(summary: summary, onRowTap: onRowTap),
-          _Tie(summary: summary),
+          _DetailsToggle(
+            isExpanded: _expanded,
+            onPressed: () => setState(() => _expanded = !_expanded),
+          ),
+          if (_expanded) ...<Widget>[
+            _Ledger(summary: summary, onRowTap: widget.onRowTap),
+            _Tie(summary: summary),
+          ],
         ],
       ),
     );
   }
+}
+
+/// ★★ **زرُّ كشفِ سلسلة الحساب** — §7.1 القاعدة 8.
+///
+/// ⛔ **ونصُّه يقول ما سيحدث لا ما هو قائم** — ★ **«عرض التفاصيل» حين تكون
+/// مطويّة**، ★ **و«إخفاء التفاصيل» حين تكون مبسوطة.**
+class _DetailsToggle extends StatelessWidget {
+  const _DetailsToggle({required this.isExpanded, required this.onPressed});
+
+  final bool isExpanded;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsetsDirectional.only(
+          start: Spacing.space8,
+          end: Spacing.space8,
+          bottom: Spacing.space4,
+        ),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton.icon(
+            onPressed: onPressed,
+            icon: Icon(
+              isExpanded ? Icons.expand_less : Icons.expand_more,
+              size: Sizes.iconMd,
+            ),
+            label: Text(isExpanded ? 'إخفاء التفاصيل' : 'عرض التفاصيل'),
+          ),
+        ),
+      );
 }
 
 // ════════════════════════════ ① الترويسة ════════════════════════════

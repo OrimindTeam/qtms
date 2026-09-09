@@ -15,13 +15,31 @@ import 'theme_extensions.dart';
 /// ★ **وآلية الثيم نفسها باقية عمداً** — ★ **نقطة حقن واحدة للقيم تجعل
 /// الشاشة لا تعرف مصدر لونها** ⛔ **لا لأن هناك وضعاً ثانياً يُختار.**
 ThemeData buildQtmsTheme() {
-  final ColorScheme scheme = ColorScheme.fromSeed(
-    seedColor: Primitives.primary500,
-    surface: SemanticColors.surface,
-    onSurface: SemanticColors.textPrimary,
+  // ⛔⛔★★★ **`ColorScheme` مُصرَّحٌ حقلاً حقلاً — ⛔ لا مولَّدٌ من بذرة**
+  //    (`design-system.md` §5.2 · `AM-015` ①).
+  //
+  // ★★ **السبب: مكوّناتٌ يستدعيها الإطارُ في مسارٍ فوق الشجرة فلا تمرّ بأي
+  //    غلافٍ لنا** — `showDatePicker` (**ستُّ شاشاتٍ على الأقل**) ·
+  //    `RefreshIndicator` (**داخل `EntityList`**) · **مؤشّرُ النص الوامض**:
+  //    ⟵ **وكلُّها تقرأ `colorScheme` مباشرةً.** ⛔ **و`fromSeed` كانت
+  //    تُولِّد `primaryContainer` و`secondary` من خوارزمية Material** ⟹
+  //    **فتقويمُ التاريخ يحمل درجاتٍ لا وجودَ لها في الهوية الزيتونية.**
+  //
+  // ⛔⛔ **ولا لونَ جديدٌ يُخترَع هنا** — ★ **كلُّ حقلٍ من الطبقة الأولية
+  //    القائمة**، ⟵ **فلا يتغيّر لونٌ ظاهرٌ في زرٍّ ولا شريطٍ ولا شريحة:**
+  //    ★ **تلك مغطّاةٌ بعقودها الصريحة أدناه**، ★ **وهذا يسدّ غيرَ المغطّى.**
+  const ColorScheme scheme = ColorScheme.light(
     primary: Primitives.primary500,
     onPrimary: SemanticColors.textOnPrimary,
+    primaryContainer: Primitives.primary100,
+    onPrimaryContainer: Primitives.primary800,
+    // ★ **والثانويُّ درجةُ الهوية نفسِها** — ⛔ **لا لونٌ ثانويٌّ يُخترَع.**
+    secondary: Primitives.primary400,
+    onSecondary: SemanticColors.textOnPrimary,
     error: Primitives.dangerBase,
+    onError: SemanticColors.textOnPrimary,
+    surface: SemanticColors.surface,
+    onSurface: SemanticColors.textPrimary,
     outline: SemanticColors.border,
   );
 
@@ -299,18 +317,32 @@ ThemeData buildQtmsTheme() {
       ),
     ),
 
+    // ⛔⛔★★★ **صندوقُ الاختيار مربّعٌ لا دائرة** — `design-system.md` §6-ب
+    //    (`AM-015` ③).
+    //
+    // ⚠️⚠️★★★ **والعطلُ كان في العلاقة لا في القيمة:** ★ **`Radii.xs = 8`
+    //    صحيحٌ لبطاقةٍ أو حقل**، ⛔ **وعلى مربّعٍ ضلعُه `Checkbox.width = 18`
+    //    يبلغ 89٪ من نصفِ الضلع** ⟹ **فيُصيَّر دائرةً كاملةً بصرياً.**
+    //    ⟵ **وهو ما رُصد حيّاً: شجرةُ الصلاحيات — اختيارٌ متعدّدٌ صراحةً —
+    //    كانت تُقدَّم بلغة `Radio` الحصرية على أخطر شاشةٍ إدارية.**
+    //
+    // ★ **والعلاجُ توكنٌ للضابط الصغير** (`Radii.control`) ⛔ **لا رقمٌ حرّ.**
     checkboxTheme: CheckboxThemeData(
       fillColor: WidgetStateProperty.resolveWith<Color>(
         (Set<WidgetState> states) => states.contains(WidgetState.selected)
             ? Primitives.primary500
             : SemanticColors.surface,
       ),
+      checkColor: const WidgetStatePropertyAll<Color>(
+        SemanticColors.textOnPrimary,
+      ),
+      // ★★ **وحدٌّ أعرض** — ⟵ **حدُّ 1 على 18px يذوب فيُقرأ الصندوقُ فارغاً.**
       side: const BorderSide(
         color: Primitives.neutral400,
-        width: Sizes.borderWidth,
+        width: Sizes.borderWidthControl,
       ),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Radii.xs),
+        borderRadius: BorderRadius.circular(Radii.control),
       ),
     ),
 

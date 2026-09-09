@@ -180,7 +180,7 @@ void main() {
       await pumpDiscounts(tester);
       await selectDealer(tester);
       expect(
-        find.textContaining('إجمالي الديون على المقوت: 50000'),
+        find.textContaining('إجمالي الديون على المقوت: 50,000'),
         findsOneWidget,
       );
     });
@@ -332,7 +332,7 @@ void main() {
         tester,
         find.byKey(const Key('discount-auto-allocate')),
       );
-      expect(find.textContaining('12000 ريال لم تُوزَّع'), findsOneWidget);
+      expect(find.textContaining('12,000 ريال لم تُوزَّع'), findsOneWidget);
       expect(find.textContaining('فائض'), findsNothing);
     });
 
@@ -378,7 +378,7 @@ void main() {
       await pumpDiscounts(tester);
       await selectDealer(tester);
       await enterLot(tester, 20, '3000');
-      expect(find.text('بعده: 5000'), findsOneWidget);
+      expect(find.text('بعده: 5,000'), findsOneWidget);
     });
 
     testWidgets('★★ وإجمالي الخصم يُعرَض في الشريط الملتصق', (
@@ -392,7 +392,7 @@ void main() {
       await selectDealer(tester);
       await enterLot(tester, 20, '3000');
       await enterLot(tester, 21, '1000');
-      expect(find.textContaining('إجمالي الخصم: 4000'), findsOneWidget);
+      expect(find.textContaining('إجمالي الخصم: 4,000'), findsOneWidget);
       // ⛔⛔★★★ **ولا يُسمّى «مقبوضاً»** — `FR-M15-06-أ`.
       expect(find.textContaining('إجمالي المقبوض'), findsNothing);
     });

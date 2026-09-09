@@ -244,6 +244,20 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
     return total;
   }
 
+  /// ⛔⛔★★★ **هل يوجد سطرٌ يتجاوز متبقّيه؟** — **الحرس الرباعي ④**
+  /// (`design-system.md` §6-ط · `AM-015` ⑥).
+  ///
+  /// ⚠️⚠️★★★ **والثلاثةُ قبله كانت قائمةً وحدَها:** ★ **`errorText` «يتجاوز
+  /// المتبقي» يظهر على الحقل**، ⛔ **وزرُّ الحفظ يقبل الضغطَ رغمَه** ⟹
+  /// **فيُرفَض الطلبُ من السحابة بعد رحلةِ شبكة.** ⟵ **وزرٌّ يقبل ما وسمه
+  /// خطأً يُعلِّم المستخدمَ أن التحذيرَ زخرفة.**
+  ///
+  /// ⚠️★★ **والتعطيلُ عرضٌ لا حماية** (`RISK-02`) — ★ **والرفضُ الحقيقيُّ
+  /// في السحابة كما هو** (`BR-M12-02`)، ⛔ **ولا يُسقِط هذا شرطاً منها.**
+  bool _hasExceedingLine(List<OpenDebtLot> lots) => lots.any(
+        (OpenDebtLot lot) => _amountOf(lot.debtLotId) > lot.remaining,
+      );
+
   /// ★★★ **التوزيع التلقائي** — ⛔ **يملأ الحقول ولا يحفظ** (`FR-M12-14`).
   void _autoAllocate(List<OpenDebtLot> lots, Money amount) {
     final AutoAllocationProposal proposal =
@@ -405,6 +419,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
   Widget _body(List<OpenDebtLot> lots, CalendarDay today) {
     final Money totalDebt = totalOpenDebt(lots);
     final Money total = _totalOf(lots);
+    final bool exceeds = _hasExceedingLine(lots);
 
     return Column(
       children: <Widget>[
@@ -478,19 +493,27 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
         ),
         QtmsStickyActionBar(
           summary: QtmsLiveSummary(
-            headline: 'إجمالي المقبوض: ${total.riyals} ريال',
+            headline: 'إجمالي المقبوض: ${formatRiyals(total)} ريال',
             details: <String>[
-              'على الضمارات: ${(total - _surplusAmount).riyals} ريال',
-              'فائض: ${_surplusAmount.riyals} ريال',
+              'على الضمارات: ${formatRiyals(total - _surplusAmount)} ريال',
+              'فائض: ${formatRiyals(_surplusAmount)} ريال',
+              // ★★ **الحرس الرباعي ③** — ⟵ **فالخرقُ مرئيٌّ ولو كان الحقلُ
+              //   خارجَ الشاشة بعد التمرير** (`design-system.md` §6-ط).
+              if (exceeds) 'سطرٌ يتجاوز متبقّي ضماره — يلزم تصحيحُه قبل الحفظ',
             ],
-            emphasis: 'الديون المفتوحة: ${totalDebt.riyals} ريال',
+            emphasis: 'الديون المفتوحة: ${formatRiyals(totalDebt)} ريال',
           ),
-          status: _status == null
-              ? null
-              : Text(_status!, style: TypeScale.bodyMd),
+          status: switch ((_status, exceeds)) {
+            (final String message, _) => Text(message, style: TypeScale.bodyMd),
+            (null, true) => QtmsActionStatus.rejection(
+                'سطرٌ يتجاوز متبقّي ضماره — صحّحه ليُفتَح الحفظ.',
+              ),
+            (null, false) => null,
+          },
           primary: FilledButton(
             key: const Key('receipt-save'),
-            onPressed: _saving ? null : () => _save(lots, today),
+            // ⛔⛔★★★ **الحرس الرباعي ④ — تعطيلٌ فعلي** (`AM-015` ⑥).
+            onPressed: _saving || exceeds ? null : () => _save(lots, today),
             child: Text(_saving ? 'جارٍ الحفظ…' : 'حفظ سند القبض'),
           ),
         ),
@@ -523,7 +546,7 @@ class _DebtBanner extends StatelessWidget {
             const SizedBox(width: Spacing.space8),
             Expanded(
               child: Text(
-                'إجمالي الديون على المقوت: ${totalDebt.riyals} ريال '
+                'إجمالي الديون على المقوت: ${formatRiyals(totalDebt)} ريال '
                 '($lotCount ضمار مفتوح)',
                 style: TypeScale.bodyMd,
               ),
@@ -609,12 +632,6 @@ class _LotRow extends StatelessWidget {
           Row(
             children: <Widget>[
               Expanded(
-                child: Text(
-                  'المتبقي: ${lot.remaining.riyals}',
-                  style: TypeScale.caption,
-                ),
-              ),
-              Expanded(
                 child: TextField(
                   // ★ **مفتاحٌ بالضمار** — ⟵ **فيُقرأ الحقل بمعرّفه**
                   //   ⛔ **لا بترتيبه بين الحقول المرئية.**
@@ -626,6 +643,14 @@ class _LotRow extends StatelessWidget {
                   ],
                   decoration: InputDecoration(
                     labelText: 'الواصل',
+                    // ★★ **الحرس الرباعي ①** — **الحدُّ على الحقل نفسِه**
+                    //   (`design-system.md` §6-ط · `AM-015` ⑥): ⟵ **فمن
+                    //   يتجاوزه يعرف أنه يتجاوزه قبل أن يفعل.**
+                    //
+                    // ⛔⛔ **ونصٌّ قصيرٌ عمداً** — ★ **الحقل ثلثُ عرضِ الصفّ**،
+                    //   ⟵ **والطويلُ يُقصّ فيقرأ المستخدم نصفَ السبب**
+                    //   (عطلُ `Pixel_6_API_36` · 2026-09-01).
+                    helperText: 'المتبقي ${formatRiyals(lot.remaining)}',
                     errorText: exceeds ? 'يتجاوز المتبقي' : null,
                   ),
                   onChanged: (String _) => onChanged(),
@@ -633,7 +658,7 @@ class _LotRow extends StatelessWidget {
               ),
               Expanded(
                 child: Text(
-                  'بعده: ${after.riyals}',
+                  'بعده: ${formatRiyals(after)}',
                   style: TypeScale.caption,
                   textAlign: TextAlign.end,
                 ),
@@ -681,7 +706,7 @@ class _SurplusField extends StatelessWidget {
         if (!surplus.isZero && !openDebt.isZero) ...<Widget>[
           const SizedBox(height: Spacing.space8),
           Text(
-            '⚠️ يوجد ضمارات مفتوحة بقيمة ${openDebt.riyals}. '
+            '⚠️ يوجد ضمارات مفتوحة بقيمة ${formatRiyals(openDebt)}. '
             'هل تريد التوزيع التلقائي بدلاً من تسجيل المبلغ كفائض؟',
             style: TypeScale.caption,
           ),

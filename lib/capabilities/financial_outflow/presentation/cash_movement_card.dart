@@ -24,6 +24,7 @@ import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/inline_banner.dart';
 import '../../../core/ui/key_value_row.dart';
+import '../../../core/ui/proportion_bar.dart';
 import '../../identity_access/application/session_providers.dart';
 import '../application/owner_ledger_providers.dart';
 import 'owner_ledger_format.dart';
@@ -166,15 +167,23 @@ class _Body extends StatelessWidget {
             // ★★ **والإيداعُ لمن يملك `receiptDepositView` وحده** (`ADR-0017`)
             //    — ⛔ **ولا يُعرَض صفراً لمن لا يملكه:** ⟵ **فصفرُ الإيداع
             //    معلومةٌ مختلفةٌ عن «لا تُقرأ حالةُ الإيداع أصلاً».**
+            // ⛔⛔★★★ **والإيداعُ شريطُ نسبةٍ لا سطرين نصّيين** (`AM-017` ④ ·
+            //    `design-system.md` §6.د): ⟵ **فالسؤالُ «أزال معظمُ المقبوض
+            //    أم بقي؟» يُجاب بلمحةٍ** ⛔ **لا بمقارنةِ رقمين ذهنياً.**
+            //    ★ **والرقمان باقيان نصّاً تحت الشريط** — §8 المحظور 12.
             if (showsDeposit) ...<Widget>[
-              QtmsKeyValueRow(
-                label: '🏦 من المقبوض: أُودع',
-                value: formatRiyals(summary.deposited),
+              const SizedBox(height: Spacing.space8),
+              QtmsProportionBar(
+                part: summary.deposited.riyals.toDouble(),
+                total: (summary.deposited.riyals +
+                        summary.notDeposited.riyals)
+                    .toDouble(),
+                startLabel: '🏦 أُودع ${formatRiyals(summary.deposited)}',
+                endLabel:
+                    'لم يُودع بعد ${formatRiyals(summary.notDeposited)}',
+                startTriad: SemanticTriads.success,
               ),
-              QtmsKeyValueRow(
-                label: '🏦 من المقبوض: لم يُودع بعد',
-                value: formatRiyals(summary.notDeposited),
-              ),
+              const SizedBox(height: Spacing.space8),
             ],
             // ⛔⛔ **وتُعرَض ولا تُطرح** — `FR-M15-20`.
             QtmsKeyValueRow(

@@ -283,9 +283,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('الإجمالي النهائي: 27500'), findsOneWidget);
-      expect(find.textContaining('قيمة القات: 7500'), findsOneWidget);
-      expect(find.textContaining('المبالغ: 20000'), findsOneWidget);
+      expect(find.textContaining('الإجمالي النهائي: 27,500'), findsOneWidget);
+      expect(find.textContaining('قيمة القات: 7,500'), findsOneWidget);
+      expect(find.textContaining('المبالغ: 20,000'), findsOneWidget);
     });
 
     testWidgets('⛔⛔★★★ وتذكيرٌ صريح أنه لا يمسّ حسابات المقاوته',

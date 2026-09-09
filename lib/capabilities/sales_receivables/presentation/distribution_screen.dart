@@ -411,7 +411,7 @@ class DistributionDetailsSheet extends ConsumerWidget {
             if (canSeePrices && pricing != null)
               QtmsKeyValueRow(
                 label: 'قيمة الضمار',
-                value: '${pricing.debtValue.riyals} ريال',
+                value: '${formatRiyals(pricing.debtValue)} ريال',
               ),
           ],
         ),

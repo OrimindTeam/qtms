@@ -168,8 +168,8 @@ class _Breakdown extends StatelessWidget {
                   row.origin.label,
                   row.counterpartyName ?? row.documentNumber,
                   quantityLabel(row.quantity),
-                  row.unitPrice == null ? '—' : '${row.unitPrice!.riyals}',
-                  row.lineValue == null ? '—' : '${row.lineValue!.riyals}',
+                  row.unitPrice == null ? '—' : formatRiyals(row.unitPrice!),
+                  row.lineValue == null ? '—' : formatRiyals(row.lineValue!),
                 ],
                 // ★ **والملغى مشطوبٌ لا محذوف** — `A-14`.
                 isStruck: !row.isCountable,
@@ -182,8 +182,8 @@ class _Breakdown extends StatelessWidget {
               ? SemanticTriads.success
               : SemanticTriads.warning,
           text: revenue.isFinal
-              ? 'مجموع الحركات المسعَّرة: ${revenue.total.riyals} ريال'
-              : 'مجموع المسعَّر: ${revenue.total.riyals} ريال — '
+              ? 'مجموع الحركات المسعَّرة: ${formatRiyals(revenue.total)} ريال'
+              : 'مجموع المسعَّر: ${formatRiyals(revenue.total)} ريال — '
                   'و${revenue.unpricedCount} حركة بلا قيمة ظاهرة، '
                   'فالسعر غير نهائي.',
         ),

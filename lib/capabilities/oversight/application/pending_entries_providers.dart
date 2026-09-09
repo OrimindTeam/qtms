@@ -129,6 +129,42 @@ final Provider<AsyncValue<int>> pendingEntriesCountProvider =
   return AsyncValue<int>.data(total);
 });
 
+/// ★★★ **تفصيلُ المعلّقات بنوع مستندها** — `AM-017` ③ (رقائقُ صفِّ البند).
+///
+/// ★ **معلومةٌ إضافيةٌ بلا نقرة** — ⟵ **«جواني ٢ · توزيع ١» تقول أين يقع
+/// العمل قبل فتح الشاشة** ⛔ **لا زخرفة.**
+///
+/// ⚠️ **ويُبنى من المزوّد القائم نفسِه** (`pendingEntriesForSourceProvider`)
+/// — ⛔ **ولا استعلامَ جديد**: ★ **البثُّ مشتركٌ مع العدّاد فلا كلفةَ قراءةٍ
+/// ثانية.**
+///
+/// ⛔ **ومستندٌ بنوعٍ مجهولٍ لا يُسقَط بصمت** — ★ **يُجمَع تحت `null`**:
+/// ⟵ **وإسقاطُه يجعل مجموعَ الرقائق أقلَّ من العدّاد بلا سبب ظاهر.**
+final Provider<AsyncValue<Map<PendingDocumentKind?, int>>>
+    pendingEntriesBreakdownProvider =
+    Provider<AsyncValue<Map<PendingDocumentKind?, int>>>((Ref ref) {
+  final List<SourceCard> sources = ref.watch(pendingSourceOptionsProvider);
+  final Map<PendingDocumentKind?, int> counts = <PendingDocumentKind?, int>{};
+  for (final SourceCard source in sources) {
+    final AsyncValue<List<PendingEntryCard>> entries =
+        ref.watch(pendingEntriesForSourceProvider(source.sourceId));
+    if (entries.hasError) {
+      return AsyncValue<Map<PendingDocumentKind?, int>>.error(
+        entries.error ?? Object(),
+        entries.stackTrace ?? StackTrace.current,
+      );
+    }
+    final List<PendingEntryCard>? value = entries.value;
+    if (value == null) {
+      return const AsyncValue<Map<PendingDocumentKind?, int>>.loading();
+    }
+    for (final PendingEntryCard card in value) {
+      counts[card.kind] = (counts[card.kind] ?? 0) + 1;
+    }
+  }
+  return AsyncValue<Map<PendingDocumentKind?, int>>.data(counts);
+});
+
 // ═════════════════════════════════════════════════════════════════════════
 // وجهةُ زر [ إدخال ] — `FR-SYS-04`
 // ═════════════════════════════════════════════════════════════════════════

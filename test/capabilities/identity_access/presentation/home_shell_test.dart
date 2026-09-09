@@ -4,13 +4,21 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qtms/capabilities/financial_outflow/application/owner_ledger_providers.dart';
+import 'package:qtms/capabilities/financial_outflow/presentation/owner_ledger_card.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/inventory/presentation/supply_intake_screen.dart';
 import 'package:qtms/capabilities/identity_access/presentation/home_shell.dart';
+import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
+import 'package:qtms/core/design/design_tokens.dart';
 import 'package:qtms/core/ui/avatar.dart';
+import 'package:qtms/core/ui/hub_section.dart';
+import 'package:qtms/core/ui/needs_action_card.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
+import '../../../support/fake_master_data.dart';
+import '../../../support/fake_owner_ledger.dart';
 
 void main() {
   testWidgets(
@@ -127,4 +135,152 @@ void main() {
     },
     timeout: const Timeout(Duration(seconds: 20)),
   );
+
+  group('★★★ لوحةُ اليوم بعد `AM-017` — الشبكةُ والتثبيتُ والطيّ', () {
+    late FakeAuthRepository auth;
+    late FakeUserCardRepository cards;
+    late FakeOwnerLedgerDirectory ledger;
+    late FakeCashMovementReader cash;
+    late FakeMasterDataDirectory masterData;
+
+    setUp(() {
+      auth = FakeAuthRepository();
+      cards = FakeUserCardRepository();
+      ledger = FakeOwnerLedgerDirectory();
+      cash = FakeCashMovementReader();
+      masterData = FakeMasterDataDirectory()
+        ..emitSources(<SourceCard>[
+          const SourceCard(
+            sourceId: 'SRC-001',
+            name: 'رداع',
+            requiresSupplierOnIntake: false,
+            isActive: true,
+          ),
+        ]);
+    });
+
+    tearDown(() {
+      auth.dispose();
+      cards.dispose();
+    });
+
+    Future<void> pumpShell(
+      WidgetTester tester, {
+      // ★ **عرضُ Pixel 6 المنطقي — فالأعمدةُ عمودان كما على الجهاز**،
+      //   ★ **وارتفاعٌ فسيحٌ عمداً**: ⟵ **`ListView` يبني ما يظهر وحدَه**،
+      //   ⛔ **فقياسُ بلاطةٍ لم تُبنَ بعدُ يقيس غيابَ نافذةٍ لا غيابَ بلاطة.**
+      Size size = const Size(411, 1600),
+    }) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      auth.emitIdentity(
+        const AuthenticatedIdentity(userId: 'U-001', sourceScope: AllSources()),
+      );
+      cards.emitCard(
+        'U-001',
+        testCard(permissions: Permission.values.toSet()),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(auth),
+            userCardRepositoryProvider.overrideWithValue(cards),
+            masterDataDirectoryProvider.overrideWithValue(masterData),
+            masterDataAdminProvider.overrideWithValue(FakeMasterDataAdmin()),
+            contactPickerProvider.overrideWithValue(null),
+            ownerLedgerDirectoryProvider.overrideWithValue(ledger),
+            cashMovementReaderProvider.overrideWithValue(cash),
+          ],
+          child: const MaterialApp(locale: Locale('ar'), home: HomeShell()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      // ★ **البثُّ بعد الاشتراك** — ⛔ **ومذيعٌ بلا إعادةِ بثٍّ يُضيع ما سبقه.**
+      ledger.emitSummary(
+        allSourcesScopeId,
+        computeOwnerLedgerSummary(
+          sourceId: allSourcesScopeId,
+          date: CalendarDay(2026, 9, 9),
+          contributions: const OwnerLedgerContributions(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    testWidgets('★★★ المداخلُ بلاطاتُ شبكةٍ ⛔ لا أزرارَ بعرضٍ كامل',
+        (WidgetTester tester) async {
+      await pumpShell(tester);
+
+      expect(find.byType(QtmsHubTile), findsWidgets);
+      // ⛔ **ولا زرَّ مدخلٍ محاطٍ بعرضٍ كامل بقي في الصدَفة.**
+      expect(
+        tester.getSize(find.byType(QtmsHubTile).first).height,
+        Sizes.hubTileHeight,
+      );
+    });
+
+    testWidgets('★★★ والأساسيُّ «التوزيع» يمتدّ بعرض عمودين',
+        (WidgetTester tester) async {
+      await pumpShell(tester);
+
+      final double primary = tester
+          .getSize(
+            find.ancestor(
+              of: find.text('التوزيع'),
+              matching: find.byType(QtmsHubTile),
+            ),
+          )
+          .width;
+      final double secondary = tester
+          .getSize(
+            find.ancestor(
+              of: find.text('البيع النقدي'),
+              matching: find.byType(QtmsHubTile),
+            ),
+          )
+          .width;
+
+      expect(
+        primary,
+        greaterThan(secondary * 1.8),
+        reason: '⛔ الأساسيُّ لا يمتدّ بعرض عمودين',
+      );
+    });
+
+    testWidgets('⛔⛔★★★ وبطاقةُ «يحتاج إجراء» مثبَّتةٌ لا تُمرَّر مع المحتوى',
+        (WidgetTester tester) async {
+      await pumpShell(tester);
+
+      final double before =
+          tester.getTopLeft(find.byType(QtmsNeedsActionCard)).dy;
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pump();
+
+      expect(find.byType(QtmsNeedsActionCard), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byType(QtmsNeedsActionCard)).dy,
+        before,
+        reason: '⛔ البطاقةُ تحرّكت مع التمرير — فليست مثبَّتة',
+      );
+    });
+
+    testWidgets('★★★ وبطاقةُ الضمار مطويّةٌ في اللوحة — §7.1 القاعدة 8',
+        (WidgetTester tester) async {
+      await pumpShell(tester);
+
+      expect(find.byType(OwnerLedgerCard), findsOneWidget);
+      expect(
+        tester.widget<OwnerLedgerCard>(find.byType(OwnerLedgerCard))
+            .initiallyExpanded,
+        isFalse,
+      );
+      expect(find.text('عرض التفاصيل'), findsOneWidget);
+      expect(find.text('إجمالي الضمار'), findsNothing);
+    });
+  });
 }

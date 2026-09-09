@@ -382,7 +382,7 @@ void main() {
       await pumpDistribution(tester);
       await tester.tap(find.byIcon(Icons.visibility_outlined));
       await tester.pumpAndSettle();
-      expect(find.textContaining('121852'), findsWidgets);
+      expect(find.textContaining('121,852'), findsWidgets);
     });
 
     testWidgets(

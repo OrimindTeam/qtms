@@ -318,7 +318,7 @@ void main() {
       await addLine(tester, quantity: '10', price: '700');
 
       expect(find.byType(QtmsStickyActionBar), findsOneWidget);
-      expect(find.textContaining('صافي المقبوض: 7000'), findsOneWidget);
+      expect(find.textContaining('صافي المقبوض: 7,000'), findsOneWidget);
       expect(find.textContaining('إجمالي الحبات: 10'), findsOneWidget);
       // ⛔ **وسطرٌ ثالثٌ مستقل للأوزان** — ⛔ **ولا يُجمع مع الحبّات.**
       expect(find.textContaining('إجمالي الأوزان: 0.000'), findsOneWidget);

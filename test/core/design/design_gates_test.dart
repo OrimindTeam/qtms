@@ -147,9 +147,7 @@ _Source _scan(String path) {
       i += closer.length;
 
       final String text = value.toString();
-      literals.add(
-        _Literal(text, startLine, _isDirectiveLine(raw, startLine)),
-      );
+      literals.add(_Literal(text, startLine, _isDirectiveLine(raw, startLine)));
       withLiterals.write("'$text'");
       // ⛔ الكود يرى نصّاً فارغاً — ★ فلا يُحسَب محتواه قيمةً بصرية.
       code.write("''");
@@ -228,14 +226,14 @@ double _relativeLuminance(Color color) {
 /// ★ **`onTie` بشفافية 78٪ فوق طرف التدرّج الفاتح ليس `onTie`** — ⟵ **وفرقُ
 /// القراءة بينهما هو فرقُ النجاح والفشل** (5.54 مقابل 4.08).
 Color _flatten(Color foreground, Color background) => Color.fromARGB(
-      255,
-      ((foreground.r * foreground.a + background.r * (1 - foreground.a)) * 255)
-          .round(),
-      ((foreground.g * foreground.a + background.g * (1 - foreground.a)) * 255)
-          .round(),
-      ((foreground.b * foreground.a + background.b * (1 - foreground.a)) * 255)
-          .round(),
-    );
+  255,
+  ((foreground.r * foreground.a + background.r * (1 - foreground.a)) * 255)
+      .round(),
+  ((foreground.g * foreground.a + background.g * (1 - foreground.a)) * 255)
+      .round(),
+  ((foreground.b * foreground.a + background.b * (1 - foreground.a)) * 255)
+      .round(),
+);
 
 /// ★ ألوانُ تدرّجٍ خطّي — **لقياس أسوأ طرفٍ فيه.**
 ///
@@ -266,7 +264,9 @@ void _expectNoMatches(
     for (int n = 0; n < lines.length; n++) {
       for (final MapEntry<String, RegExp> rule in rules.entries) {
         if (rule.value.hasMatch(lines[n])) {
-          hits.add('${source.path}:${n + 1} ⟵ ${rule.key} :: ${lines[n].trim()}');
+          hits.add(
+            '${source.path}:${n + 1} ⟵ ${rule.key} :: ${lines[n].trim()}',
+          );
         }
       }
     }
@@ -275,11 +275,9 @@ void _expectNoMatches(
 }
 
 /// نصّ بلا تعبيراته المُدمَجة — ★ **فالقيمة المحسوبة ليست نصّ واجهة.**
-String _withoutInterpolation(String value) =>
-    value.replaceAll(RegExp(r'\$\{[^}]*\}'), '').replaceAll(
-          RegExp(r'\$[A-Za-z_][A-Za-z0-9_]*'),
-          '',
-        );
+String _withoutInterpolation(String value) => value
+    .replaceAll(RegExp(r'\$\{[^}]*\}'), '')
+    .replaceAll(RegExp(r'\$[A-Za-z_][A-Za-z0-9_]*'), '');
 
 final RegExp _latin = RegExp('[A-Za-z]');
 final RegExp _arabic = RegExp('[؀-ۿ]');
@@ -295,8 +293,9 @@ void main() {
   // ══════════════════ ① بوابة التوكنز — `design-tokens.md` §11 ══════════════
 
   group('★ بوابة التوكنز', () {
-    final Iterable<_Source> outsideTokens =
-        lib.where((_Source s) => !_isTokenLayer(s.path));
+    final Iterable<_Source> outsideTokens = lib.where(
+      (_Source s) => !_isTokenLayer(s.path),
+    );
 
     test('⛔ لا لون ولا حجم خط ولا نصف قطر ولا ظل خارج طبقة التوكنز', () {
       _expectNoMatches(outsideTokens, (_Source s) => s.code, <String, RegExp>{
@@ -313,8 +312,9 @@ void main() {
       final RegExp bareNumber = RegExp(r'(^|[^\w.])\d');
       final List<String> hits = <String>[];
       for (final _Source source in outsideTokens) {
-        for (final Match m
-            in RegExp(r'EdgeInsets(?:Directional)?\.\w+\(').allMatches(source.code)) {
+        for (final Match m in RegExp(
+          r'EdgeInsets(?:Directional)?\.\w+\(',
+        ).allMatches(source.code)) {
           final String args = _balanced(source.code, m.end - 1);
           if (bareNumber.hasMatch(args)) {
             hits.add('${source.path} ⟵ EdgeInsets بقيمة عارية :: $args');
@@ -390,7 +390,8 @@ void main() {
       expect(
         value,
         greaterThanOrEqualTo(minimum),
-        reason: '★ $label — القياس ${value.toStringAsFixed(2)}:1 '
+        reason:
+            '★ $label — القياس ${value.toStringAsFixed(2)}:1 '
             'والحدّ ${minimum.toStringAsFixed(1)}:1',
       );
     }
@@ -428,11 +429,23 @@ void main() {
       };
       for (final MapEntry<String, Color> s in surfaces.entries) {
         expectAtLeast(
-            'textPrimary على ${s.key}', SemanticColors.textPrimary, s.value, 7);
-        expectAtLeast('textSecondary على ${s.key}',
-            SemanticColors.textSecondary, s.value, 4.5);
-        expectAtLeast('textTertiary على ${s.key}', SemanticColors.textTertiary,
-            s.value, 4.5);
+          'textPrimary على ${s.key}',
+          SemanticColors.textPrimary,
+          s.value,
+          7,
+        );
+        expectAtLeast(
+          'textSecondary على ${s.key}',
+          SemanticColors.textSecondary,
+          s.value,
+          4.5,
+        );
+        expectAtLeast(
+          'textTertiary على ${s.key}',
+          SemanticColors.textTertiary,
+          s.value,
+          4.5,
+        );
       }
     });
 
@@ -441,17 +454,29 @@ void main() {
         expectAtLeast('onTie', hero.onTie, stop, 4.5);
         // ⛔⛔ **والتسميةُ بشفافيتها مخلوطةً فعلياً** — §11.1.
         expectAtLeast(
-            'onTieLabel @${hero.labelOpacity}', _flatten(hero.onTieLabel, stop), stop, 4.5);
+          'onTieLabel @${hero.labelOpacity}',
+          _flatten(hero.onTieLabel, stop),
+          stop,
+          4.5,
+        );
         expectAtLeast('successOnTie', hero.successOnTie, stop, 4.5);
         expectAtLeast('dangerOnTie', hero.dangerOnTie, stop, 4.5);
       }
     });
 
     test('★ والنصُّ على الأسطح الداكنة والأزرار الأساسية', () {
-      expectAtLeast('textOnPrimary على primary500', SemanticColors.textOnPrimary,
-          Primitives.primary500, 4.5);
-      expectAtLeast('textOnInverse على surfaceInverse',
-          SemanticColors.textOnInverse, SemanticColors.surfaceInverse, 4.5);
+      expectAtLeast(
+        'textOnPrimary على primary500',
+        SemanticColors.textOnPrimary,
+        Primitives.primary500,
+        4.5,
+      );
+      expectAtLeast(
+        'textOnInverse على surfaceInverse',
+        SemanticColors.textOnInverse,
+        SemanticColors.surfaceInverse,
+        4.5,
+      );
     });
 
     test('★ والأيقوناتُ والحدودُ الدالّة لا تقل عن 3:1 على السطح', () {
@@ -468,7 +493,12 @@ void main() {
         'primary500': Primitives.primary500,
       };
       for (final MapEntry<String, Color> b in bases.entries) {
-        expectAtLeast('${b.key} على surface', b.value, SemanticColors.surface, 3);
+        expectAtLeast(
+          '${b.key} على surface',
+          b.value,
+          SemanticColors.surface,
+          3,
+        );
       }
     });
   });
@@ -526,10 +556,9 @@ void main() {
       final int start = pubspec.indexOf('- family: $qtmsDisplayFontFamily');
       expect(start, isNot(-1), reason: '★ عائلةُ خط العرض غير مسجَّلة');
       final String block = pubspec.substring(start);
-      final List<String> weights = RegExp(r'weight:\s*(\d+)')
-          .allMatches(block)
-          .map((Match m) => m.group(1)!)
-          .toList();
+      final List<String> weights = RegExp(
+        r'weight:\s*(\d+)',
+      ).allMatches(block).map((Match m) => m.group(1)!).toList();
       expect(weights, <String>['800', '900']);
 
       for (final String file in <String>[
@@ -539,11 +568,7 @@ void main() {
         //   ★ **مالكا حقوقٍ مختلفان ودمجُهما يُفقد أحدَ الإسنادين.**
         'assets/fonts/OFL-Tajawal.txt',
       ]) {
-        expect(
-          File(file).existsSync(),
-          isTrue,
-          reason: '★ الأصلُ $file مفقود',
-        );
+        expect(File(file).existsSync(), isTrue, reason: '★ الأصلُ $file مفقود');
       }
     });
 
@@ -591,8 +616,9 @@ void main() {
     test('⛔ لا لغة غير العربية ولا آلية اختيار لغة', () {
       final List<String> hits = <String>[];
       for (final _Source source in lib) {
-        for (final Match m
-            in RegExp(r"Locale\(\s*'([^']*)'").allMatches(source.withLiterals)) {
+        for (final Match m in RegExp(
+          r"Locale\(\s*'([^']*)'",
+        ).allMatches(source.withLiterals)) {
           if (m.group(1) != 'ar') {
             hits.add("${source.path} ⟵ لغة غير العربية: '${m.group(1)}'");
           }
@@ -601,7 +627,9 @@ void main() {
       expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
 
       _expectNoMatches(lib, (_Source s) => s.code, <String, RegExp>{
-        'اشتقاق لغة من النظام': RegExp(r'localeR?e?solutionCallback|localeListResolutionCallback'),
+        'اشتقاق لغة من النظام': RegExp(
+          r'localeR?e?solutionCallback|localeListResolutionCallback',
+        ),
         'تجاوز محلّي للغة': RegExp(r'Localizations\.override'),
         'قراءة لغة الجهاز': RegExp(r'PlatformDispatcher\.\w+\.locales?\b'),
       });
@@ -625,7 +653,9 @@ void main() {
 
     test('⛔ ولا نصّ واجهة لاتيني في أي شاشة أو كتالوج رسائل', () {
       final List<String> hits = <String>[];
-      for (final _Source source in lib.where((_Source s) => _isUserFacing(s.path))) {
+      for (final _Source source in lib.where(
+        (_Source s) => _isUserFacing(s.path),
+      )) {
         for (final _Literal literal in source.literals) {
           if (literal.onDirective) {
             continue;
@@ -656,8 +686,9 @@ void main() {
   //    ★ **والنصّ يصف نيّة، والاختبار وحده يفرضها.**
 
   group('★★ بوابة الحِرفية البصرية', () {
-    final Iterable<_Source> screens =
-        lib.where((_Source s) => _isUserFacing(s.path));
+    final Iterable<_Source> screens = lib.where(
+      (_Source s) => _isUserFacing(s.path),
+    );
 
     test('⛔★★★ ولا مؤشّرَ دوّار حالةً للتحميل — §هـ: الهيكل العظمي وحده', () {
       // ★ **واستثناءان موثَّقان لا أكثر:**
@@ -703,12 +734,78 @@ void main() {
         if (_slash(source.path).endsWith('core/ui/status_pill.dart')) {
           continue;
         }
-        if (RegExp(r'BorderRadius\.circular\(Radii\.pill\)')
-            .hasMatch(source.code)) {
+        if (RegExp(
+          r'BorderRadius\.circular\(Radii\.pill\)',
+        ).hasMatch(source.code)) {
           hits.add('${source.path} ⟵ حبّةٌ مرسومة محلياً');
         }
       }
       expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
+    });
+
+    // ===================================================================
+    // ⛔⛔★★★ بوابةُ المنسّق المالي الواحد — `design-system.md` §6-ح (`AM-015` ②).
+    //
+    // ⚠️⚠️ **والعطلُ مقيسٌ لا احتياط** (مراجعةُ تجربة الاستخدام · 2026-09-06):
+    //    ★ **شاشاتُ الضمار كانت تعرض `21,000`** ⟵ **وشاشاتُ النماذج
+    //    اليومية نفسَ رتبةِ المبلغ `21000` بلا فاصلة** ⟹ **فبدا رقمان
+    //    مختلفان لِما هو رقمٌ واحد.** ⛔ **والسببُ مسارَا تنسيقٍ لا واحد.**
+    // ===================================================================
+    test('⛔⛔★★★ ولا مبلغٌ يُعرَض من `Money.riyals` مباشرةً — §6-ح', () {
+      // ★ **الاستثناءُ الوحيد: نصُّ حقل الإدخال** — ⟵ **يُقرأ رقماً لا نصّاً
+      //   معروضاً**، ⛔ **وفاصلةٌ فيه تُفسِد التحليلَ عند الحفظ** (§6-ح ④).
+      final List<String> hits = <String>[];
+      for (final _Source source in screens) {
+        for (final _Literal literal in source.literals) {
+          if (!literal.value.contains('.riyals')) continue;
+          // ⛔ **ولا يُرصَد إلا ما يحمل نصّاً عربياً معروضاً معه** — ★ **فبذرةُ
+          //   المتحكّم نصٌّ عارٍ من أي حرف عربي.**
+          final bool hasArabic = literal.value.codeUnits.any(
+            (int unit) => unit >= 0x0600 && unit <= 0x06FF,
+          );
+          if (!hasArabic) continue;
+          hits.add(
+            '${source.path}:${literal.line} ⟵ مبلغٌ بلا `formatRiyals` :: ${literal.value}',
+          );
+        }
+      }
+      expect(hits, isEmpty, reason: hits.join(' | '));
+    });
+
+    // ===================================================================
+    // ⛔⛔★★★ بوابةُ شكل صندوق الاختيار — `design-system.md` §6-ب (`AM-015` ③):
+    //    ★ **مربّعٌ لا دائرة** — ⟵ **و`Radii.xs` على ضلعِ 18 يبلغ 89٪ من
+    //    نصفِ الضلع فيُقرأ `Radio`** ⛔ **وشجرةُ الصلاحيات اختيارٌ متعدّد.**
+    // ===================================================================
+    test('⛔⛔★★★ وصندوقُ الاختيار مربّعٌ بـ`Radii.control` — ⛔ لا دائرة', () {
+      final _Source theme = lib.firstWhere(
+        (_Source s) => _slash(s.path).endsWith('core/design/app_theme.dart'),
+      );
+      const String head = 'checkboxTheme: CheckboxThemeData(';
+      final int at = theme.code.indexOf(head);
+      expect(
+        at,
+        greaterThanOrEqualTo(0),
+        reason: '⛔ لا عقدَ `checkboxTheme` في الثيم',
+      );
+      final String body = _balanced(theme.code, at + head.length - 1);
+      expect(
+        body.contains('BorderRadius.circular(Radii.control)'),
+        isTrue,
+        reason: '⛔ شكلُ الصندوق ليس `Radii.control` — ⟵ فيُصيّر دائرةً',
+      );
+      expect(
+        body.contains('Sizes.borderWidthControl'),
+        isTrue,
+        reason: '⛔ حدُّ الصندوق ليس `borderWidthControl` — ⟵ فيذوب على السطح',
+      );
+      // ★★ **والقيمةُ نفسُها تبقى دون نصفِ ضلعِ الصندوق** — ⟵ **فلا يعود
+      //    دائرةً بتغييرِ توكنٍ لاحقاً.**
+      expect(
+        Radii.control * 2 < 18.0,
+        isTrue,
+        reason: '⛔ `Radii.control` بلغ نصفَ ضلعِ الصندوق (18) فصار دائرة',
+      );
     });
 
     test('★★ وكل مدّة حركة من توكنز §9 — ⛔ ولا `Duration` مكتوبة في شاشة', () {
@@ -741,13 +838,15 @@ void main() {
   group('⛔⛔★★★ بوابة minimumSize — DEBT-63', () {
     test('★ الزرُّ المحاط: `minimumSize` بعرضٍ محدود ⛔ لا لا نهائي', () {
       final ThemeData theme = buildQtmsTheme();
-      final Size? min = theme.outlinedButtonTheme.style?.minimumSize
-          ?.resolve(<WidgetState>{});
+      final Size? min = theme.outlinedButtonTheme.style?.minimumSize?.resolve(
+        <WidgetState>{},
+      );
       expect(min, isNotNull, reason: '⛔ لا حدَّ أدنى معرَّفاً للزرّ المحاط');
       expect(
         min!.width.isFinite,
         isTrue,
-        reason: '⛔⛔ `Size.fromHeight` تُعطي `minWidth = infinity` — '
+        reason:
+            '⛔⛔ `Size.fromHeight` تُعطي `minWidth = infinity` — '
             'فلا يُخطَّط الزرُّ داخل `Row` أبداً (DEBT-63)',
       );
       // ★ **والمقصودُ هدفُ لمسٍ 48×48** — §5 البند 3.
@@ -775,21 +874,23 @@ void main() {
   group('★★ بوابة خُطّاف اختبار المحاكي', () {
     const String hookPath = 'lib/core/startup/staging_qa_credentials.dart';
 
-    test('★ اعتماد الاختبار محصورٌ في ملفٍ واحد — ⛔ ولا يُقرأ ثابتُه من شاشة',
-        () {
-      final List<String> hits = <String>[];
-      for (final _Source source in lib) {
-        if (source.path.replaceAll(r'\', '/').endsWith(hookPath)) {
-          continue;
+    test(
+      '★ اعتماد الاختبار محصورٌ في ملفٍ واحد — ⛔ ولا يُقرأ ثابتُه من شاشة',
+      () {
+        final List<String> hits = <String>[];
+        for (final _Source source in lib) {
+          if (source.path.replaceAll(r'\', '/').endsWith(hookPath)) {
+            continue;
+          }
+          // ⟵ الصورة `withLiterals` تُبقي محتوى النصوص وتُسقط التعليقات،
+          //   ⟵ فشرحُ القاعدة في تعليقٍ لا يُحسَب مخالفةً لها.
+          if (source.withLiterals.contains('QTMS_STAGING_QA_')) {
+            hits.add('${source.path} ⟵ يقرأ ثابت الاعتماد مباشرةً');
+          }
         }
-        // ⟵ الصورة `withLiterals` تُبقي محتوى النصوص وتُسقط التعليقات،
-        //   ⟵ فشرحُ القاعدة في تعليقٍ لا يُحسَب مخالفةً لها.
-        if (source.withLiterals.contains('QTMS_STAGING_QA_')) {
-          hits.add('${source.path} ⟵ يقرأ ثابت الاعتماد مباشرةً');
-        }
-      }
-      expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
-    });
+        expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
+      },
+    );
 
     test('⛔ ولا يسقط أحد الحارسين — `kDebugMode` وفراغُ القيمتين معاً', () {
       final String hook = _scan(hookPath).code;
@@ -804,8 +905,9 @@ void main() {
         reason: '★ وقيمتُه الافتراضية ثابتُ التصريف — ⛔ لا رايةٌ وقت تشغيل',
       );
       expect(
-        RegExp(r'trimmedEmail\.isEmpty\s*\|\|\s*password\.isEmpty')
-            .hasMatch(hook),
+        RegExp(
+          r'trimmedEmail\.isEmpty\s*\|\|\s*password\.isEmpty',
+        ).hasMatch(hook),
         isTrue,
         reason: '★ الحارس الثاني: بناءٌ بلا حقنٍ لا يملأ شيئاً',
       );
@@ -859,7 +961,8 @@ void main() {
       expect(
         hits,
         isEmpty,
-        reason: '\n★ استخدم `QtmsTopBar` — §3-أ القاعدة 1\n${hits.join('\n')}\n',
+        reason:
+            '\n★ استخدم `QtmsTopBar` — §3-أ القاعدة 1\n${hits.join('\n')}\n',
       );
     });
 
@@ -920,8 +1023,9 @@ void main() {
       // ⚠️ **والقياسُ نصّي لأن `FirebaseFirestore` صنفٌ نهائيٌّ لا يُزيَّف** —
       //    ★ **وهو أضعفُ من اختبار سلوك**، ⛔ **لكنه أقوى من لا شيء**:
       //    ⟵ **حذفُ `distinct` يُفشِل البوابة فوراً.**
-      final String monitor =
-          _scan('lib/core/connectivity/firestore_connection_monitor.dart').code;
+      final String monitor = _scan(
+        'lib/core/connectivity/firestore_connection_monitor.dart',
+      ).code;
       expect(
         monitor.contains('.distinct()'),
         isTrue,
@@ -963,31 +1067,34 @@ void main() {
       );
     });
 
-    test('⛔⛔★★★ ولا أيقونةَ خروجٍ في شريطٍ ولا شاشة — الموضعُ قائمة الجلسة',
-        () {
-      // ★★★ **والقدرةُ لم تسقط بل انتقلت** — `showQtmsSessionSheet`:
-      //    ⟵ **وإسقاطُها بلا بديلٍ كان يترك المستخدم حبيسَ حسابه.**
-      final List<String> hits = <String>[];
-      for (final _Source source in lib) {
-        final String path = normalize(source.path);
-        if (path.endsWith(sessionPath) || path.endsWith(blockedPath)) continue;
-        if (source.code.contains('Icons.logout')) {
-          hits.add('$path ⟵ أيقونةُ خروجٍ خارج قائمة الجلسة');
+    test(
+      '⛔⛔★★★ ولا أيقونةَ خروجٍ في شريطٍ ولا شاشة — الموضعُ قائمة الجلسة',
+      () {
+        // ★★★ **والقدرةُ لم تسقط بل انتقلت** — `showQtmsSessionSheet`:
+        //    ⟵ **وإسقاطُها بلا بديلٍ كان يترك المستخدم حبيسَ حسابه.**
+        final List<String> hits = <String>[];
+        for (final _Source source in lib) {
+          final String path = normalize(source.path);
+          if (path.endsWith(sessionPath) || path.endsWith(blockedPath)) {
+            continue;
+          }
+          if (source.code.contains('Icons.logout')) {
+            hits.add('$path ⟵ أيقونةُ خروجٍ خارج قائمة الجلسة');
+          }
         }
-      }
-      expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
+        expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
 
-      // ⛔⛔ **والقدرةُ قائمةٌ فعلاً** — ★ **ولا تسقط بصمت.**
-      // ⚠️ **و`withLiterals` لا `code`** — ★ **فالنصُّ المعروض حرفيٌّ**،
-      //    ⛔ **و`code` يُسقِط محتوى النصوص عمداً.**
-      final _Source session = _scan(sessionPath);
-      expect(session.code.contains('showQtmsSessionSheet'), isTrue);
-      expect(session.code.contains('signOut()'), isTrue);
-      expect(session.withLiterals.contains('تسجيل الخروج'), isTrue);
-    });
+        // ⛔⛔ **والقدرةُ قائمةٌ فعلاً** — ★ **ولا تسقط بصمت.**
+        // ⚠️ **و`withLiterals` لا `code`** — ★ **فالنصُّ المعروض حرفيٌّ**،
+        //    ⛔ **و`code` يُسقِط محتوى النصوص عمداً.**
+        final _Source session = _scan(sessionPath);
+        expect(session.code.contains('showQtmsSessionSheet'), isTrue);
+        expect(session.code.contains('signOut()'), isTrue);
+        expect(session.withLiterals.contains('تسجيل الخروج'), isTrue);
+      },
+    );
 
-    test('★★★ وكلُّ شاشةِ إدخالِ أنواعٍ تستعمل صفَّ السطر المشترك — AM-009 ④',
-        () {
+    test('★★★ وكلُّ شاشةِ إدخالِ أنواعٍ تستعمل صفَّ السطر المشترك — AM-009 ④', () {
       // ⛔⛔★★★ **وكانت ثلاثُ شاشاتٍ تعرض *كل* أنواع المصدر صفوفَ إدخالٍ
       //    دفعةً واحدة** — ⟵ **فطولُ النموذج يتبع طولَ الكتالوج لا حجمَ
       //    العملية**، ★ **وهذه البوابة تمنع عودةَ ذلك النمط.**
@@ -1010,8 +1117,9 @@ void main() {
         );
         // ⛔⛔ **ولا حلقةٌ تبني صفّاً لكل نوعٍ في الكتالوج.**
         expect(
-          RegExp(r'for \(final ItemCard \w+ in items\)\s*\n?\s*(_LineRow|QtmsItemLineRow)')
-              .hasMatch(code),
+          RegExp(
+            r'for \(final ItemCard \w+ in items\)\s*\n?\s*(_LineRow|QtmsItemLineRow)',
+          ).hasMatch(code),
           isFalse,
           reason: '⛔ $path يبني صفّاً لكل نوعٍ في الكتالوج',
         );
@@ -1082,26 +1190,29 @@ void main() {
       'lib/core/design/pdf_tokens.dart',
     };
 
-    test('⛔⛔★★★ ولا إسنادَ في شريطٍ علوي ولا دخولٍ ولا بدايةٍ ولا مخرَجٍ مُصدَّر',
-        () {
-      final List<String> hits = <String>[];
-      for (final _Source source in lib) {
-        final String path = _slash(source.path);
-        if (!forbidden.any(path.endsWith)) continue;
-        // ★ **استعمالٌ فعليٌّ في الكود** — ⛔ **لا ذكرٌ في تعليقٍ توثيقي:**
-        //   ⟵ **و`router.dart` يذكر المستندَ ليُعلن المنع**، ★ **فذكرُه
-        //   التزامٌ بالقاعدة لا خرقٌ لها.
-        if (RegExp(r'\bDeveloperAttribution\b|\bDeveloperIdentity\b')
-            .hasMatch(source.code)) {
-          hits.add('$path ⟵ يمسّ بصمةَ جهة التطوير — §5');
+    test(
+      '⛔⛔★★★ ولا إسنادَ في شريطٍ علوي ولا دخولٍ ولا بدايةٍ ولا مخرَجٍ مُصدَّر',
+      () {
+        final List<String> hits = <String>[];
+        for (final _Source source in lib) {
+          final String path = _slash(source.path);
+          if (!forbidden.any(path.endsWith)) continue;
+          // ★ **استعمالٌ فعليٌّ في الكود** — ⛔ **لا ذكرٌ في تعليقٍ توثيقي:**
+          //   ⟵ **و`router.dart` يذكر المستندَ ليُعلن المنع**، ★ **فذكرُه
+          //   التزامٌ بالقاعدة لا خرقٌ لها.
+          if (RegExp(
+            r'\bDeveloperAttribution\b|\bDeveloperIdentity\b',
+          ).hasMatch(source.code)) {
+            hits.add('$path ⟵ يمسّ بصمةَ جهة التطوير — §5');
+          }
         }
-      }
-      expect(
-        hits,
-        isEmpty,
-        reason: '⛔ مساحةُ العميل ملكُ العميل — §1 و§5\n${hits.join('\n')}',
-      );
-    });
+        expect(
+          hits,
+          isEmpty,
+          reason: '⛔ مساحةُ العميل ملكُ العميل — §1 و§5\n${hits.join('\n')}',
+        );
+      },
+    );
 
     test('⛔⛔★★★ ولا يقرأ ملفَّ الهوية إلا طبقةُ الوصول', () {
       final List<String> hits = <String>[];
@@ -1141,8 +1252,7 @@ String _balanced(String text, int openIndex) {
 
 /// درجات `primary` كما هي في `design-tokens.md` §2.2 — **مقروءةً من المستند**.
 Map<String, String> _documentedPrimaries() {
-  final String doc =
-      File('docs/18-ux-ui/design-tokens.md').readAsStringSync();
+  final String doc = File('docs/18-ux-ui/design-tokens.md').readAsStringSync();
   final int start = doc.indexOf('### 2.2 ');
   expect(start, isNot(-1), reason: 'القسم §2.2 غائب عن المستند');
   final int end = doc.indexOf('### 2.3 ', start);

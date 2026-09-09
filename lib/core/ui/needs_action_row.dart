@@ -34,6 +34,8 @@ class QtmsNeedsActionRow extends StatelessWidget {
     required this.triad,
     required this.onTap,
     this.countLabel,
+    this.chips = const <Widget>[],
+    this.isFramed = true,
     super.key,
   });
 
@@ -58,68 +60,109 @@ class QtmsNeedsActionRow extends StatelessWidget {
   /// عند النقر.
   final VoidCallback onTap;
 
+  /// ★★ **رقائقُ تكسر العدّاد إلى فئاته** — `AM-017` ③ (`design-system.md` §7).
+  ///
+  /// ★ **معلومةٌ إضافيةٌ بلا نقرة** — ⛔ **لا زخرفة**: ⟵ **«جواني ٢ · توزيع ١»
+  /// تقول أين يقع العمل قبل فتح الشاشة.** ⛔ **وفارغةٌ لا تُرسَم أصلاً.**
+  final List<Widget> chips;
+
+  /// ★★★ **مؤطَّرٌ بطاقةً قائمةً بذاتها، أو مُدمَجٌ داخل بطاقةٍ أعلى منه.**
+  ///
+  /// ⛔⛔ **ولا بطاقةٌ داخل بطاقة** — `design-system.md` §7 «بطاقة يحتاج
+  /// إجراء»: ⟵ **فالصفُّ داخلها بلا سطحٍ ولا حدٍّ ولا نصفِ قطر.**
+  final bool isFramed;
+
   @override
   Widget build(BuildContext context) {
-    // ★★ **`Material` يحمل اللون والشكل و`InkWell` بداخله** — ⛔ **ولا حاوية
-    //    معتِمة فوق الحبر** (درسُ `EntityTile`: التموّج غير مرئي).
-    return Material(
-      color: SemanticColors.surface,
-      borderRadius: BorderRadius.circular(Radii.card),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(Radii.card),
-        child: Semantics(
-          button: true,
-          label: '$title — ${countLabel ?? '$count'} · $destination',
-          child: Container(
-            constraints: const BoxConstraints(minHeight: Sizes.tileMinHeight),
-            padding: const EdgeInsets.all(Spacing.cardPadding),
-            decoration: BoxDecoration(
+    final Widget row = Row(
+      children: <Widget>[
+        IconBadgeBox(icon: icon, triad: triad),
+        const SizedBox(width: Spacing.space12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(title, style: TypeScale.titleSm),
+              const SizedBox(height: Spacing.space4),
+              Text(
+                destination,
+                style: TypeScale.bodyMd
+                    .copyWith(color: SemanticColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: Spacing.space8),
+        // ★★ **عدّادٌ جدولي بلون العائلة نفسها** — §7 نصّاً:
+        //    ⟵ **فعمودُ الأرقام لا يهتزّ بين صفٍّ وآخر.**
+        Text(
+          countLabel ?? '$count',
+          style: TypeScale.numeric.copyWith(color: triad.ink),
+        ),
+        const SizedBox(width: Spacing.space8),
+        // ★ **والسهمُ هو الوعدُ بوجهة** — §6.و (صف التنقّل).
+        //   ⛔ **ولا قيمةَ موضعية بيمين/يسار** — بوابة الاتجاه.
+        const Icon(
+          Icons.chevron_left,
+          size: Sizes.iconMd,
+          color: SemanticColors.textTertiary,
+        ),
+      ],
+    );
+
+    // ★★ **والرقائقُ تحت الصفّ لا داخلَه** — ⟵ **فسطرُ العنوان يبقى سطراً
+    //    واحداً مهما كثرت الفئات.**
+    final Widget content = chips.isEmpty
+        ? row
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              row,
+              const SizedBox(height: Spacing.space8),
+              Wrap(
+                spacing: Spacing.space8,
+                runSpacing: Spacing.space8,
+                children: chips,
+              ),
+            ],
+          );
+
+    final Widget padded = Container(
+      constraints: const BoxConstraints(minHeight: Sizes.tileMinHeight),
+      padding: const EdgeInsets.all(Spacing.cardPadding),
+      decoration: isFramed
+          ? BoxDecoration(
               border: Border.all(
                 color: SemanticColors.border,
                 width: Sizes.borderWidth,
               ),
               borderRadius: BorderRadius.circular(Radii.card),
-            ),
-            child: Row(
-              children: <Widget>[
-                IconBadgeBox(icon: icon, triad: triad),
-                const SizedBox(width: Spacing.space12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(title, style: TypeScale.titleSm),
-                      const SizedBox(height: Spacing.space4),
-                      Text(
-                        destination,
-                        style: TypeScale.bodyMd
-                            .copyWith(color: SemanticColors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: Spacing.space8),
-                // ★★ **عدّادٌ جدولي بلون العائلة نفسها** — §7 نصّاً:
-                //    ⟵ **فعمودُ الأرقام لا يهتزّ بين صفٍّ وآخر.**
-                Text(
-                  countLabel ?? '$count',
-                  style: TypeScale.numeric.copyWith(color: triad.ink),
-                ),
-                const SizedBox(width: Spacing.space8),
-                // ★ **والسهمُ هو الوعدُ بوجهة** — §6.و (صف التنقّل).
-                //   ⛔ **ولا قيمةَ موضعية بيمين/يسار** — بوابة الاتجاه.
-                const Icon(
-                  Icons.chevron_left,
-                  size: Sizes.iconMd,
-                  color: SemanticColors.textTertiary,
-                ),
-              ],
-            ),
-          ),
-        ),
+            )
+          : null,
+      child: content,
+    );
+
+    final Widget tappable = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(Radii.card),
+      child: Semantics(
+        button: true,
+        label: '$title — ${countLabel ?? '$count'} · $destination',
+        child: padded,
       ),
     );
+
+    // ★★ **`Material` يحمل اللون والشكل و`InkWell` بداخله** — ⛔ **ولا حاوية
+    //    معتِمة فوق الحبر** (درسُ `EntityTile`: التموّج غير مرئي).
+    // ⛔ **والمُدمَجُ بلا سطحٍ خاصٍّ به** — ★ **سطحُ البطاقة الحاوية يكفيه.**
+    return isFramed
+        ? Material(
+            color: SemanticColors.surface,
+            borderRadius: BorderRadius.circular(Radii.card),
+            child: tappable,
+          )
+        : Material(type: MaterialType.transparency, child: tappable);
   }
 }

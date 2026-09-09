@@ -21,6 +21,7 @@ import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/context_header.dart';
 import '../../../core/ui/date_labels.dart';
+import '../../../core/ui/proportion_bar.dart';
 import '../../master_data/application/master_data_providers.dart';
 import '../../oversight/presentation/audit_trail_view.dart';
 import '../application/inventory_providers.dart';
@@ -126,6 +127,24 @@ class _StockList extends ConsumerWidget {
                 day: day,
               ),
             ),
+            // ★★★ **مؤشّرُ التصريف** — `AM-017` ④ (`design-system.md` §6.د):
+            //    ⟵ **«كم خرج مما دخل؟» سؤالُ سرعةِ حركةٍ يُقرأ بلمحة**،
+            //    ⛔ **لا بمقارنةِ رقمين في السطر الثانوي ذهنياً.**
+            // ⛔ **وفوق البطاقة لا محشوراً فيها** — §6.د: **ما لا فتحة له
+            //    يُبنى فوق البطاقة مباشرة.**
+            Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: Spacing.space12,
+                end: Spacing.space12,
+                top: Spacing.space8,
+              ),
+              child: QtmsProportionBar(
+                part: quantityAmount(card.outgoing),
+                total: quantityAmount(card.incoming),
+                startLabel: 'صُرِّف ${quantityLabel(card.outgoing)}',
+                endLabel: 'من وارد ${quantityLabel(card.incoming)}',
+              ),
+            ),
             const SizedBox(height: Spacing.space8),
           ],
         ],
@@ -203,6 +222,16 @@ class _Totals extends StatelessWidget {
     );
   }
 }
+
+/// ★★ **مقدارُ الكمية عدداً للرسم وحده** — `AM-017` ④.
+///
+/// ⛔⛔ **ولا يُعرَض هذا الرقم أبداً** — ★ **العرضُ بـ`quantityLabel` بوحدته**:
+/// ⟵ **وهو ما يمنع الخلطَ بين الحبات والأوزان** (`ADR-0015`).
+/// ★ **وكلُّ ما يفعله هنا كسرٌ هندسيٌّ لطول الشريط.**
+double quantityAmount(StockQuantity quantity) => switch (quantity) {
+      PieceQuantity(:final PieceCount count) => count.pieces.toDouble(),
+      WeightQuantity(:final WeightKg weight) => weight.kilograms,
+    };
 
 /// يفتح **سجل حركة النوع** — `FR-M8-06`.
 Future<void> showItemMovements(

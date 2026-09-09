@@ -61,17 +61,17 @@ class SupplierAccountCard extends ConsumerWidget {
         children: <Widget>[
           QtmsKeyValueRow(
             label: 'إجمالي سعر الجواني',
-            value: '${totals.totalRevenue.riyals} ريال',
+            value: '${formatRiyals(totals.totalRevenue)} ريال',
             numeric: true,
           ),
           QtmsKeyValueRow(
             label: 'إجمالي الضريبة',
-            value: '${totals.totalTax.riyals} ريال',
+            value: '${formatRiyals(totals.totalTax)} ريال',
             numeric: true,
           ),
           QtmsKeyValueRow(
             label: 'صافي الرعوي',
-            value: '${totals.net.riyals} ريال',
+            value: '${formatRiyals(totals.net)} ريال',
             numeric: true,
           ),
           QtmsKeyValueRow(
@@ -146,17 +146,17 @@ class SackDayTotals extends ConsumerWidget {
         ),
         QtmsKeyValueRow(
           label: 'إجمالي سعر الجواني',
-          value: '${totals.totalRevenue.riyals} ريال',
+          value: '${formatRiyals(totals.totalRevenue)} ريال',
           numeric: true,
         ),
         QtmsKeyValueRow(
           label: 'إجمالي الضريبة',
-          value: '${totals.totalTax.riyals} ريال',
+          value: '${formatRiyals(totals.totalTax)} ريال',
           numeric: true,
         ),
         QtmsKeyValueRow(
           label: 'الصافي لكل الجواني',
-          value: '${totals.net.riyals} ريال',
+          value: '${formatRiyals(totals.net)} ريال',
           numeric: true,
         ),
       ],
@@ -195,7 +195,7 @@ class SackFinanceTile extends ConsumerWidget {
         InventoryTile(
           title: sack.displayName,
           subtitle: _subtitleOf(finance),
-          trailing: revenue == null ? '—' : '${revenue.riyals} ريال',
+          trailing: revenue == null ? '—' : '${formatRiyals(revenue)} ريال',
           onTap: () => showSackBreakdown(
             context,
             sackId: sack.documentNumber,
@@ -248,13 +248,13 @@ class SackFinanceTile extends ConsumerWidget {
     text.write(
       finance.sackTax == null
           ? 'الضريبة معلّقة'
-          : 'الضريبة ${finance.sackTax!.riyals} ريال',
+          : 'الضريبة ${formatRiyals(finance.sackTax!)} ريال',
     );
     text.write(' · ');
     text.write(
       finance.supplierNet == null
           ? 'الصافي غير محتسَب'
-          : 'الصافي ${finance.supplierNet!.riyals} ريال',
+          : 'الصافي ${formatRiyals(finance.supplierNet!)} ريال',
     );
     return text.toString();
   }

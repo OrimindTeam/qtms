@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../identity_access/application/session_providers.dart';
+import '../../inventory/application/inventory_providers.dart';
 import '../../master_data/application/master_data_providers.dart';
 
 /// دليل سجل التدقيق — ⛔ **يُحقَن في الجذر**.
@@ -189,3 +190,73 @@ final Provider<bool> canViewAuditTrailProvider = Provider<bool>(
       ref.watch(hasPermissionProvider(Permission.auditLogViewContextual)) ||
       ref.watch(hasPermissionProvider(Permission.auditLogViewCentral)),
 );
+
+// ══════════ ★★★ تعديلاتُ اليوم على المستندات المعتمدة — `AM-017` ③ ══════════
+
+/// ★★★ **تعديلاتُ مصدرٍ واحدٍ اليومَ** — `AM-017` ③.
+///
+/// ⛔⛔★★ **والاستعلامُ مُقيَّدٌ بالمصدر إلزاماً** — ★ **شرطُ قراءة `audit_log`
+/// يعتمد `resource.data.sourceId`** (`WU-008`): ⟵ **واستعلامٌ لا يُقيّده
+/// يُرفَض كاملاً ولو ملك القارئ كلَّ المفاتيح.**
+///
+/// ✅★★ **ولا فهرسَ جديداً يلزم** — ★ **الشكلُ `sourceId + action + occurredAt`
+/// مسجَّلٌ فعلاً في `firestore.indexes.json`**، ⟵ **وهو الشكلُ نفسُه الذي
+/// تستعمله شاشةُ السجل عند الفلترة بفعلٍ ومدى.**
+final todayAmendmentsForSourceProvider =
+    StreamProvider.family<List<AuditLogEntryCard>, String>((
+  Ref ref,
+  String sourceId,
+) {
+  final CalendarDay today = ref.watch(todayProvider);
+  return ref.watch(auditLogDirectoryProvider).watchCentralLog(
+        filter: AuditLogFilter(
+          sourceId: sourceId,
+          dimension: AuditFilterDimension.action,
+          action: AuditAction.amend,
+          from: today,
+          to: today,
+        ),
+      );
+});
+
+/// ★★★ **تعديلاتُ اليوم عبر مصادر النطاق كلِّها** — `AM-017` ③.
+///
+/// ⛔⛔ **ومن لا يملك `auditLogViewCentral` لا يستعلم أصلاً** — ★ **يُرجَع
+/// فراغٌ فلا يُرسَم البند ولا يدخل الإجمالي** (`design-system.md` §7).
+/// ⚠️ **وإخفاءٌ لا حماية** (`RISK-02`): ★ **والشرطُ في `firestore.rules`.**
+///
+/// ⚠️ **وأثناء التحميل تبقى `loading`** — ⛔ **ولا صفرٌ مؤقّت**: ★ **عدّادٌ
+/// يقول «٠» ثم يصير «٣» يُقرأ عطلاً** (نمطُ `pendingEntriesCountProvider`).
+final Provider<AsyncValue<List<AuditLogEntryCard>>> todayAmendmentsProvider =
+    Provider<AsyncValue<List<AuditLogEntryCard>>>((Ref ref) {
+  if (!ref.watch(hasPermissionProvider(Permission.auditLogViewCentral))) {
+    return const AsyncValue<List<AuditLogEntryCard>>.data(
+      <AuditLogEntryCard>[],
+    );
+  }
+
+  final List<SourceCard> sources = ref.watch(activeSourcesProvider);
+  if (sources.isEmpty) {
+    return const AsyncValue<List<AuditLogEntryCard>>.data(
+      <AuditLogEntryCard>[],
+    );
+  }
+
+  final List<AuditLogEntryCard> all = <AuditLogEntryCard>[];
+  for (final SourceCard source in sources) {
+    final AsyncValue<List<AuditLogEntryCard>> entries =
+        ref.watch(todayAmendmentsForSourceProvider(source.sourceId));
+    if (entries.hasError) {
+      return AsyncValue<List<AuditLogEntryCard>>.error(
+        entries.error ?? Object(),
+        entries.stackTrace ?? StackTrace.current,
+      );
+    }
+    final List<AuditLogEntryCard>? value = entries.value;
+    if (value == null) {
+      return const AsyncValue<List<AuditLogEntryCard>>.loading();
+    }
+    all.addAll(value);
+  }
+  return AsyncValue<List<AuditLogEntryCard>>.data(all);
+});

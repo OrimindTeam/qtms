@@ -439,7 +439,10 @@ class _SackHeaderFormSheetState extends ConsumerState<SackHeaderFormSheet> {
                               ? _sourceId
                               : null,
                       isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'المصدر'),
+                      // ⛔⛔★★ **بلا `labelText` داخلي** — `design-system.md`
+                      //    §6-ب (`AM-015` ⑤): ★ **`_FieldLabel` أعلاه هو
+                      //    التسمية**، ⟵ **وتكرارُها داخل الصندوق كان يُظهر
+                      //    «المصدر» مرتين** ⛔ **فتُقرأ حقلين لا حقلاً.**
                       items: <DropdownMenuItem<String>>[
                         for (final SourceCard source in sources)
                           DropdownMenuItem<String>(

@@ -162,6 +162,28 @@ final Provider<AsyncValue<OwnerLedgerProjection?>> ownerLedgerCardProvider =
 /// ⛔ **ولمن لا يملك النطاق الشامل: سلسلةُ مصدرِه وحدَه** — ★ **ولا رسمَ
 /// «كل» يُجمَع من سبع سلاسل**: ⟵ **فذلك سبعُ قراءاتٍ في كل فتحة** ⛔ **وهو
 /// ما وُجد هذا السجل لتفاديه** (§8).
+/// ★★★ **بطاقةُ الضمار لمصدرٍ واحدٍ بعينه** — `AM-017` ② («تفصيل حسب المصدر»).
+///
+/// ★ **نفسُ مصدرِ بيانات [ownerLedgerCardProvider] ونفسُ إسقاطه** —
+/// ⛔ **ولا مزوّدَ بياناتٍ جديد**: ⟵ **الفرقُ أن المصدرَ يُمرَّر وسيطاً هنا
+/// ولا يُقرأ من حالة الاختيار.**
+///
+/// ⛔⛔ **ويحترم صلاحياتِ قارئه كما تفعل البطاقةُ الرئيسية** (§7.1 القاعدة 4)
+/// — ★ **فالسحبياتُ والخرجياتُ تُسقَط لمن لا يملك عرضَها.**
+final ownerLedgerCardForSourceProvider =
+    Provider.family<AsyncValue<OwnerLedgerProjection?>, String>((
+  Ref ref,
+  String sourceId,
+) {
+  final OwnerLedgerVisibility visibility =
+      ref.watch(ownerLedgerVisibilityProvider);
+  return ref.watch(ownerLedgerSummaryProvider(sourceId)).whenData(
+        (OwnerLedgerSummary? summary) => summary == null
+            ? null
+            : projectOwnerLedgerSummary(summary, visibility),
+      );
+});
+
 final Provider<AsyncValue<List<OwnerLedgerTrendPoint>>> ownerLedgerTrendProvider =
     Provider<AsyncValue<List<OwnerLedgerTrendPoint>>>((Ref ref) {
   final String? sourceId = ref.watch(ownerLedgerSourceProvider);

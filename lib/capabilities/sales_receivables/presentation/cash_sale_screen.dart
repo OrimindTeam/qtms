@@ -240,7 +240,7 @@ class _CashSaleTile extends ConsumerWidget {
         subtitle: <String>[
           if (showSource) ref.watch(sourceDisplayNameProvider(card.sourceId)),
           '${card.lines.length} نوع',
-          '${card.netCashReceived.riyals} ريال',
+          '${formatRiyals(card.netCashReceived)} ريال',
         ].join(' · '),
         badges: <Widget>[
           if (card.isCancelled) const CancelledBadge(),
@@ -328,7 +328,8 @@ class CashSaleDetailsSheet extends ConsumerWidget {
                 QtmsKeyValueRow(
                   label: line.itemName,
                   value: '${quantityLabel(line.quantity)} × '
-                      '${line.unitPrice.riyals} = ${line.lineTotal.riyals} ريال',
+                      '${formatRiyals(line.unitPrice)} = '
+                      '${formatRiyals(line.lineTotal)} ريال',
                 ),
               const SizedBox(height: Spacing.space16),
               // ⛔⛔★★ **والإجماليان منفصلان دائماً** (`GR-19` · `FR-M11-14`).
@@ -342,7 +343,7 @@ class CashSaleDetailsSheet extends ConsumerWidget {
               ),
               QtmsKeyValueRow(
                 label: 'صافي المقبوض',
-                value: '${card.netCashReceived.riyals} ريال',
+                value: '${formatRiyals(card.netCashReceived)} ريال',
               ),
             ],
           ),
@@ -775,7 +776,7 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
         //    ★ **والنصُّ الكامل يبقى في `ERR_PRICE_005` حين يصل من السحابة.**
         helperText: minimum == null
             ? 'غير مسعَّر — لا حدَّ له'
-            : 'الحد الأدنى ${minimum.riyals}',
+            : 'الحد الأدنى ${formatRiyals(minimum)}',
         errorText: below ? 'أقل من الحد الأدنى' : null,
       ),
       onChanged: (String _) => setState(() {}),
@@ -947,7 +948,8 @@ Widget _totals(List<CashSaleLineInput> lines, Map<String, Money> minimums) {
     }
   }
   return QtmsLiveSummary(
-    headline: 'صافي المقبوض: ${computeNetCashReceived(totals).riyals} ريال',
+    headline:
+        'صافي المقبوض: ${formatRiyals(computeNetCashReceived(totals))} ريال',
     details: <String>[
       'إجمالي الحبات: $pieces حبة',
       'إجمالي الأوزان: ${kilograms.toStringAsFixed(WeightKg.decimals)} كجم',

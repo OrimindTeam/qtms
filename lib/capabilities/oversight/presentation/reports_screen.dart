@@ -26,6 +26,7 @@ import '../../../app/top_bar.dart';
 
 import '../../../app/router.dart';
 import '../../../core/design/design_tokens.dart';
+import '../../../core/design/theme_extensions.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/entity_tile.dart';
 import '../../../core/ui/status_pill.dart';
@@ -66,9 +67,9 @@ class ReportsScreen extends ConsumerWidget {
                           bottom: Spacing.cardGap,
                         ),
                         child: EntityTile(
-                          leading: const IconBadgeBox(
-                            icon: Icons.description_outlined,
-                            triad: SemanticTriads.neutral,
+                          leading: IconBadgeBox(
+                            icon: _familyIcon(family),
+                            triad: _familyTriad(context, family),
                           ),
                           title: report.title,
                           // ★ **الفلاترُ المتاحةُ فعلاً** — ⛔ **لا ما يَعِد
@@ -83,6 +84,39 @@ class ReportsScreen extends ConsumerWidget {
               ],
             ),
     );
+  }
+
+  /// ⛔⛔★★★ أيقونةُ العائلة — **واحدةٌ لكلِّ عائلة** (`ui-guidelines.md` §6-أ).
+  ///
+  /// ⚠️⚠️ **والعطلُ الذي أنشأ هذا مقيسٌ لا احتياط** (`AM-015` ④): ★ **إحدى
+  /// وثلاثون بطاقةً بأيقونة `description_outlined` وحدَها ولونٍ محايدٍ واحد**
+  /// ⟵ **تُقرأ جداراً لا فهرساً**، ⛔ **فلا تُمسَح بصرياً ويُقرأ كلُّ سطرٍ
+  /// على حدة.**
+  ///
+  /// ★★ **وعائلتان تتقاسمان ثلاثيةَ `cash` — والأيقونةُ هي ما يفرّقهما:**
+  /// ⟵ **وذلك تطبيقٌ للمحظور الثاني عشر من §8** (**لا معنى بلونٍ وحده**)
+  /// ⛔ **لا خرقٌ له**: ★ **ولا عائلةٌ سادسةٌ تُخترَع لأربعةِ تقارير.**
+  static IconData _familyIcon(ReportFamily family) => switch (family) {
+        ReportFamily.inventory => Icons.inventory_2_outlined,
+        ReportFamily.sales => Icons.point_of_sale_outlined,
+        ReportFamily.financial => Icons.account_balance_wallet_outlined,
+        ReportFamily.outflow => Icons.outbound_outlined,
+        ReportFamily.supplier => Icons.agriculture_outlined,
+        ReportFamily.oversight => Icons.fact_check_outlined,
+      };
+
+  /// ★ ثلاثيةُ العائلة — **من آلية الثيم** ⛔ **لا قيمةً أوليةً في الشاشة**
+  /// (`design-system.md` §8 المحظور 9-ب).
+  static ColorTriad _familyTriad(BuildContext context, ReportFamily family) {
+    final QtmsCategoryColors families = context.categories;
+    return switch (family) {
+      ReportFamily.inventory => families.inventory,
+      ReportFamily.sales => families.receivables,
+      ReportFamily.financial => families.cash,
+      ReportFamily.outflow => families.cash,
+      ReportFamily.supplier => families.masterData,
+      ReportFamily.oversight => families.identity,
+    };
   }
 
   /// ★★ يفتح التقرير — **ويُهيّئ طلبَه قبل الملاحة**.
