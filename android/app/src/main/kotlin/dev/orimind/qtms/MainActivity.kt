@@ -65,10 +65,16 @@ class MainActivity : FlutterFragmentActivity() {
         try {
             startActivityForResult(intent, REQUEST_PICK_CONTACT)
         } catch (error: android.content.ActivityNotFoundException) {
-            // ★ جهازٌ بلا تطبيق جهات اتصال — ⟵ null لا انهيار، والإدخال
-            //   اليدوي باقٍ (الزر إثراءٌ لا مسار إلزامي).
+            // ⛔⛔★★★ AM-020 — خطأٌ صريحٌ لا null صامتة:
+            //   ★ جهازٌ بلا تطبيق جهات اتصال (أو بلا إذنٍ لفتحه) ⟵ يصل
+            //     الطرفَ الآخر PlatformException، ★ فتعرضه الورقةُ شريطَ
+            //     تحذيرٍ يقول للمستخدم ما يفعل.
+            //   ⛔ و null هنا كانت تعني «ألغى المستخدم» في العقد نفسِه،
+            //     ⟵ فكان الفشلُ يُقرأ إلغاءً ولا يُعرَض شيءٌ إطلاقاً.
+            //   ⚠️ والزرُّ يبقى إثراءً لا مسارَ حفظ — ★ والإدخالُ اليدوي
+            //     باقٍ، ⛔ ولا انهيار.
             pending = null
-            result.success(null)
+            result.error(ERR_NO_CONTACT_PICKER, error.message, null)
         }
     }
 
@@ -125,5 +131,8 @@ class MainActivity : FlutterFragmentActivity() {
         /** ★ نفس النصّ في `contact_picker.dart` — ⛔ ولا نسخة ثالثة. */
         const val CHANNEL = "dev.orimind.qtms/contacts"
         const val REQUEST_PICK_CONTACT = 7301
+
+        /** ★ رمزُ تعذّرِ فتح المُنتقي — ⛔ لا يُعرَض للمستخدم (AM-020). */
+        const val ERR_NO_CONTACT_PICKER = "ERR_NO_CONTACT_PICKER"
     }
 }

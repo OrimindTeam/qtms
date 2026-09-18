@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/design/design_tokens.dart';
+import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/data_table.dart';
 import '../../../core/ui/inline_banner.dart';
@@ -130,7 +131,7 @@ class _Body extends StatelessWidget {
 /// (`ui-guidelines.md` §6) — ★ **بنفس نصّ [InventoryAsyncView] حرفياً**:
 /// ⟵ **فلا صياغتان لرفضٍ واحد.**
 const String _readFailure =
-    'تحقق من صلاحيتك ونطاق مصادرك، ثم أعد المحاولة.';
+    readRejectionMessage;
 
 /// ★ **«لم يخرج منها شيء بعد» لا «لا توجد بيانات»** — `E-21`.
 const EmptyStateSpec _noMovementsEmpty = EmptyStateSpec(

@@ -27,6 +27,7 @@ import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/inline_banner.dart';
 import '../../../core/ui/skeleton.dart';
 import '../../../core/messages/error_messages.dart';
+import '../../master_data/application/master_data_providers.dart';
 import '../application/admin_providers.dart';
 import '../application/session_providers.dart';
 import 'permission_tree.dart';
@@ -409,7 +410,7 @@ class _HelperChip extends StatelessWidget {
 /// ⚠️⚠️ **وكل تضييق هنا عرضٌ لا حماية:** `scopeIsWithin` تُفرَض في
 /// `validatePermissionGrant` ③، ⟵ **فتوسيعٌ يتجاوز نطاق المُنفِّذ يُرفَض
 /// بـ`ERR_AUTH_002`** ولو تجاوز أحدٌ هذه الشاشة.
-class _ScopeEditor extends StatelessWidget {
+class _ScopeEditor extends ConsumerWidget {
   const _ScopeEditor({
     required this.actorScope,
     required this.value,
@@ -423,7 +424,7 @@ class _ScopeEditor extends StatelessWidget {
   final ValueChanged<SourceScope?> onChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // ★ **«كل المصادر» لا تُعرَض إلا لمن يملكها** — `scopeIsWithin` ترفض
     //   `all` داخل قائمة محدودة مهما طالت، ⟵ **فعرضُها كان سيَعِد بما يُرفَض.**
     final bool canGrantAll = actorScope is AllSources;
@@ -480,7 +481,12 @@ class _ScopeEditor extends StatelessWidget {
                 onChanged: (bool? on) => onChanged(
                   _toggled(sourceId, on ?? false),
                 ),
-                title: Text(sourceId),
+                // ⛔⛔★★★ **والمصدرُ باسمه لا بمعرّفه** — `AM-018` ·
+                //   `design-system.md` §8 المحظور 13: ⟵ **ومعرّفٌ خامٌّ في
+                //   أخطر شاشةٍ في التطبيق يجعل المديرَ يمنح نطاقاً لا يعرف
+                //   ما هو.** ★ **وبالدالة نفسِها المستعملة في كشف حساب
+                //   المقوت والتوزيع** ⛔ **لا نسخةٌ ثانية.**
+                title: Text(_scopeLabel(ref, sourceId)),
               ),
           if (sorted.isEmpty && !canGrantAll)
             Padding(
@@ -495,6 +501,24 @@ class _ScopeEditor extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// ★★ **اسمُ المصدر المقروء** — `AM-018`.
+  ///
+  /// ⛔⛔ **وحيث يتعذّر إيجادُه: «مصدر غير معروف (المعرّف)»** — ⛔ **لا
+  /// المعرّفُ عارياً**: ⟵ **فالمديرُ يعرف أن المصدرَ لم يعد في الكتالوج**،
+  /// ★ **ويبقى المعرّفُ مذكوراً ليُتتبَّع** ⛔ **ولا يُخفى.**
+  ///
+  /// ⚠️★★ **والحالةُ واقعةٌ لا نظرية** — ★ **[_PermissionsEditorState._scopeCandidates]
+  /// تجمع معرّفاتِ نطاقِ المُنفِّذ والمستهدَف معاً** ⛔ **لا من كتالوج المصادر**:
+  /// ⟵ **فمعرّفٌ في نطاقِ مستخدمٍ قديمٍ قد لا يقابله مستندُ مصدرٍ مقروء.**
+  ///
+  /// ★ **و[sourceDisplayNameProvider] تقع على المعرّف عند الغياب** (`CR-004`
+  /// — **معرّفٌ صادقٌ خيرٌ من فراغٍ في وثيقةٍ تُسلَّم**): ⟵ **فالتساوي هو
+  /// مقياسُ «لم يُوجَد»** ⛔ **ولا يُغيَّر سلوكُ المزوّد للوثيقة المُصدَّرة.**
+  String _scopeLabel(WidgetRef ref, String sourceId) {
+    final String name = ref.watch(sourceDisplayNameProvider(sourceId));
+    return name == sourceId ? 'مصدر غير معروف ($sourceId)' : name;
   }
 
   /// ★ يبني النطاق بعد التبديل — و`null` عند تفريغ القائمة.

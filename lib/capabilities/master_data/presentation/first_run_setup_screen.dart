@@ -28,6 +28,15 @@ import '../../../core/ui/inline_banner.dart';
 import '../application/master_data_providers.dart';
 import 'master_data_widgets.dart';
 
+/// ★ نصُّ زرّ الحفظ — ⛔ **ولا نصٌّ محفورٌ في موضعين.**
+const String firstRunSetupSaveLabel = 'حفظ الإعداد نهائياً';
+
+/// ★ نصُّ الزر أثناء النداء — `design-system.md` §6-ي البند ②.
+const String firstRunSetupSavingLabel = 'جارٍ الحفظ…';
+
+/// ★★ **نصُّ نجاح الحفظ** — `AM-018`.
+const String firstRunSetupSavedMessage = 'تم حفظ إعداد المنشأة';
+
 /// شاشة الإعداد التأسيسي.
 class FirstRunSetupScreen extends ConsumerStatefulWidget {
   /// ينشئ الشاشة.
@@ -54,7 +63,12 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
   /// **يتطلب تدخّل المالك على مستوى المشروع السحابي** (`FR-M21-07`).
   bool _acknowledged = false;
 
-  CatalogMessage? _rejection;
+  /// ★★ **نصُّ الرفض — يُسمّي حقلَه** (`AM-018`) ⛔ **لا رسالةٌ عامة.**
+  String? _rejection;
+
+  /// ★ شريطُ النجاح — ⛔ **ولا شاشةٌ تختفي فجأةً بلا خبر.**
+  bool _saved = false;
+
   bool _submitting = false;
 
   @override
@@ -82,6 +96,11 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
                 const _OnceOnlyWarning(),
                 const SizedBox(height: Spacing.space24),
                 Text('بيانات المنشأة', style: TypeScale.titleSm),
+                // ★ **فاصلٌ تحت عنوان القسم** — `AM-018`: ⟵ **مطابقٌ لشاشة
+                //   الإعدادات** (`ui-guidelines.md` نمط 7)، ⛔ **ولا قسمٌ
+                //   بعنوانٍ عائمٍ بلا حدٍّ يفصله عمّا قبله.**
+                const SizedBox(height: Spacing.space8),
+                const Divider(height: Sizes.borderWidth),
                 const SizedBox(height: Spacing.space12),
                 MasterDataField(
                   controller: _businessName,
@@ -101,6 +120,8 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
                 ),
                 const SizedBox(height: Spacing.space24),
                 Text('العملة والأرقام', style: TypeScale.titleSm),
+                const SizedBox(height: Spacing.space8),
+                const Divider(height: Sizes.borderWidth),
                 const SizedBox(height: Spacing.space12),
                 MasterDataField(controller: _currency, label: 'رمز العملة'),
                 const SizedBox(height: Spacing.space12),
@@ -128,16 +149,38 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
-                if (_rejection != null) ...<Widget>[
+                // ⛔⛔★★★ **والرفضُ يُسمّي حقلَه** — `AM-018` ·
+                //    `master-data-design.md` §1: ⟵ **والشاشةُ لا رجعةَ فيها**
+                //    (`FR-M21-03`)، ★ **فمن رُئي له «تعذّر تنفيذ العملية»
+                //    أمام خمسةِ حقولٍ لا يعرف أيَّها يُصحِّح** ⛔ **فيعبث
+                //    بالصحيح ويترك المعيب.**
+                if (_rejection case final String message) ...<Widget>[
                   const SizedBox(height: Spacing.space12),
-                  RejectionBanner(message: _rejection!),
+                  QtmsInlineBanner(
+                    text: message,
+                    triad: SemanticTriads.danger,
+                  ),
+                ],
+                // ★★ **ونجاحٌ يُرى قبل خروج الشاشة** — ⛔ **ولا اختفاءٌ فجائي.**
+                if (_saved) ...<Widget>[
+                  const SizedBox(height: Spacing.space12),
+                  const QtmsInlineBanner(
+                    text: firstRunSetupSavedMessage,
+                    triad: SemanticTriads.success,
+                  ),
                 ],
                 const SizedBox(height: Spacing.space16),
+                // ★★ **زرٌّ ثنائي الحالة** — `design-system.md` §6-ي:
+                //    ★ **نصٌّ بديلٌ أثناء النداء** ⛔ **لا تعطيلٌ صامت.**
                 FilledButton(
                   // ⛔ **الحفظ معطَّل حتى يُقرّ المستخدم صراحةً.**
                   onPressed:
                       (_submitting || !_acknowledged) ? null : _submit,
-                  child: const Text('حفظ الإعداد نهائياً'),
+                  child: Text(
+                    _submitting
+                        ? firstRunSetupSavingLabel
+                        : firstRunSetupSaveLabel,
+                  ),
                 ),
                 const SizedBox(height: Spacing.space12),
                 Text(
@@ -164,14 +207,18 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
         thousandsSeparator: _separator.text,
       ),
     );
-    if (validated is Failure<ValidatedAppSettings>) {
-      setState(() => _rejection = CatalogMessage.operationFailed);
+    if (validated case Failure<ValidatedAppSettings>(:final AppError error)) {
+      setState(() {
+        _saved = false;
+        _rejection = _rejectionText(error);
+      });
       return;
     }
 
     setState(() {
       _submitting = true;
       _rejection = null;
+      _saved = false;
     });
 
     final Outcome<void> result = await ref
@@ -183,13 +230,42 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
       case Failure<void>(:final AppError error):
         setState(() {
           _submitting = false;
-          _rejection = appErrorMessage(error);
+          _rejection = catalogText(appErrorMessage(error));
         });
       case Success<void>():
-        // ★ **ولا ملاحة يدوية** — التدفّق حيّ، ⟵ **فالموجّه يُخرج الشاشة
-        //   من تلقائه فور وصول المستندين** (`router.dart`).
-        break;
+        // ★★ **وشريطُ النجاح يُعرَض ثم تُترَك مهلةٌ قصيرةٌ ليُقرأ** —
+        //   `AM-018`: ⟵ **والشاشةُ كانت تختفي فجأةً فلا يعلم المستخدم
+        //   أنجح الحفظُ أم انهار شيء.**
+        //
+        // ⛔⛔★★ **ولا ملاحةَ يدوية** — ★ **التدفّق حيّ والموجّه يُخرج
+        //   الشاشة من تلقائه** (`router.dart`): ⟵ **وملاحةٌ هنا تتسابق معه.**
+        setState(() {
+          _submitting = false;
+          _saved = true;
+        });
+        // ★ **والمدّةُ من التوكنز** — ⛔ **ولا رقمٌ في شاشة** (§9).
+        await Future<void>.delayed(Motion.confirmDwell);
     }
+  }
+
+  /// ★ يترجم رفضَ طبقة النطاق إلى نصّه — ⛔ **ولا تُصاغ قاعدةٌ في الشاشة**
+  /// (`ADR-0010` القاعدة 1) ⛔ **ولا رمزٌ تقنيٌّ يُعرَض للمستخدم**
+  /// (`error-handling-strategy.md` §3 القاعدة 2).
+  static String _rejectionText(AppError error) {
+    final AppSettingsRejection? reason = error is ValidationError
+        ? appSettingsRejectionOf(error.ruleCode)
+        : null;
+    return switch (reason) {
+      AppSettingsRejection.businessName =>
+        '❌ اسم المحل مطلوب — ولا يقلّ عن $sourceNameMinLength أحرف.',
+      AppSettingsRejection.currencySymbol =>
+        '❌ رمز العملة مطلوب — ولا يزيد عن ثمانية محارف.',
+      AppSettingsRejection.thousandsSeparator =>
+        '❌ فاصل الآلاف محرف واحد على الأكثر — واتركه فارغاً إن لم ترده.',
+      AppSettingsRejection.address => '❌ العنوان أطول من الحدّ المسموح.',
+      AppSettingsRejection.logo => '❌ مسار الشعار أطول من الحدّ المسموح.',
+      null => catalogText(appErrorMessage(error)),
+    };
   }
 }
 

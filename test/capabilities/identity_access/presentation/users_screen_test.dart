@@ -20,13 +20,15 @@ Future<void> pumpUsers(
   FakeUserDirectory directory, {
   FakeAuthRepository? auth,
   FakeUserCardRepository? cards,
+  /// ★ صلاحياتُ صاحب الجلسة — ★ **تُمرَّر حيث تحكم بوابةٌ ما يُعرَض.**
+  Set<Permission> permissions = const <Permission>{Permission.sackView},
 }) async {
   final FakeAuthRepository authRepo = auth ?? FakeAuthRepository();
   final FakeUserCardRepository cardRepo = cards ?? FakeUserCardRepository();
   authRepo.emitIdentity(
     const AuthenticatedIdentity(userId: 'U-001', sourceScope: AllSources()),
   );
-  cardRepo.emitCard('U-001', testCard());
+  cardRepo.emitCard('U-001', testCard(permissions: permissions));
 
   await tester.pumpWidget(
     ProviderScope(
@@ -214,6 +216,53 @@ void main() {
       expect(find.text('التسعير اليومي'), findsOneWidget);
       auth.dispose();
       cards.dispose();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ⛔⛔★★★ AM-018 — السطرُ الثانوي والأيقونة الموحّدة
+  // ══════════════════════════════════════════════════════════════════════
+
+  group('⛔⛔★★★ AM-018 — ولا معرّفٌ داخليٌّ في نصٍّ يراه المستخدم', () {
+    test('★★ الفراغُ يُعامَل غياباً لا نصّاً — §8 المحظور 13', () {
+      expect(userSubtitle('a@b.test'), 'a@b.test');
+      // ⛔⛔ **وهذه بعينُها ما تمرّ من `??`** — ⟵ **فتُعرَض سطراً خاوياً.**
+      expect(userSubtitle(''), noEmailLabel);
+      expect(userSubtitle('   '), noEmailLabel);
+      expect(userSubtitle(null), noEmailLabel);
+    });
+
+    testWidgets('★★ وبطاقةٌ ببريدٍ فارغٍ تعرض «بلا بريد» ⛔ لا فراغاً',
+        (WidgetTester tester) async {
+      final FakeUserDirectory directory = FakeUserDirectory()
+        ..emit(<UserCard>[
+          testCard(userId: 'U-002', name: 'مستخدم مُسنَد', email: ''),
+        ]);
+
+      await pumpUsers(tester, directory);
+
+      expect(find.text(noEmailLabel), findsOneWidget);
+      // ⛔⛔★★★ **ولا معرّفَ المستخدم في موضع البريد.**
+      expect(find.textContaining('U-002'), findsNothing);
+      directory.dispose();
+    });
+
+    testWidgets('★ وأيقونةُ «إضافة» موحَّدةٌ مع الشاشات الشقيقة',
+        (WidgetTester tester) async {
+      final FakeUserDirectory directory = FakeUserDirectory()
+        ..emit(<UserCard>[testCard(userId: 'U-001')]);
+      // ★ **والزرُّ خلف `userCreate`** — ⟵ **فبلا المفتاح يغيب بحقّ**،
+      //   ⛔ **ونفيُ الأيقونة عندئذٍ نفيٌ فارغ.**
+      await pumpUsers(
+        tester,
+        directory,
+        permissions: <Permission>{Permission.userCreate},
+      );
+
+      expect(find.byIcon(Icons.person_add_alt_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.person_add_alt), findsNothing);
+      expect(find.byIcon(Icons.person_add_alt_1_outlined), findsNothing);
+      directory.dispose();
     });
   });
 }

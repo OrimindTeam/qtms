@@ -142,4 +142,44 @@ void main() {
       expect(v.deltaLabel, contains('330,475'));
     });
   });
+
+  // ★★★ `AM-023` — نصُّ مشاركةِ ملخّص اليوم.
+  group('★★★ AM-023 — نصُّ المشاركة يطابق البطاقة حرفاً بحرف', () {
+    OwnerLedgerSummaryView viewOf(OwnerLedgerVisibility visibility) =>
+        ownerLedgerViewOf(
+          projectOwnerLedgerSummary(reference(), visibility),
+          scopeLabel: 'رداع',
+          isLive: true,
+        );
+
+    test('★ كلُّ بندٍ بنصِّه المنسَّق — ⛔ ولا رقمَ يُبنى في النصّ', () {
+      final String text = ownerLedgerShareText(
+        viewOf(OwnerLedgerVisibility.full),
+        dayLabel: '2026/08/20',
+      );
+      expect(text, contains('ضمار المالك — 2026/08/20'));
+      expect(text, contains('رداع'));
+      expect(text, contains('إجمالي الضمار: 545,550'));
+      expect(text, contains('باقي الضمار قبل الخصم: 368,600'));
+      expect(text, contains('باقي الضمار بعد الخصم: 363,600'));
+      expect(text, contains('السحبيات: 20,000'));
+      expect(text, contains('الخرجيات: 5,000'));
+      expect(text, contains('الصافي النهائي: 330,475 ريال'));
+    });
+
+    test('⛔⛔★★★ والبندُ المحكومُ يغيب عن النصّ كما يغيب عن البطاقة — E-29', () {
+      final String text = ownerLedgerShareText(
+        viewOf(
+          const OwnerLedgerVisibility(
+            showsWithdrawals: false,
+            showsExpenses: true,
+          ),
+        ),
+        dayLabel: '2026/08/20',
+      );
+      // ⛔ **ولا صفراً** — ★ **الصفرُ معلومةٌ مختلفةٌ عن الغياب** (§9).
+      expect(text, isNot(contains('السحبيات')));
+      expect(text, contains('الخرجيات: 5,000'));
+    });
+  });
 }

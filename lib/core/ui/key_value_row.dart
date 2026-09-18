@@ -25,6 +25,8 @@ class QtmsKeyValueRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.numeric = false,
+    this.valueColor,
+    this.emphasis = false,
     super.key,
   });
 
@@ -37,6 +39,30 @@ class QtmsKeyValueRow extends StatelessWidget {
   /// ★ هل القيمة رقم؟ — **يفعّل الأرقام الجدولية ويثبّت الاتجاه**.
   final bool numeric;
 
+  /// ★★ لونُ القيمة حين تحمل حكماً — و`null` تعني **اللون الافتراضي**.
+  ///
+  /// ⛔⛔★★★ **ولا يُمرَّر إلا من ثلاثيةٍ دلالية** (`design-system.md` §6-د ·
+  /// `AM-022`): ★ **صفٌّ في جدول إجمالياتٍ دلالتُه خطرٌ يُصبَغ
+  /// بـ`SemanticTriads.danger.ink` متى تجاوزت قيمتُه صفراً** — ⟵ **وشريحةُ
+  /// «أكثر من 30 يوماً» في أعمار الدين هي الحالةُ المقيسة.**
+  ///
+  /// ⛔⛔ **واللونُ لا يحمل المعنى وحدَه** (§3.4) — ★ **تسميةُ الصفّ تقولها
+  /// كاملةً**، ⟵ **والصفرُ يبقى على الافتراضي** ⛔ **فلا يُصبَغ ما لا خطرَ فيه.**
+  final Color? valueColor;
+
+  /// ★★★ **صفُّ الحصيلة النهائية في بطاقةٍ ذاتِ سلسلةِ اشتقاق** (`AM-023` ·
+  /// `design-system.md` §6-د).
+  ///
+  /// ★ **التسميةُ `titleSm` والقيمةُ بوزن 700، وكلتاهما بـ`primary.ink`** —
+  /// ⟵ **وهو بعينُه أسلوبُ `isTotal` في بطاقة ضمار المالك**: ★ **فسجلُّ
+  /// الأيام السابقة يُقرأ بالهرمية نفسِها التي تُقرأ بها شاشتُه الأمّ**،
+  /// ⛔ **لا صفّاً كبقية الصفوف.**
+  ///
+  /// ⛔⛔ **ولا يُستعمَل لأكثر من صفٍّ واحدٍ في البطاقة الواحدة** — ⟵ **وتوكيدُ
+  /// كلِّ صفٍّ إلغاءٌ للتوكيد.** ⛔ **ولا يُخلَط مع [valueColor]:** ★ **ذاك
+  /// حكمُ خطرٍ على قيمة، وهذا رتبةُ صفٍّ في سلسلة.**
+  final bool emphasis;
+
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsetsDirectional.symmetric(
@@ -48,8 +74,11 @@ class QtmsKeyValueRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: TypeScale.bodyMd
-                    .copyWith(color: SemanticColors.textSecondary),
+                style: emphasis
+                    ? TypeScale.titleSm
+                        .copyWith(color: SemanticTriads.primary.ink)
+                    : TypeScale.bodyMd
+                        .copyWith(color: SemanticColors.textSecondary),
               ),
             ),
             const SizedBox(width: Spacing.space12),
@@ -59,8 +88,12 @@ class QtmsKeyValueRow extends StatelessWidget {
                 textDirection: TextDirection.ltr,
                 child: Text(
                   value,
-                  style: TypeScale.numericSm
-                      .copyWith(color: SemanticColors.textPrimary),
+                  style: TypeScale.numericSm.copyWith(
+                    color: emphasis
+                        ? SemanticTriads.primary.ink
+                        : valueColor ?? SemanticColors.textPrimary,
+                    fontWeight: emphasis ? FontWeight.w700 : null,
+                  ),
                 ),
               )
             else
@@ -68,8 +101,10 @@ class QtmsKeyValueRow extends StatelessWidget {
                 child: Text(
                   value,
                   style: TypeScale.bodyMd.copyWith(
-                    color: SemanticColors.textPrimary,
-                    fontWeight: FontWeight.w600,
+                    color: emphasis
+                        ? SemanticTriads.primary.ink
+                        : valueColor ?? SemanticColors.textPrimary,
+                    fontWeight: emphasis ? FontWeight.w700 : FontWeight.w600,
                   ),
                   textAlign: TextAlign.end,
                 ),

@@ -318,7 +318,18 @@ class _StatementBodyState extends ConsumerState<_StatementBody> {
           ),
         const SizedBox(height: Spacing.space16),
         // ④ ★★ التذييل — **الرصيد رقماً وكتابةً والفائضُ والأعمار**.
-        _StatementFooter(totals: table.totals),
+        _StatementFooter(
+          totals: table.totals,
+          // ⛔⛔★★★ **وأخطرُ شريحةٍ تُبرَز حين تكون قائمةً فعلاً** — `AM-022`
+          //    (`design-system.md` §6-د): ⟵ **«أكثر من 30 يوماً» أكثرُ
+          //    الشرائح دلالةً على تعثّر التحصيل**، ⛔ **وأربعٌ بوزنٍ بصريٍّ
+          //    واحد تُخفيها.** ★ **والصفرُ يبقى على الافتراضي** ⛔ **فلا
+          //    يُصبَغ ما لا خطرَ فيه.**
+          dangerLabel:
+              (statement.aging[DebtAgeBucket.overThirty] ?? Money.zero).isZero
+                  ? null
+                  : debtAgingFieldLabel(DebtAgeBucket.overThirty),
+        ),
         if (statement.lotsWithoutAge.isNotEmpty) ...<Widget>[
           const SizedBox(height: Spacing.space12),
           // ⚠️ **ولا يُخمَّن عمرُ ضمارٍ لا يُقرأ تاريخُه** — ★ **يُعلَن.**
@@ -427,9 +438,16 @@ class _ActionsRow extends ConsumerWidget {
 
 /// تذييلُ الكشف — `FR-M17-07`.
 class _StatementFooter extends StatelessWidget {
-  const _StatementFooter({required this.totals});
+  const _StatementFooter({required this.totals, this.dangerLabel});
 
   final List<ExportField> totals;
+
+  /// ★★ تسميةُ الصفّ الذي يُبرَز بثلاثية `danger` — و`null` تعني **لا إبراز**.
+  ///
+  /// ⛔⛔★★ **والتسميةُ تصل من طبقة النطاق** ([debtAgingFieldLabel]) —
+  /// ⛔ **لا محفورةً هنا**: ⟵ **فنصٌّ محفورٌ يفترق عن بانية الجدول عند أول
+  /// تعديل** ⛔ **فيسقط الإبرازُ بصمتٍ بلا اختبارٍ يفشل.**
+  final String? dangerLabel;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -449,6 +467,9 @@ class _StatementFooter extends StatelessWidget {
               QtmsKeyValueRow(
                 label: total.label,
                 value: total.value,
+                valueColor: total.label == dangerLabel
+                    ? SemanticTriads.danger.ink
+                    : null,
                 // ⛔⛔ **و«الرصيد كتابةً» نصٌّ لا رقم** — ★ **فلا يُثبَّت
                 //    اتجاهُه ولا تُطلَب له أرقامٌ جدولية**: ⟵ **وتثبيتُ
                 //    اتجاه جملةٍ عربية يقلبها.**

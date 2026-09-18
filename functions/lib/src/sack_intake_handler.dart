@@ -340,6 +340,12 @@ final class SackIntakeHandler {
             storedRemainingKilograms: 0,
             storedLostWeightConfirmed: false,
             hasTax: false,
+            // ⏳★★★ **ويومُ المنصّة كما قيس في هذه المعاملة** (`observed`) —
+            //    `OQ-002` (الخيار ب): ⟵ **وجونيةٌ تُنشَأ الآن تاريخُ مخزونها
+            //    هو اليومُ نفسُه**، ⛔ **فلا بندَ «وزن ضائع» ينشأ معها أبداً**
+            //    — ★ **وهو المقصود حرفياً**: `E-06` يُنشئ بندَي الضريبة
+            //    والأنواع ⛔ **لا بندَ وزنٍ لجونيةٍ لم تُدخَل أنواعُها بعد.**
+            platformToday: observed,
           ),
           pendingFromBalanceWrites(
             writes: accepted.writes,
@@ -567,6 +573,13 @@ final class SackIntakeHandler {
             // 🔒 **الضريبةُ من ماليتها أو من هذه العملية نفسها.**
             hasTax: reads.document(financePath)?['taxPerKilo'] != null ||
                 operation == SackOperation.enterSackTax,
+            // ⏳★★★ **ومحفِّزُ بند «الوزن الضائع» يومُ المنصّة لا يومُ
+            //    المستند** — `OQ-002` (الخيار ب · `CR-013`): ⟵ **فالبند
+            //    ينشأ عند أوّلِ عمليةٍ تمسّ الجونية بعد تغيّر تاريخ
+            //    المخزون**، ⛔ **ولا ينشأ في يومها هي مهما تكرّرت
+            //    العمليات.** ★ **و`platformToday` مقروءةٌ في أوّل سطرٍ من
+            //    هذه الخطّة** — ⛔ **فلا تُقرأ الساعةُ هنا ثانيةً.**
+            platformToday: platformToday,
             isCancelled: stored.status == SackStatus.cancelled,
           ),
           pendingFromBalanceWrites(

@@ -234,10 +234,14 @@ final class FakeMasterDataAdmin implements MasterDataAdminRepository {
 /// ★ مُنتقي جهات اتصال مزيّف — **فيُختبَر الزر بلا جهاز**.
 final class FakeContactPicker implements ContactPicker {
   /// ينشئ المُنتقي بجهته.
-  FakeContactPicker([this.contact]);
+  FakeContactPicker([this.contact, this.error]);
 
-  /// ما يُعيده — و`null` تعني **إلغاءً أو تعذّراً**.
+  /// ما يُعيده — ★ **و`null` تعني الإلغاءَ وحدَه** (`AM-020`).
   PickedContact? contact;
+
+  /// ★ **استثناءُ التعذّر — يُرمى بدل الإرجاع** (`AM-020`):
+  /// `PlatformException` **أو** `MissingPluginException`.
+  Exception? error;
 
   /// عدد مرات الفتح.
   int opens = 0;
@@ -245,6 +249,8 @@ final class FakeContactPicker implements ContactPicker {
   @override
   Future<PickedContact?> pickOne() async {
     opens++;
+    final Exception? thrown = error;
+    if (thrown != null) throw thrown;
     return contact;
   }
 }

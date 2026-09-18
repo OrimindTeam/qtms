@@ -19,6 +19,8 @@ import 'package:qtms/capabilities/financial_outflow/presentation/outflow_screen.
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/inventory/application/inventory_providers.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
+import 'package:qtms/core/design/design_tokens.dart';
+import 'package:qtms/core/ui/inline_banner.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
@@ -505,6 +507,90 @@ void main() {
       expect(find.text('السحبيات والخرجيات'), findsOneWidget);
       expect(find.byIcon(Icons.arrow_back), findsNothing);
       expect(find.byIcon(Icons.logout), findsNothing);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ★★★ `AM-023` — ثلاثةُ بنودِ عرضٍ من مراجعة تجربة الاستخدام
+  // ═══════════════════════════════════════════════════════════════════════
+  group('AM-023 ① — مُنسِّقُ إدخالِ الكمية بوحدة النوع', () {
+    testWidgets('⛔⛔★★★ الكسرُ مستحيلُ الإدخال في نوعٍ معدود — BR-M6-06',
+        (WidgetTester tester) async {
+      await pumpOutflow(tester);
+      await chooseSource(tester);
+      await tapAddLine(tester, 'outflow-add-qat');
+      await tapVisible(tester, find.text('النوع').last);
+      await tapVisible(tester, find.text('عوارض (100 حبة)').last);
+
+      await tester.enterText(find.byKey(const Key('outflow-qty-0')), '1.5');
+      await tester.pumpAndSettle();
+
+      // ★ **الفاصلةُ تُحذَف عند الكتابة نفسِها** — ⛔ **لا تُرفَض بعد الإرسال.**
+      final TextField quantity = tester.widget<TextField>(
+        find.byKey(const Key('outflow-qty-0')),
+      );
+      expect(quantity.controller!.text, '15');
+      expect(quantity.inputFormatters, isNotEmpty);
+    });
+
+    testWidgets('★ والوزنيُّ يقبل العشريَّ — allow([0-9.])',
+        (WidgetTester tester) async {
+      inventory.emitStock(<ItemDailyBalanceCard>[
+        testWeightBalance(itemKey: 'ITM-SCRAP', itemName: 'السكرب'),
+      ]);
+      await pumpOutflow(tester);
+      await chooseSource(tester);
+      await tapAddLine(tester, 'outflow-add-qat');
+      await tapVisible(tester, find.text('النوع').last);
+      await tapVisible(tester, find.textContaining('السكرب').last);
+
+      await tester.enterText(find.byKey(const Key('outflow-qty-0')), '1.5');
+      await tester.pumpAndSettle();
+
+      final TextField quantity = tester.widget<TextField>(
+        find.byKey(const Key('outflow-qty-0')),
+      );
+      expect(quantity.controller!.text, '1.5');
+    });
+  });
+
+  group('AM-023 ② — نصُّ فراغِ «بنود المبالغ»', () {
+    testWidgets('★ يظهر حين لا بند، ويختفي عند أول بند',
+        (WidgetTester tester) async {
+      await pumpOutflow(tester);
+      await chooseSource(tester);
+
+      final Finder empty = find.text('لا بند مبلغٍ بعد — أضف سحبية أو مصروفاً '
+          'نقدياً.');
+      await scrollTo(tester, empty);
+      expect(empty, findsOneWidget);
+
+      await tapAddLine(tester, 'outflow-add-cash');
+      expect(empty, findsNothing);
+    });
+  });
+
+  group('AM-023 ③ — تنبيهُ البنود غير المسعَّرة بثلاثيةٍ لونية', () {
+    testWidgets('⛔ شريطٌ بثلاثية warning — ⛔ لا نصٌّ عارٍ',
+        (WidgetTester tester) async {
+      await pumpOutflow(tester);
+      await chooseSource(tester);
+      await tapAddLine(tester, 'outflow-add-qat');
+      await tapVisible(tester, find.text('النوع').last);
+      await tapVisible(tester, find.text('عوارض (100 حبة)').last);
+      await tester.enterText(find.byKey(const Key('outflow-qty-0')), '5');
+      await tester.pumpAndSettle();
+
+      final Finder banner = find.ancestor(
+        of: find.textContaining('تدخل مركز الإدخالات المعلّقة'),
+        matching: find.byType(QtmsInlineBanner),
+      );
+      await scrollTo(tester, banner);
+      expect(banner, findsOneWidget);
+      expect(
+        tester.widget<QtmsInlineBanner>(banner).triad,
+        SemanticTriads.warning,
+      );
     });
   });
 }

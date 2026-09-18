@@ -124,3 +124,55 @@ final sourceDisplayNameProvider =
   }
   return sourceId;
 });
+
+/// ★★★ اسمُ النوع للعرض — **نظيرُ [sourceDisplayNameProvider] حرفياً** (`AM-025` ②).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **ويمرّ بـ[ledgerItemDisplayName] لا بالاسم المخزَّن وحدَه** —
+/// [`ADR-0007`] · [`DEBT-86`] · `ui-guidelines.md` §6: ⟵ **فمفتاحٌ مركّبٌ
+/// («بطوة - جونية رقم 2») يُعرَض بتمامه**، ★ **ومفتاحُ سجلِ نوعٍ (`ITM-0001`)
+/// يُعرَض باسمه المخزَّن** — ⛔ **ولا صيغةَ ثانيةٌ تفترق عن بقية الشاشات.**
+///
+/// ⛔⛔★★ **ولا اسمَ يُخترَع عند الغياب** — ★ **يقع على المفتاح نفسِه:**
+/// ⟵ **مفتاحٌ صادقٌ خيرٌ من فراغٍ ومن اسمٍ مُلفَّق** (نفسُ قاعدة المصدر).
+///
+/// ⚠️ **والمعطَّل يُسمّى كالنشط** — ⟵ **فالقيدُ التاريخي يُقرأ بعد تعطيل نوعه**
+/// ⛔ **والتصفيةُ على مدخلات الإنشاء وحدها.**
+/// ═══════════════════════════════════════════════════════════════════════
+final itemDisplayNameProvider =
+    Provider.family<String, String>((Ref ref, String itemKey) {
+  final List<ItemCard> all =
+      ref.watch(itemsProvider).value ?? const <ItemCard>[];
+  for (final ItemCard item in all) {
+    if (item.itemId == itemKey) {
+      return ledgerItemDisplayName(itemKey: itemKey, itemName: item.name);
+    }
+  }
+  return ledgerItemDisplayName(itemKey: itemKey, itemName: itemKey);
+});
+
+/// ★★ اسمُ المقوت للعرض — **نظيرُ [sourceDisplayNameProvider]** (`AM-025` ②).
+///
+/// ⛔ **ولا اسمَ يُخترَع عند الغياب** — ★ **يقع على المعرّف نفسِه** (`MQT-0002`).
+final dealerDisplayNameProvider =
+    Provider.family<String, String>((Ref ref, String dealerId) {
+  final List<DealerCard> all =
+      ref.watch(dealersProvider).value ?? const <DealerCard>[];
+  for (final DealerCard dealer in all) {
+    if (dealer.dealerId == dealerId) return dealer.name;
+  }
+  return dealerId;
+});
+
+/// ★★ اسمُ الرعوي للعرض — **نظيرُ [sourceDisplayNameProvider]** (`AM-025` ②).
+///
+/// ⛔ **ولا اسمَ يُخترَع عند الغياب** — ★ **يقع على المعرّف نفسِه** (`SUP-0001`).
+final supplierDisplayNameProvider =
+    Provider.family<String, String>((Ref ref, String supplierId) {
+  final List<SupplierCard> all =
+      ref.watch(suppliersProvider).value ?? const <SupplierCard>[];
+  for (final SupplierCard supplier in all) {
+    if (supplier.supplierId == supplierId) return supplier.name;
+  }
+  return supplierId;
+});

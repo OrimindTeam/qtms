@@ -16,6 +16,8 @@ import 'package:qtms/capabilities/identity_access/application/session_providers.
 import 'package:qtms/capabilities/inventory/application/inventory_providers.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
 import 'package:qtms/capabilities/sales_receivables/application/discount_providers.dart';
+import 'package:qtms/core/design/design_tokens.dart';
+import 'package:qtms/core/ui/sticky_action_bar.dart';
 import 'package:qtms/capabilities/sales_receivables/presentation/discount_screen.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
@@ -412,6 +414,70 @@ void main() {
       expect(find.textContaining('ولا شيء يُخصَم منه'), findsOneWidget);
       // ★ **وشاشةُ القبض تقترح هنا تسجيلَ فائض** — ⛔ **وهذه لا تفعل.**
       expect(find.textContaining('مقدَّم'), findsNothing);
+    });
+  });
+  // ═══════════ ★★★ AM-022 — اسمُ المصدر وثلاثُ درجاتِ سطر الحالة ═══════════
+
+  group('★★★ AM-022 — عرضُ الخصومات', () {
+    testWidgets(
+        '⛔⛔★★★ ترويسةُ الضمار تحمل اسمَ المصدر ⛔ لا معرّفَه الخام',
+        (WidgetTester tester) async {
+      await pumpDiscounts(tester);
+      await selectDealer(tester);
+      expect(find.textContaining('مصدر مصدر رداع'), findsOneWidget);
+      expect(find.textContaining('مصدر SRC-001'), findsNothing);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ و«لم تُوزَّع» بثلاثية warning — ⛔ لا danger ولا success',
+        (WidgetTester tester) async {
+      discounts.emitLots(<OpenDebtLot>[lot(stockDay: 20, remaining: 8000)]);
+      await pumpDiscounts(tester);
+      await selectDealer(tester);
+      await scrollTo(tester, autoAmountField);
+      await tester.enterText(autoAmountField, '20000');
+      await tester.pumpAndSettle();
+      await tapVisible(tester, find.byKey(const Key('discount-auto-allocate')));
+
+      final QtmsActionStatus status =
+          tester.widget<QtmsActionStatus>(find.byType(QtmsActionStatus));
+      // ★★★ **الدرجةُ الوسيطة** — ⟵ **نجح الفعلُ ونتيجتُه ناقصة.**
+      expect(status.triad, SemanticTriads.warning);
+      expect(status.icon, Icons.report_problem_outlined);
+      expect(status.message, startsWith('12,000 ريال لم تُوزَّع'));
+      // ⛔⛔ **ولا رمزَ إيموجي يحمل المعنى** — `design-system.md` §6-ز.
+      expect(find.textContaining('⚠️ 12,000'), findsNothing);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ وسطرُ النجاح بثلاثية success ⛔ بلا «✅»',
+        (WidgetTester tester) async {
+      discounts.emitLots(<OpenDebtLot>[lot(stockDay: 20, remaining: 8000)]);
+      await pumpDiscounts(tester);
+      await selectDealer(tester);
+      await enterLot(tester, 20, '3000');
+      await tapVisible(tester, find.byKey(const Key('discount-save')));
+
+      final QtmsActionStatus status =
+          tester.widget<QtmsActionStatus>(find.byType(QtmsActionStatus));
+      expect(status.triad, SemanticTriads.success);
+      expect(status.icon, Icons.check_circle_outline);
+      expect(status.message, startsWith('حُفِظ سند الخصم'));
+      expect(find.textContaining('✅'), findsNothing);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ ورفضُ «بلا سطر» بثلاثية danger ⛔ بلا «❌»',
+        (WidgetTester tester) async {
+      await pumpDiscounts(tester);
+      await selectDealer(tester);
+      await tapVisible(tester, find.byKey(const Key('discount-save')));
+
+      final QtmsActionStatus status =
+          tester.widget<QtmsActionStatus>(find.byType(QtmsActionStatus));
+      expect(status.triad, SemanticTriads.danger);
+      expect(status.message, 'أدخل مبلغ خصمٍ على ضمارٍ واحد على الأقل.');
+      expect(find.textContaining('❌'), findsNothing);
     });
   });
 }

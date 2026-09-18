@@ -35,6 +35,27 @@ import '../application/inventory_providers.dart';
 import 'inventory_widgets.dart';
 import '../../../core/ui/optional_reason.dart';
 
+/// ★ نصُّ زرّ الحفظ — ⛔ **ومصدرٌ واحد يقرؤه الزرُّ والاختبار.**
+const String dailyPricingSaveLabel = 'حفظ أسعار اليوم';
+
+/// ★★ نصُّ الزرّ أثناء النداء — `design-system.md` §6-ي البند ② (`AM-021` ②).
+const String dailyPricingSavingLabel = 'جارٍ الحفظ…';
+
+/// ★★ **عنوانُ الفراغ حين يكون سببُه المرشِّحَ وحدَه** — `AM-021` ③.
+///
+/// ⛔⛔★★★ **وهو ليس فراغَ البيانات** — `design-system.md` §هـ: ⟵ **ورسالةُ
+/// «لا شيء يُسعَّر بعد» فوق يومٍ سُعِّر بالكامل تقول عكسَ الحقيقة تماماً**،
+/// ⛔ **وتدفع المستخدمَ يسجّل وارداً لا يحتاجه.**
+const String pricingFilteredEmptyTitle =
+    'كل الأنواع مسعَّرة بالفعل ضمن هذا المرشِّح';
+
+/// ★ رسالةُ ذلك الفراغ — **الخطوةُ التالية لا وصفُ الفراغ** (§6).
+const String pricingFilteredEmptyLabel =
+    'لا يبقى نوعٌ ينتظر التسعير هنا. اعرض الكل لمراجعة ما سُعِّر.';
+
+/// ★ إجراءُ ذلك الفراغ — **رفعُ المرشِّح نفسِه** ⛔ **لا وجهةٌ في شاشةٍ أخرى.**
+const String pricingFilteredEmptyAction = 'اعرض الكل';
+
 /// شاشة التسعير اليومي.
 class DailyPricingScreen extends ConsumerWidget {
   /// ينشئ الشاشة.
@@ -160,12 +181,31 @@ class _PricingFormState extends ConsumerState<_PricingForm> {
     final AsyncValue<List<PricingRow>> rows =
         ref.watch(filteredPricingRowsProvider(widget.query));
 
+    // ⛔⛔★★★ **وفراغُ المرشِّح يُفصَل عن فراغ البيانات** — `AM-021` ③
+    //    (`design-system.md` §هـ): ★ **والشرطُ مقيسٌ لا مُفترَض** — ⟵ **القائمةُ
+    //    غيرُ المرشَّحة غيرُ فارغة والمعروضةُ فارغة**: ⛔ **ولا يكفي «المرشِّحُ
+    //    ليس الكل»**، ★ **فيومٌ بلا مخزونٍ أصلاً فراغُه فراغُ بيانات.**
+    final PricingStatusFilter filter = ref.watch(pricingFilterProvider);
+    final bool filteredOut = filter != PricingStatusFilter.all &&
+        (rows.value?.isEmpty ?? false) &&
+        (ref.watch(pricingRowsProvider(widget.query)).value?.isNotEmpty ??
+            false);
+
     return InventoryAsyncView<PricingRow>(
       value: rows,
       // ★ **«لا يوجد بعد» لا «ممنوع»** — والمنع له نصّه في `InventoryAsyncView`.
-      emptyIcon: Icons.sell_outlined,
-      emptyTitle: 'لا شيء يُسعَّر بعد',
-      emptyLabel: 'التسعير يتبع المخزون — سجّل وارداً أولاً ثم عُد لتسعيره.',
+      emptyIcon: filteredOut ? Icons.filter_alt_off_outlined : Icons.sell_outlined,
+      emptyTitle:
+          filteredOut ? pricingFilteredEmptyTitle : 'لا شيء يُسعَّر بعد',
+      emptyLabel: filteredOut
+          ? pricingFilteredEmptyLabel
+          : 'التسعير يتبع المخزون — سجّل وارداً أولاً ثم عُد لتسعيره.',
+      emptyActionLabel: filteredOut ? pricingFilteredEmptyAction : null,
+      onEmptyAction: filteredOut
+          ? () => ref
+              .read(pricingFilterProvider.notifier)
+              .select(PricingStatusFilter.all)
+          : null,
       // ★★★ **نمط `P4`** (`MASTER.md` §5b · `ADR-0021`): **شريطُ الإجراء
       //    الجماعي ثابتٌ فوق الصفوف، والصفوفُ تمرّ، وزرُّ الحفظ ثابتٌ أسفل.**
       builder: (List<PricingRow> list) => Column(
@@ -213,7 +253,14 @@ class _PricingFormState extends ConsumerState<_PricingForm> {
               permission: Permission.dailyPriceWrite,
               child: FilledButton(
                 onPressed: _submitting ? null : () => _submit(list),
-                child: const Text('حفظ أسعار اليوم'),
+                // ⛔⛔★★★ **وبديلٌ مرئيٌّ داخل الزرّ أثناء النداء** —
+                //    `design-system.md` §6-ي البند ② (`AM-021` ②): ⟵ **وكان
+                //    التعطيلُ وحدَه** (البند ①)، ⛔ **وزرٌّ معطَّلٌ بلا بديلٍ
+                //    يُقرأ ممنوعاً لا مشغولاً** — ★ **فاكتمل العقدُ بأربعته**:
+                //    ★ **والرفضُ والنجاحُ في `status` أعلاه** (البند ④).
+                child: Text(
+                  _submitting ? dailyPricingSavingLabel : dailyPricingSaveLabel,
+                ),
               ),
             ),
           ),

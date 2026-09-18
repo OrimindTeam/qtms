@@ -35,6 +35,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 import '../../../app/router.dart';
 import '../../../app/top_bar.dart';
 import '../../../core/design/design_tokens.dart';
+import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/context_header.dart';
 import '../../../core/ui/date_labels.dart';
@@ -42,6 +43,7 @@ import '../../../core/ui/inline_banner.dart';
 import '../../master_data/application/master_data_providers.dart';
 import '../application/owner_ledger_providers.dart';
 import 'cash_movement_card.dart';
+import 'owner_ledger_actions.dart';
 import 'owner_ledger_card.dart';
 import 'owner_ledger_format.dart';
 import 'owner_ledger_trend_chart.dart';
@@ -117,28 +119,51 @@ class _OwnerLedgerCardSlot extends ConsumerWidget {
         : ref.watch(sourceNameProvider(sourceId));
 
     return switch (card) {
-      AsyncError<OwnerLedgerProjection?>(:final Object error) =>
-        QtmsErrorState(message: '$error'),
+      // ⛔⛔★★★ **ولا نصَّ استثناءٍ خامّ في `message` أبداً** — `AM-023`
+      //    (`design-system.md` §هـ · `owner-ledger-summary-design.md` §10.5 ①):
+      //    ★ **النصُّ البشريُّ الموحَّد في `message`**، ★ **والخامُّ مطويٌّ في
+      //    `detail` خلف «تفاصيل تقنية»** ⛔ **ولا يُبتلَع كذلك.**
+      AsyncError<OwnerLedgerProjection?>(:final Object error) => QtmsErrorState(
+          message: readRejectionMessage,
+          detail: '$error',
+          onRetry: () => ref.invalidate(ownerLedgerSummaryProvider),
+        ),
       AsyncLoading<OwnerLedgerProjection?>() => const _CardSkeleton(),
       AsyncValue<OwnerLedgerProjection?>(:final OwnerLedgerProjection? value) =>
-        OwnerLedgerCard(
-          // ⛔⛔★★ **واليومُ بلا ملخّصٍ يُعرَض بأصفارٍ صريحة** — ⟵ **لا شاشةٌ
-          //    فارغة**: ★ **«لم يُوزَّع اليوم شيء» معلومةٌ يريدها المالك.**
-          summary: ownerLedgerViewOf(
-            value ??
-                projectOwnerLedgerSummary(
-                  computeOwnerLedgerSummary(
-                    sourceId: sourceId ?? allSourcesScopeId,
-                    date: day,
-                    contributions: const OwnerLedgerContributions(),
-                  ),
-                  ref.watch(ownerLedgerVisibilityProvider),
-                ),
-            scopeLabel: scopeLabel,
-            isLive: true,
-          ),
-        ),
+        _card(context, ref, value, day: day, scopeLabel: scopeLabel),
     };
+  }
+
+  /// ★ البطاقةُ موصولةً بإجرائيها — §7.1 القاعدتان 5 و10 (`AM-023`).
+  Widget _card(
+    BuildContext context,
+    WidgetRef ref,
+    OwnerLedgerProjection? value, {
+    required CalendarDay day,
+    required String scopeLabel,
+  }) {
+    final String? sourceId = ref.watch(ownerLedgerSourceProvider);
+    // ⛔⛔★★ **واليومُ بلا ملخّصٍ يُعرَض بأصفارٍ صريحة** — ⟵ **لا شاشةٌ
+    //    فارغة**: ★ **«لم يُوزَّع اليوم شيء» معلومةٌ يريدها المالك.**
+    final OwnerLedgerSummaryView view = ownerLedgerViewOf(
+      value ??
+          projectOwnerLedgerSummary(
+            computeOwnerLedgerSummary(
+              sourceId: sourceId ?? allSourcesScopeId,
+              date: day,
+              contributions: const OwnerLedgerContributions(),
+            ),
+            ref.watch(ownerLedgerVisibilityProvider),
+          ),
+      scopeLabel: scopeLabel,
+      isLive: true,
+    );
+    return OwnerLedgerCard(
+      summary: view,
+      onRowTap: (String label) => openOwnerLedgerRow(context, ref, label),
+      onShare: () =>
+          shareOwnerLedgerSummary(context, ref, view: view, day: day),
+    );
   }
 }
 

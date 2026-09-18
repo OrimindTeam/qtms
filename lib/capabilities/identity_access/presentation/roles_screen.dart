@@ -29,6 +29,17 @@ import 'permission_gate.dart';
 import 'role_form_screen.dart';
 import '../../../core/ui/optional_reason.dart';
 
+/// ★ نصُّ غياب الوصف — ⛔ **ولا نصٌّ محفورٌ في موضعين.**
+const String noRoleDescriptionLabel = 'بلا وصف';
+
+/// ★★ **السطرُ الثانوي لبطاقة الدور** — `AM-018` · §8 المحظور 13.
+///
+/// ⛔ **وصفٌ غيرُ فارغٍ وإلا نصٌّ بشريٌّ صريح** — ★ **بفحص `isNotEmpty`.**
+String roleSubtitle(String? description) =>
+    (description != null && description.trim().isNotEmpty)
+        ? description
+        : noRoleDescriptionLabel;
+
 /// قائمة الأدوار.
 class RolesScreen extends ConsumerWidget {
   /// ينشئ الشاشة.
@@ -190,7 +201,25 @@ class _RoleTileState extends ConsumerState<_RoleTile> {
   Widget build(BuildContext context) => EntityTile(
         title: widget.role.name,
         // ★ **والوصف اختياريٌّ** — ⛔ **وغيابُه لا يترك سطراً خاوياً.**
-        subtitle: widget.role.description ?? 'بلا وصف',
+        //   ⛔⛔★★ **والفراغُ غيابٌ لا نصّ** — `AM-018` · §8 المحظور 13:
+        //   ⟵ **و`??` وحدها تمرّ من النصّ الفارغ فيُعرَض سطرٌ خاوٍ.**
+        subtitle: roleSubtitle(widget.role.description),
+        // ⛔⛔★★★ **وبوضع `subtitleRow` صراحةً** — `AM-019` (**يُصحِّح
+        //   `AM-018`**) · `design-system.md` §6-د:
+        //
+        // ★★ **والغايةُ مطابقةُ بطاقة المستخدم فعلاً** — ⟵ **شاشتان شقيقتان
+        //   في مجموعةٍ واحدة**، ⛔ **وبطاقتان متفاوتتا البنية فيهما هما عينُ
+        //   ما أُريد رفعُه.**
+        //
+        // ⚠️⚠️ **وكانت `inline` في `AM-018`** — ★ **تنفيذاً لحرفِ توصيةٍ
+        //   بُنيت على فرضٍ خاطئ** (**قالت «`.inline` لتطابق `_UserTile`»
+        //   و`_UserTile` تستعمل `subtitleRow`**): ⟹ **فحسم المالكُ أن
+        //   المرادَ المطابقةُ لا الحرف** (`AM-019` §أولاً ①).
+        //
+        // ✅ **والأثرُ العملي:** ★ **الإجراءان على سطر الوصف عند طرفه الآخر**
+        //   ⟵ **فيبقى اسمُ الدور بعرضٍ كامل**، ★ **والمقتطَعُ عند الضيق هو
+        //   الوصفُ لا الاسم** ⛔ **وترتيبُ الإسقاط مقصود** (`AM-008` ④).
+        actionsPlacement: EntityActionsPlacement.subtitleRow,
         badges: <Widget>[
           // ★ حبّة «مُسنَد» — ⟵ **فيفهم المدير لماذا لا يجد زر الحذف**.
           //

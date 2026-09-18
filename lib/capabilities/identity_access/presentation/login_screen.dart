@@ -18,6 +18,19 @@ import '../../../core/startup/staging_qa_credentials.dart';
 import '../application/biometric_providers.dart';
 import '../application/login_controller.dart';
 
+/// ★★ **سطرُ تعريف النظام تحت الشعار** — `AM-018` · `ui-guidelines.md` نمط 8.
+///
+/// ⛔ **ولا نصٌّ محفورٌ في موضعين** — ★ **يقرؤه الاختبارُ من هنا.**
+const String loginTaglineText =
+    'إدارة المخزون والذمم والنقد في تجارة القات';
+
+/// ★★ **سطرُ استرداد كلمة المرور** — `AM-018` · `CR-005` §2.2.
+///
+/// ⛔⛔ **نصٌّ ساكنٌ لا مسار** — ★ **يوجّه إلى مسؤول النظام** ⛔ **ولا يَعِد
+/// بشاشةٍ لا وجود لها.**
+const String passwordRecoveryHintText =
+    'نسيت كلمة المرور؟ راجع مسؤول النظام لإعادة تعيينها';
+
 /// شاشة تسجيل الدخول.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -88,6 +101,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   //   عائلة الإطار** كما كان قبل وصول الهوية البصرية.
                   const BrandLogo(),
                   const SizedBox(height: brandLogoGap),
+                  // ①-ب ★★★ **سطرُ تعريف النظام** — `AM-018` · `ui-guidelines.md`
+                  //    نمط 8: ⟵ **شعارٌ وحدَه لا يقول شيئاً لمن لم يُدرَّب
+                  //    بعد**، ★ **وهذه أولُ شاشةٍ يراها مستخدمٌ جديد.**
+                  //    ⛔ **وسطرٌ واحدٌ يصف الوظيفة** ⛔ **لا شعارٌ تسويقي.**
+                  Text(
+                    loginTaglineText,
+                    textAlign: TextAlign.center,
+                    style: TypeScale.caption
+                        .copyWith(color: SemanticColors.textSecondary),
+                  ),
+                  const SizedBox(height: Spacing.space16),
                   // ② العنوان
                   Text(
                     'تسجيل الدخول',
@@ -156,6 +180,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           )
                         : const Text('دخول'),
+                  ),
+                  // ④-ب ⛔⛔★★★ **سطرُ استرداد كلمة المرور — إعلانُ حدٍّ لا
+                  //    مسارٌ يُفتَح** (`AM-018` · `CR-005` §2.2):
+                  //    ⛔⛔ **نصٌّ ساكنٌ لا زرٌّ ولا رابط** — ⟵ **فلا مسارَ
+                  //    استردادٍ داخل التطبيق أصلاً**، ★ **وإعادةُ التعيين من
+                  //    المدير** («الإدارة تُعيد التعيين ولا تقرأ»):
+                  //    ⛔⛔ **ورابطٌ يَعِد بما لا يقع أسوأُ من غيابه.**
+                  const SizedBox(height: Spacing.space12),
+                  Text(
+                    passwordRecoveryHintText,
+                    textAlign: TextAlign.center,
+                    style: TypeScale.caption
+                        .copyWith(color: SemanticColors.textTertiary),
                   ),
                   // ⑤ ★★★ **الدخولُ بالبصمة** — `AM-012` §6 · [`ADR-0024`].
                   //

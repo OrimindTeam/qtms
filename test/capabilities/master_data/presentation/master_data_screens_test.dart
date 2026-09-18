@@ -8,17 +8,24 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:qtms/app/router.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
 import 'package:qtms/capabilities/master_data/infrastructure/contact_picker.dart';
 import 'package:qtms/capabilities/master_data/presentation/dealers_screen.dart';
 import 'package:qtms/capabilities/master_data/presentation/items_screen.dart';
+import 'package:qtms/capabilities/master_data/presentation/master_data_widgets.dart';
 import 'package:qtms/capabilities/master_data/presentation/sources_screen.dart';
 import 'package:qtms/capabilities/master_data/presentation/suppliers_screen.dart';
+import 'package:qtms/capabilities/sales_receivables/application/dealer_statement_providers.dart';
+import 'package:qtms/core/design/design_tokens.dart';
 import 'package:qtms/core/messages/error_messages.dart';
 import 'package:qtms/core/ui/entity_tile.dart';
+import 'package:qtms/core/ui/inline_banner.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
@@ -409,6 +416,34 @@ void main() {
       );
     });
 
+    testWidgets(
+        '⛔⛔★★★ AM-027 ②: اسمُ نوعٍ مسجَّلٍ مسبقاً يُرفَض قبل النداء',
+        (WidgetTester t) async {
+      // ★★ **حارسُ عرضٍ لا حماية** — ⛅ **والسحابةُ تُعيد الفحص** (`ERR_SETUP_003`):
+      //    ⟵ **وفائدتُه أن الرفضَ يُقرأ قبل أن يُرسَل الطلب.**
+      directory
+        ..emitItems(<ItemCard>[testItem(name: 'عود')])
+        ..emitSources(<SourceCard>[testSource(name: 'رداع')]);
+      await pumpScreen(
+        t,
+        screen: const ItemsScreen(),
+        directory: directory,
+        admin: admin,
+      );
+      await t.tap(find.text('نوع جديد'));
+      await t.pumpAndSettle();
+      // ★ **بمسافاتٍ زائدة** — ⟵ **فالمقارنةُ بعد التطبيع لا حرفيةً.**
+      await t.enterText(find.widgetWithText(TextField, 'اسم النوع'), '  عود ');
+      await t.tap(find.widgetWithText(FilterChip, 'رداع'));
+      await t.pump();
+      await t.tap(find.text('إنشاء'));
+      await t.pumpAndSettle();
+
+      expect(find.text(catalogText(CatalogMessage.itemNameExists)),
+          findsOneWidget);
+      expect(admin.calls, 0, reason: '⛔ أُرسل طلبٌ باسمٍ مكرَّر');
+    });
+
     testWidgets('⛔★★ FR-M5-09: لا حقل سعر في نموذج النوع إطلاقاً',
         (WidgetTester t) async {
       directory
@@ -537,6 +572,430 @@ void main() {
       // ★ **السطر الثانوي هاتفُه وحده** — ⛔ **ولا رقمٌ ثابتٌ في كل بطاقة.**
       expect(find.text('777111222'), findsOneWidget);
       expect(find.textContaining('مصدر'), findsNothing);
+      directory.dispose();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ⛔⛔★★★ AM-020 — أربعةُ بنودٍ من مراجعة تجربة الاستخدام
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('⛔⛔★★★ AM-020 ① — زرُّ الحفظ يُعطَّل لغياب سبب التعطيل', () {
+    // ★ **الأربعةُ بالقاعدة نفسِها** — ⛔ **ولا شاشةٌ تُستثنى**:
+    //   `design-system.md` §6-ط ④ منقولاً إلى الحقل الشرطي الإلزامي.
+    final List<(String, Widget, String, void Function(FakeMasterDataDirectory))>
+        cases =
+        <(String, Widget, String, void Function(FakeMasterDataDirectory))>[
+      (
+        'المصادر',
+        const SourcesScreen(),
+        'المصدر نشط',
+        (FakeMasterDataDirectory d) =>
+            d.emitSources(<SourceCard>[testSource()]),
+      ),
+      (
+        'الرعية',
+        const SuppliersScreen(),
+        'الرعوي نشط',
+        (FakeMasterDataDirectory d) => d.emitSuppliers(<SupplierCard>[
+              const SupplierCard(
+                supplierId: 'SUP-0001',
+                name: 'رعوي مثال',
+                phone: '777111222',
+                isActive: true,
+              ),
+            ]),
+      ),
+      (
+        'المقاوته',
+        const DealersScreen(),
+        'المقوت نشط',
+        (FakeMasterDataDirectory d) =>
+            d.emitDealers(<DealerCard>[testDealer()]),
+      ),
+      (
+        'الأنواع',
+        const ItemsScreen(),
+        'النوع نشط',
+        (FakeMasterDataDirectory d) => d
+          ..emitItems(<ItemCard>[testItem()])
+          ..emitSources(<SourceCard>[testSource()]),
+      ),
+    ];
+
+    for (final (
+          String label,
+          Widget screen,
+          String switchTitle,
+          void Function(FakeMasterDataDirectory) seed
+        ) in cases) {
+      testWidgets('★ $label — معطَّلٌ بلا سبب ⟵ مفعَّلٌ بعد كتابته',
+          (WidgetTester t) async {
+        final FakeMasterDataDirectory directory = FakeMasterDataDirectory();
+        seed(directory);
+        await pumpScreen(
+          t,
+          screen: screen,
+          directory: directory,
+          admin: FakeMasterDataAdmin(),
+        );
+
+        await t.tap(find.byTooltip('تعديل'));
+        await t.pumpAndSettle();
+
+        // ★ **الزرُّ مفعَّلٌ على سجلٍّ نشط** — ⛔ **فالشرطُ مشروطٌ لا دائم.**
+        FilledButton button() => t.widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'حفظ التعديل'),
+            );
+        expect(button().onPressed, isNotNull, reason: label);
+
+        // ⟵ **إطفاءُ النشاط يُظهر الحقلَ ويُعطِّل الزر.**
+        await t.tap(find.widgetWithText(SwitchListTile, switchTitle));
+        await t.pumpAndSettle();
+        expect(
+          find.widgetWithText(TextField, 'سبب التعطيل'),
+          findsOneWidget,
+          reason: label,
+        );
+        expect(button().onPressed, isNull, reason: label);
+
+        // ★ **وفراغاتٌ وحدها غيابٌ لا نصّ** (`blankToNull`).
+        await t.enterText(find.widgetWithText(TextField, 'سبب التعطيل'), '   ');
+        await t.pump();
+        expect(button().onPressed, isNull, reason: label);
+
+        // ✅ **ونصٌّ حقيقيٌّ يُعيد التفعيل.**
+        await t.enterText(
+          find.widgetWithText(TextField, 'سبب التعطيل'),
+          'ترك العمل',
+        );
+        await t.pump();
+        expect(button().onPressed, isNotNull, reason: label);
+
+        directory.dispose();
+      });
+    }
+
+    test('★ والدالةُ المشتركةُ نفسُها مقيسةٌ مباشرةً — ⛔ لا عبر الشاشة وحدها',
+        () {
+      expect(
+        masterDataFormBlocked(requiresDisableReason: false, disableReason: ''),
+        isFalse,
+      );
+      expect(
+        masterDataFormBlocked(requiresDisableReason: true, disableReason: ''),
+        isTrue,
+      );
+      expect(
+        masterDataFormBlocked(
+          requiresDisableReason: true,
+          disableReason: '   ',
+        ),
+        isTrue,
+      );
+      expect(
+        masterDataFormBlocked(
+          requiresDisableReason: true,
+          disableReason: 'سبب',
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('⛔⛔★★★ AM-020 ② — تعذّرُ مُنتقي جهات الاتصال يُعرَض ولا يُبتلَع', () {
+    final List<(String, Widget, String, void Function(FakeMasterDataDirectory))>
+        cases =
+        <(String, Widget, String, void Function(FakeMasterDataDirectory))>[
+      (
+        'الرعية',
+        const SuppliersScreen(),
+        'رعوي جديد',
+        (FakeMasterDataDirectory d) => d
+          ..emitSuppliers(<SupplierCard>[])
+          ..emitSources(<SourceCard>[testSource()]),
+      ),
+      (
+        'المقاوته',
+        const DealersScreen(),
+        'مقوت جديد',
+        (FakeMasterDataDirectory d) => d
+          ..emitDealers(<DealerCard>[])
+          ..emitSources(<SourceCard>[testSource()]),
+      ),
+    ];
+
+    for (final (
+          String label,
+          Widget screen,
+          String newLabel,
+          void Function(FakeMasterDataDirectory) seed
+        ) in cases) {
+      for (final (String kind, Exception error) in <(String, Exception)>[
+        ('رفضُ الإذن', PlatformException(code: 'ERR_PICK')),
+        ('منصّةٌ بلا تنفيذ', MissingPluginException('pickContact')),
+      ]) {
+        testWidgets('★ $label — $kind يُرفَع شريطَ تحذير',
+            (WidgetTester t) async {
+          final FakeMasterDataDirectory directory = FakeMasterDataDirectory();
+          seed(directory);
+          final FakeContactPicker picker = FakeContactPicker(null, error);
+          await pumpScreen(
+            t,
+            screen: screen,
+            directory: directory,
+            admin: FakeMasterDataAdmin(),
+            picker: picker,
+          );
+
+          await t.tap(find.text(newLabel));
+          await t.pumpAndSettle();
+          // ⛔ **ولا شريطَ قبل المحاولة** — ★ **فلا تحذيرٌ بلا سبب.**
+          expect(find.byType(QtmsInlineBanner), findsNothing, reason: label);
+
+          await t.tap(find.text('جلب من جهات الاتصال'));
+          await t.pumpAndSettle();
+
+          expect(picker.opens, 1, reason: label);
+          expect(
+            find.text(ContactPickerFailureBanner.message),
+            findsOneWidget,
+            reason: label,
+          );
+          // ★★ **وثلاثيةُ `warning` لا `danger`** — ⟵ **لا عمليةَ فشلت.**
+          expect(
+            t.widget<QtmsInlineBanner>(find.byType(QtmsInlineBanner)).triad,
+            SemanticTriads.warning,
+            reason: label,
+          );
+          // ★ **والإدخالُ اليدويُّ باقٍ كما هو** — ⛔ **ولا نموذجَ سقط.**
+          expect(find.byType(TextField), findsWidgets, reason: label);
+
+          directory.dispose();
+        });
+      }
+    }
+  });
+
+  group('⛔⛔★★★ AM-020 ③ — بطاقةُ النوع بنيةُ العائلة نفسُها (inline)', () {
+    testWidgets('★ إجراءٌ أيقونيٌّ في صفّ الاسم ⛔ لا صفٌّ ثانٍ ولا زرٌّ نصّي',
+        (WidgetTester t) async {
+      final FakeMasterDataDirectory directory = FakeMasterDataDirectory()
+        ..emitItems(<ItemCard>[testItem()]);
+      await pumpScreen(
+        t,
+        screen: const ItemsScreen(),
+        directory: directory,
+        admin: FakeMasterDataAdmin(),
+      );
+
+      final EntityTile tile = t.widget<EntityTile>(find.byType(EntityTile));
+      expect(tile.actionsPlacement, EntityActionsPlacement.inline);
+      expect(tile.actionsPlacement, isNot(EntityActionsPlacement.stacked));
+
+      // ★ **الزرُّ أيقونيٌّ بوصفٍ دلالي** — ⛔ **ولا نصَّ «تعديل» مرسوماً.**
+      expect(find.byTooltip('تعديل'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'تعديل'), findsNothing);
+      // ⛔⛔ **ولا فاصلَ شعري في البطاقة.**
+      expect(
+        find.descendant(
+          of: find.byType(EntityTile),
+          matching: find.byType(Divider),
+        ),
+        findsNothing,
+      );
+      directory.dispose();
+    });
+  });
+
+  group('⛅★★★ AM-020 ④ — مدخلُ كشف الحساب من بطاقة المقوت', () {
+    // ★ **مُوجِّهٌ حقيقيٌّ مصغَّر** — ⟵ **فالزرُّ يُبحِر فعلاً**، ⛔ **ولا
+    //   يُختبَر وعدٌ بوجهةٍ على شاشةٍ بلا ملاحة.**
+    Future<ProviderContainer> pumpWithRouter(
+      WidgetTester tester, {
+      required FakeMasterDataDirectory directory,
+      required Set<Permission> actorPermissions,
+    }) async {
+      final FakeAuthRepository auth = FakeAuthRepository();
+      final FakeUserCardRepository cards = FakeUserCardRepository();
+      auth.emitIdentity(
+        const AuthenticatedIdentity(userId: 'U-001', sourceScope: AllSources()),
+      );
+      cards.emitCard('U-001', testCard(permissions: actorPermissions));
+
+      final ProviderContainer container = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(auth),
+          userCardRepositoryProvider.overrideWithValue(cards),
+          masterDataDirectoryProvider.overrideWithValue(directory),
+          masterDataAdminProvider.overrideWithValue(FakeMasterDataAdmin()),
+          contactPickerProvider.overrideWithValue(null),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            locale: const Locale('ar'),
+            routerConfig: GoRouter(
+              routes: <RouteBase>[
+                GoRoute(
+                  path: '/',
+                  builder: (BuildContext _, GoRouterState _) =>
+                      const DealersScreen(),
+                ),
+                GoRoute(
+                  path: dealerStatementRoute,
+                  builder: (BuildContext _, GoRouterState _) =>
+                      const Scaffold(body: Text('شاشة كشف الحساب')),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      return container;
+    }
+
+    testWidgets('★★ يُبحِر ويُمرِّر المعرّف مسبقاً ⛔ لا معاملَ في المسار',
+        (WidgetTester t) async {
+      final FakeMasterDataDirectory directory = FakeMasterDataDirectory()
+        ..emitDealers(<DealerCard>[testDealer()]);
+      final ProviderContainer container = await pumpWithRouter(
+        t,
+        directory: directory,
+        actorPermissions: <Permission>{
+          ...masterDataKeys,
+          Permission.dealerStatementView,
+        },
+      );
+
+      expect(container.read(statementDealerProvider), isNull);
+      await t.tap(find.byTooltip('كشف الحساب'));
+      await t.pumpAndSettle();
+
+      expect(container.read(statementDealerProvider), testDealer().dealerId);
+      expect(find.text('شاشة كشف الحساب'), findsOneWidget);
+      directory.dispose();
+    });
+
+    testWidgets('⛔⛔ ولا زرَّ بلا `dealerStatementView` — لا وعدٌ يُخلَف',
+        (WidgetTester t) async {
+      final FakeMasterDataDirectory directory = FakeMasterDataDirectory()
+        ..emitDealers(<DealerCard>[testDealer()]);
+      await pumpWithRouter(
+        t,
+        directory: directory,
+        actorPermissions: masterDataKeys,
+      );
+
+      expect(find.byTooltip('كشف الحساب'), findsNothing);
+      // ★ **وزرُّ التعديل باقٍ** — ⛔ **فلم تختفِ البطاقةُ كلُّها.**
+      expect(find.byTooltip('تعديل'), findsOneWidget);
+      directory.dispose();
+    });
+  });
+
+  group('⚙️★★★ AM-020 ⑤ — نصُّ الأثر التلقائي في ورقة الإنشاء', () {
+    // ★★ **ثلاثُ شاشاتٍ لها أثرٌ تلقائيٌّ عند الإنشاء** (`FR-M2-04` ·
+    //   `FR-M3-04` · `FR-M4-05`) — ⛔ **والأنواعُ ليست منها**: ⟵ **فالنوعُ
+    //   لا يُنشئ حساباً لأحد.**
+    final List<(String, Widget, String, String, void Function(FakeMasterDataDirectory))>
+        cases =
+        <(String, Widget, String, String, void Function(FakeMasterDataDirectory))>[
+      (
+        'المصادر',
+        const SourcesScreen(),
+        'مصدر جديد',
+        'يُنشأ للمصدر تلقائياً حسابٌ لكل مقوت ولكل رعوي، ويُوصَل به نوع «السكرب».',
+        (FakeMasterDataDirectory d) =>
+            d.emitSources(<SourceCard>[testSource()]),
+      ),
+      (
+        'الرعية',
+        const SuppliersScreen(),
+        'رعوي جديد',
+        'يُنشأ للرعوي تلقائياً حسابٌ في كل مصدر قائم، وفي كل مصدر يُضاف مستقبلاً.',
+        (FakeMasterDataDirectory d) => d
+          ..emitSuppliers(<SupplierCard>[
+            const SupplierCard(
+              supplierId: 'SUP-0001',
+              name: 'رعوي مثال',
+              phone: '777111222',
+              isActive: true,
+            ),
+          ])
+          ..emitSources(<SourceCard>[testSource()]),
+      ),
+      (
+        'المقاوته',
+        const DealersScreen(),
+        'مقوت جديد',
+        'يُنشأ للمقوت تلقائياً حسابٌ في كل مصدر قائم، وفي كل مصدر يُضاف مستقبلاً.',
+        (FakeMasterDataDirectory d) => d
+          ..emitDealers(<DealerCard>[testDealer()])
+          ..emitSources(<SourceCard>[testSource()]),
+      ),
+    ];
+
+    for (final (
+          String label,
+          Widget screen,
+          String newLabel,
+          String footer,
+          void Function(FakeMasterDataDirectory) seed
+        ) in cases) {
+      testWidgets('★ $label — ورقةُ الإنشاء تُعلن أثرَها', (WidgetTester t) async {
+        final FakeMasterDataDirectory directory = FakeMasterDataDirectory();
+        seed(directory);
+        await pumpScreen(
+          t,
+          screen: screen,
+          directory: directory,
+          admin: FakeMasterDataAdmin(),
+        );
+        await t.tap(find.text(newLabel));
+        await t.pumpAndSettle();
+        expect(find.text(footer), findsOneWidget, reason: label);
+        directory.dispose();
+      });
+
+      testWidgets('⛔ و$label — ورقةُ التعديل لا تكرّره', (WidgetTester t) async {
+        final FakeMasterDataDirectory directory = FakeMasterDataDirectory();
+        seed(directory);
+        await pumpScreen(
+          t,
+          screen: screen,
+          directory: directory,
+          admin: FakeMasterDataAdmin(),
+        );
+        // ★ **الأثرُ وقع مرةً عند الإنشاء** — ⟵ **وتكرارُه على التعديل
+        //   يَعِد بما لا يحدث.**
+        await t.tap(find.byTooltip('تعديل'));
+        await t.pumpAndSettle();
+        expect(find.text(footer), findsNothing, reason: label);
+        directory.dispose();
+      });
+    }
+
+    testWidgets('⛔⛔ ولا نصَّ أثرٍ في ورقة النوع — النوعُ لا يُنشئ حساباً',
+        (WidgetTester t) async {
+      final FakeMasterDataDirectory directory = FakeMasterDataDirectory()
+        ..emitItems(<ItemCard>[testItem()])
+        ..emitSources(<SourceCard>[testSource()]);
+      await pumpScreen(
+        t,
+        screen: const ItemsScreen(),
+        directory: directory,
+        admin: FakeMasterDataAdmin(),
+      );
+      await t.tap(find.text('نوع جديد'));
+      await t.pumpAndSettle();
+      expect(find.textContaining('يُنشأ'), findsNothing);
       directory.dispose();
     });
   });

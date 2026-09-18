@@ -16,14 +16,19 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qtms/app/router.dart';
 import 'package:qtms/capabilities/financial_outflow/application/owner_ledger_providers.dart';
+import 'package:qtms/capabilities/financial_outflow/presentation/owner_ledger_actions.dart';
 import 'package:qtms/capabilities/financial_outflow/presentation/owner_ledger_screen.dart';
+import 'package:qtms/capabilities/oversight/application/messaging_providers.dart';
+import 'package:qtms/core/messages/error_messages.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
 import '../../../support/fake_master_data.dart';
+import '../../../support/fake_messaging.dart';
 import '../../../support/fake_owner_ledger.dart';
 
 /// ★★ **اليوم مثبَّت** — ⛔ **فلا اختبارَ ينكسر بمرور منتصف الليل.**
@@ -35,6 +40,7 @@ const String mawiyah = 'SRC-002';
 late FakeOwnerLedgerDirectory ledger;
 late FakeCashMovementReader cash;
 late FakeMasterDataDirectory masterData;
+late FakeShare sharer;
 
 const Set<Permission> fullPermissions = <Permission>{
   Permission.ownerLedgerView,
@@ -102,6 +108,7 @@ Future<void> pumpScreen(
         contactPickerProvider.overrideWithValue(null),
         ownerLedgerDirectoryProvider.overrideWithValue(ledger),
         cashMovementReaderProvider.overrideWithValue(cash),
+        documentShareProvider.overrideWithValue(sharer),
       ],
       child: const MaterialApp(
         locale: Locale('ar'),
@@ -122,6 +129,7 @@ void main() {
   setUp(() {
     ledger = FakeOwnerLedgerDirectory();
     cash = FakeCashMovementReader();
+    sharer = FakeShare();
     masterData = FakeMasterDataDirectory()
       ..emitSources(<SourceCard>[
         const SourceCard(
@@ -267,6 +275,126 @@ void main() {
 
       expect(cash.lastReadsDeposit, isFalse);
       expect(find.textContaining('أُودع'), findsNothing);
+    });
+  });
+
+  // ══════════════ `AM-023` — مراجعةُ تجربة الاستخدام ══════════════
+
+  group('⛔⛔★★★ AM-023 ① — لا نصَّ استثناءٍ خامّ للمستخدم', () {
+    testWidgets('البطاقةُ الرئيسية تعرض رسالةً بشرية والخامُّ مطويٌّ', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(tester);
+      ledger.emitSummaryError(
+        allSourcesScopeId,
+        StateError('PERMISSION_DENIED: Missing or insufficient permissions'),
+      );
+      await settle(tester);
+
+      expect(find.text(readRejectionMessage), findsOneWidget);
+
+      // ⛔⛔ **والخامُّ مطويٌّ حتى يُطلَب** — ★ **ولا يُبتلَع كذلك:**
+      //    ⟵ **والطيُّ يُقاس بحالة [AnimatedCrossFade] نفسِها**، ⛔ **لا
+      //    بغياب النصّ من الشجرة** (**كلا الطفلين فيها دائماً**).
+      AnimatedCrossFade fold() =>
+          tester.widget<AnimatedCrossFade>(find.byType(AnimatedCrossFade));
+      expect(fold().crossFadeState, CrossFadeState.showFirst);
+      expect(find.text('تفاصيل تقنية'), findsOneWidget);
+      expect(find.textContaining('PERMISSION_DENIED'), findsOneWidget);
+
+      await tester.tap(find.text('تفاصيل تقنية'));
+      await tester.pumpAndSettle();
+      expect(fold().crossFadeState, CrossFadeState.showSecond);
+      expect(find.text('إخفاء التفاصيل التقنية'), findsOneWidget);
+    });
+  });
+
+  group('★★★ AM-023 ② و③ — الإجراءان موصولان في الشاشة المستقلة', () {
+    testWidgets('أيقونةُ المشاركة تُسلِّم ملخّصَ اليوم نصّاً', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(tester);
+      ledger.emitSummary(allSourcesScopeId, summaryOf(sourceId: 'all'));
+      await settle(tester);
+
+      await tester.tap(find.byTooltip('مشاركة ملخص اليوم'));
+      await tester.pumpAndSettle();
+
+      expect(sharer.sharedTexts, hasLength(1));
+      final String text = sharer.sharedTexts.single;
+      // ★ **ما يُشارَك هو ما يُقرأ حرفياً** — ⛔ **ولا رقمَ يُبنى في النصّ.**
+      expect(text, contains('الصافي النهائي: 330,475 ريال'));
+      expect(text, contains('السحبيات: 20,000'));
+    });
+
+    testWidgets('⛔⛔ والبندُ المحكومُ يغيب عن النصّ كما يغيب عن البطاقة — E-29', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(tester, actorPermissions: withoutWithdrawals);
+      ledger.emitSummary(allSourcesScopeId, summaryOf(sourceId: 'all'));
+      await settle(tester);
+
+      await tester.tap(find.byTooltip('مشاركة ملخص اليوم'));
+      await tester.pumpAndSettle();
+
+      final String text = sharer.sharedTexts.single;
+      expect(text, isNot(contains('السحبيات')));
+      expect(text, contains('الخرجيات: 5,000'));
+    });
+
+    testWidgets('★ وسهمُ التفكيك مرسومٌ على الصفوف — §7.1 القاعدة 5', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(tester);
+      ledger.emitSummary(allSourcesScopeId, summaryOf(sourceId: 'all'));
+      await settle(tester);
+
+      // ★ **والسهمُ لا يُرسَم إلا حين `onRowTap != null`** — ⟵ **فوجودُه
+      //   دليلُ التوصيل نفسِه.**
+      expect(find.byIcon(Icons.chevron_left), findsWidgets);
+    });
+  });
+
+  group('★★ AM-023 ③ — خريطةُ الوجهات واحدةٌ للموضعين', () {
+    test('كلُّ صفٍّ يفتح وجهتَه حين يملك القارئُ مفتاحَها', () {
+      const Set<Permission> all = <Permission>{
+        Permission.dealerStatementView,
+        Permission.receiptCreate,
+        Permission.discountCreate,
+        Permission.sackView,
+        Permission.withdrawalCreate,
+      };
+      bool can(Permission p) => all.contains(p);
+      expect(
+        ownerLedgerRowRoute('إجمالي الضمار', can: can),
+        dealerStatementRoute,
+      );
+      expect(ownerLedgerRowRoute('الواصل', can: can), receiptRoute);
+      expect(ownerLedgerRowRoute('الخصومات', can: can), discountRoute);
+      expect(
+        ownerLedgerRowRoute('إجمالي الضريبة', can: can),
+        sackFinanceRoute,
+      );
+      expect(ownerLedgerRowRoute('السحبيات', can: can), outflowRoute);
+    });
+
+    test('⛔⛔ ومن لا يملك المفتاح تُفتَح له شاشةُ الضمار — لا شاشةُ رفض', () {
+      bool none(Permission _) => false;
+      for (final String label in <String>[
+        'إجمالي الضمار',
+        'الواصل',
+        'الخصومات',
+        'إجمالي الضريبة',
+        'السحبيات',
+        'الخرجيات',
+        'بندٌ لا مدخلَ له',
+      ]) {
+        expect(
+          ownerLedgerRowRoute(label, can: none),
+          ownerLedgerRoute,
+          reason: label,
+        );
+      }
     });
   });
 }

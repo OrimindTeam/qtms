@@ -32,8 +32,11 @@ import '../../../core/ui/item_labels.dart';
 import '../../../core/ui/live_summary.dart';
 import '../../../core/ui/status_pill.dart';
 import '../../../core/ui/sticky_action_bar.dart';
+import '../../../core/ui/zero_placeholder.dart';
 import '../../identity_access/presentation/permission_gate.dart';
+import '../../identity_access/application/session_providers.dart';
 import '../../master_data/application/master_data_providers.dart';
+import '../../master_data/presentation/items_screen.dart';
 import '../../oversight/presentation/audit_trail_view.dart';
 import '../application/inventory_providers.dart';
 import '../../../core/ui/entity_tile.dart';
@@ -184,11 +187,18 @@ class _SackTile extends ConsumerWidget {
         // ★★ **واسمُ المصدر أولَ السطر الثاني في وضع «الكل»** —
         //    `AM-012` §2 (نظيرُ `AM-009` ③ في «الوارد عدداً» حرفياً):
         //    ⛔⛔ **وصفٌّ بلا مصدرٍ في قائمةٍ تجمع مصادرَ لا يُقرأ** (`A-01`).
+        //
+        // ⛔⛔★★★ **والملخّصُ التشغيلي يسبق رقمَ المستند** — `AM-021` ②
+        //    (`design-system.md` §6-د): ⟵ **والعنوانُ هنا `displayName` ولا
+        //    يُقلَب** ★ **لأن الجونية تحمل اسماً بشرياً قابلاً للتسمية**
+        //    (`sackRenameDisplay`) — ⛔ **بخلاف «الوارد عدداً» الذي لا يحمل
+        //    إلا رقمَ مستند**: ⟵ **فهي الحالةُ الأولى من قاعدة الهرم لا الثانية**،
+        //    ★ **والرقمُ يُزاح داخل السطر الثاني ولا يسقط منه.**
         subtitle: <String>[
           if (showSource) ref.watch(sourceDisplayNameProvider(sack.sourceId)),
-          sack.documentNumber,
           'المطالب به ${sack.weights.claimableWeight.formatted()} كجم',
           '${sack.lines.length} نوع',
+          sack.documentNumber,
         ].join(' · '),
         badges: <Widget>[
           if (sack.isCancelled) const CancelledBadge(),
@@ -489,6 +499,8 @@ class _SackHeaderFormSheetState extends ConsumerState<SackHeaderFormSheet> {
                       controller: _ice,
                       label: 'وزن الثلج',
                       onChanged: () => setState(() {}),
+                      // ★★★ **صفرٌ ابتدائيٌّ يُفرَّغ عند التركيز** — `AM-027` ①.
+                      startsAtZero: true,
                     ),
                     // ★★ **والسكرب يدخل المخزن فور الحفظ** — `FR-M7-09` · `AT-07`.
                     PermissionGate(
@@ -497,6 +509,8 @@ class _SackHeaderFormSheetState extends ConsumerState<SackHeaderFormSheet> {
                         controller: _scrap,
                         label: 'وزن السكرب',
                         onChanged: () => setState(() {}),
+                        // ★★★ **صفرٌ ابتدائيٌّ يُفرَّغ عند التركيز** — `AM-027` ①.
+                        startsAtZero: true,
                       ),
                     ),
                     const SizedBox(height: Spacing.space16),
@@ -670,10 +684,18 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
   CatalogMessage? _rejection;
   bool _submitting = false;
 
+  /// ★★★ **نوعٌ أُنشئ للتوّ وينتظر وصولَه في البثّ** — `AM-027` ②.
+  ///
+  /// ⛔⛔ **ولا يُسنَد قبل أن يصل فعلاً:** ★ **`createItem` تردّ المعرّف**،
+  /// ⟵ **لكنّ بطاقتَه تصل في دورةِ بثِّ `itemsProvider` التالية** ⟹ **وبناءُ
+  /// مسوّدةٍ من بطاقةٍ غائبة يُسقِط وزنَ الحبة المُهيَّأ** (`FR-M7-15`).
+  /// ★ **فيُنتظَر وصولُها ثم يُسنَد** — ⛔ **بلا مهلةٍ ولا استطلاعٍ دوري.**
+  String? _pendingItemId;
+
   @override
   void dispose() {
     for (final _SackDraftRow row in _rows) {
-      row.draft.dispose();
+      row.dispose();
     }
     _reason.dispose();
     super.dispose();
@@ -683,6 +705,13 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
   Widget build(BuildContext context) {
     final List<ItemCard> items =
         ref.watch(sackLineItemsProvider(widget.sack.sourceId));
+
+    // ★★★ **ووصولُ النوع المُنشأ يُسنِده إلى صفِّه** — `AM-027` ②:
+    //    ⟵ **إصغاءٌ للبثّ** ⛔ **لا انتظارٌ بمهلةٍ مكتوبة.**
+    ref.listen<List<ItemCard>>(
+      sackLineItemsProvider(widget.sack.sourceId),
+      (List<ItemCard>? _, List<ItemCard> next) => _adoptPendingItem(next),
+    );
 
     // ★★ **تفضيلُ إظهار وزن الحبة** — `AM-012` §4.4: ⛔ **عرضٌ محضٌ**
     //    ⟵ **ولا يمسّ وحدةَ الكمية ولا أي حساب ولا ما يُخزَّن** (`DEBT-84`).
@@ -761,6 +790,8 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
                           ownId: row.itemId,
                         ),
                         row: row,
+                        onSearchChanged: (String text) =>
+                            row.typedName = text,
                         onSelected: (String id) => setState(() {
                           final ItemCard? picked = _itemOf(items, id);
                           if (picked == null) return;
@@ -773,7 +804,7 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
                             ..draft = _LineDraft.forItem(picked);
                         }),
                         onRemove: () => setState(() {
-                          _rows.removeAt(index).draft.dispose();
+                          _rows.removeAt(index).dispose();
                         }),
                         onChanged: () => setState(() {}),
                       ),
@@ -784,14 +815,29 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
                         style: TypeScale.bodyMd
                             .copyWith(color: SemanticColors.textSecondary),
                       ),
-                    if (items.isNotEmpty)
-                      QtmsAddLineButton(
-                        onPressed: _rows.length >= items.length
-                            ? null
-                            : () => setState(
-                                  () => _rows.add(_SackDraftRow.empty()),
-                                ),
-                      ),
+                    // ★★★ **زرّان لا واحد** — `AM-027` ②: ★ **«إضافة نوع»
+                    //    يُنشئ صفّاً لنوعٍ قائم**، ★ **و«إضافة نوع جديد»
+                    //    يُنشئ سجلَّ النوع نفسَه** — ⛔⛔ **والثاني يظهر ولو
+                    //    كانت القائمةُ فارغة**: ⟵ **وإلا كان الفراغُ طريقاً
+                    //    مسدوداً يُخرِج المستخدمَ من الورقة.**
+                    Wrap(
+                      spacing: Spacing.space8,
+                      runSpacing: Spacing.space8,
+                      children: <Widget>[
+                        if (items.isNotEmpty)
+                          QtmsAddLineButton(
+                            onPressed: _rows.length >= items.length
+                                ? null
+                                : () => setState(
+                                      () => _rows.add(_SackDraftRow.empty()),
+                                    ),
+                          ),
+                        if (ref.watch(
+                          hasPermissionProvider(Permission.itemWrite),
+                        ))
+                          QtmsCreateItemButton(onPressed: _createItemType),
+                      ],
+                    ),
                     const SizedBox(height: Spacing.space16),
                     // ⑤ حقل السبب **(اختياري)**.
                     TextField(
@@ -916,6 +962,53 @@ class _SackLinesFormSheetState extends ConsumerState<SackLinesFormSheet> {
           ),
       ];
 
+  /// ★★★ **يفتح نموذجَ النوع مُهيَّأً ثم يُسنِد المُنشأ إلى صفِّه** — `AM-027` ②.
+  ///
+  /// ★ **الاسمُ من نصِّ منسدل الصفِّ الفارغ الأخير** — ⟵ **فما كُتب لا يُكتَب
+  /// مرتين**، ★ **والمصدرُ مصدرُ الجونية** ⛔ **فلا يُولَد النوعُ خارج قائمتها.**
+  Future<void> _createItemType() async {
+    final String? created = await showItemForm(
+      context,
+      initialName: _typedName(),
+      initialSourceIds: <String>{widget.sack.sourceId},
+    );
+    if (created == null || !mounted) return;
+    setState(() => _pendingItemId = created);
+    // ★ **وقد يكون البثُّ سبق إغلاقَ النموذج** — ⟵ **فتُجرَّب الإسنادُ فوراً.**
+    _adoptPendingItem(ref.read(sackLineItemsProvider(widget.sack.sourceId)));
+  }
+
+  /// ★★ نصُّ الصفِّ الفارغ الأخير — و`''` إن لم يوجد صفٌّ بلا نوع.
+  String _typedName() {
+    for (final _SackDraftRow row in _rows.reversed) {
+      if (row.itemId == null) return row.typedName.trim();
+    }
+    return '';
+  }
+
+  /// ★★★ يُسنِد النوعَ المُنتظَر **متى وصلت بطاقتُه** — ⛔ **ولا يُسنِد غائباً.**
+  void _adoptPendingItem(List<ItemCard> items) {
+    final String? id = _pendingItemId;
+    if (id == null || !mounted) return;
+    final ItemCard? picked = _itemOf(items, id);
+    if (picked == null) return;
+    setState(() {
+      _pendingItemId = null;
+      for (final _SackDraftRow row in _rows.reversed) {
+        if (row.itemId != null) continue;
+        // ★ **صفٌّ فارغٌ ينتظر** — ⟵ **يُملأ به** ⛔ **ولا يُضاف صفٌّ ثانٍ.**
+        row.draft.dispose();
+        row
+          ..itemId = id
+          ..draft = _LineDraft.forItem(picked);
+        return;
+      }
+      _rows.add(
+        _SackDraftRow(itemId: id, draft: _LineDraft.forItem(picked)),
+      );
+    });
+  }
+
   Future<void> _submit(List<ItemCard> items) async {
     final Map<String, ItemCard> byId = <String, ItemCard>{
       for (final ItemCard item in items) item.itemId: item,
@@ -1008,6 +1101,7 @@ class _SackLineRow extends StatelessWidget {
     required this.onSelected,
     required this.onRemove,
     required this.onChanged,
+    this.onSearchChanged,
     super.key,
   });
 
@@ -1024,6 +1118,9 @@ class _SackLineRow extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onChanged;
 
+  /// ★ يُبلِّغ بما يُكتَب في المنسدل — `AM-027` ②.
+  final ValueChanged<String>? onSearchChanged;
+
   /// ★★ **الحالة الثالثة: عددي** — الحقل **مقفل وفارغ** والوزن الكلي يدوي.
   bool get _isCounted => item?.nature == ItemNature.countBased;
 
@@ -1035,6 +1132,7 @@ class _SackLineRow extends StatelessWidget {
       selectedId: row.itemId,
       onSelected: onSelected,
       onRemove: onRemove,
+      onSearchChanged: onSearchChanged,
       fields: <Widget>[
         if (current != null)
           TextField(
@@ -1109,6 +1207,16 @@ class _SackDraftRow {
 
   /// مفتاحٌ ثابت للصفّ.
   final int seed;
+
+  /// ★★ **آخرُ ما كُتب في منسدل النوع** — `AM-027` ②: ⟵ **يُهيَّأ به نموذجُ
+  /// «إضافة نوع جديد»** ⛔ **فلا يُعيد المستخدم كتابةَ الاسم مرتين.**
+  ///
+  /// ⛔ **وحقلٌ لا حالةُ ويدجت** — ★ **يُكتَب بلا `setState`**: ⟵ **فلا
+  /// إعادةَ بناءٍ مع كل حرف.**
+  String typedName = '';
+
+  /// ★ يتخلّص من الصفّ — **مسوّدتُه وحدها تحمل متحكّمات.**
+  void dispose() => draft.dispose();
 }
 
 /// مسوّدة سطرٍ قيد التحرير.
@@ -1316,26 +1424,45 @@ class _FieldLabel extends StatelessWidget {
 }
 
 /// ★ حقل وزن — **يقبل الكسر** (`ADR-0015` القاعدة 9).
+///
+/// ★★★ **و[startsAtZero] لحقلٍ قيمتُه الابتدائية صفر** — `AM-027` ①:
+/// ⟵ **فالصفرُ يُفرَّغ عند التركيز ويعود عند تركه فارغاً** ⛔ **ولا يلتصق
+/// بأول رقمٍ يُكتب بعده** (`zero_placeholder.dart`). ⛔ **والوزنُ الكلي ليس
+/// منها** — ★ **يبدأ فارغاً أصلاً** ⟵ **فلا قيمةَ ابتدائيةَ له تُخفى.**
 class _WeightField extends StatelessWidget {
   const _WeightField({
     required this.controller,
     required this.label,
     required this.onChanged,
+    this.startsAtZero = false,
   });
 
   final TextEditingController controller;
   final String label;
   final VoidCallback onChanged;
 
+  /// ★ هل يبدأ الحقلُ بصفرٍ ابتدائي؟ — `AM-027` ①.
+  final bool startsAtZero;
+
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: Spacing.space8),
-        child: TextField(
-          controller: controller,
-          // ★★ **والكسر مسموح هنا بخلاف المبالغ** — `ADR-0015` القاعدة 9.
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: label),
-          onChanged: (String _) => onChanged(),
-        ),
+        child: startsAtZero
+            ? QtmsZeroPlaceholderField(
+                controller: controller,
+                label: label,
+                onChanged: onChanged,
+                // ★★ **والكسر مسموح هنا بخلاف المبالغ** — `ADR-0015` القاعدة 9.
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+              )
+            : TextField(
+                controller: controller,
+                // ★★ **والكسر مسموح هنا بخلاف المبالغ** — `ADR-0015` القاعدة 9.
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(labelText: label),
+                onChanged: (String _) => onChanged(),
+              ),
       );
 }

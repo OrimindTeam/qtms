@@ -41,8 +41,14 @@ final class PickedContact {
 abstract interface class ContactPicker {
   /// يفتح مُنتقي النظام ويُعيد الجهة المختارة، أو `null` إن ألغى المستخدم.
   ///
-  /// ⚠️ **ويُرجِع `null` عند التعذّر أيضاً** — ★ **والزر إثراءٌ لا مسار
-  /// إلزامي**، ⟵ **فتعذّرُه لا يمنع الإدخال اليدوي** ولا يُسقِط النموذج.
+  /// ⛔⛔★★★ **و`null` تعني الإلغاءَ وحدَه** (`AM-020`) — ★ **والتعذّرُ
+  /// يرمي** `PlatformException` **أو** `MissingPluginException` ⟵ **فتعرضه
+  /// الشاشةُ شريطاً مفسَّراً**: ⛔ **وقيمةٌ واحدةٌ للإلغاء والتعذّر معاً كانت
+  /// تجعل الفشلَ صامتاً تماماً** — ★ **يضغط المستخدمُ فلا يحدث شيء ولا يعرف
+  /// لماذا** (مراجعةُ تجربة الاستخدام · `suppliers_screen.md`).
+  ///
+  /// ⚠️ **والزرُّ يبقى إثراءً لا مسارَ حفظٍ إلزامياً** — ★ **فتعذّرُه لا يمنع
+  /// الإدخال اليدوي** ولا يُسقِط النموذج ولا عمليةً مالية.
   Future<PickedContact?> pickOne();
 }
 
@@ -60,19 +66,14 @@ final class PlatformContactPicker implements ContactPicker {
 
   @override
   Future<PickedContact?> pickOne() async {
-    final Map<Object?, Object?>? result;
-    try {
-      result = await channel.invokeMapMethod<Object?, Object?>('pickContact');
-    } on PlatformException {
-      // ⛔ **ليس ابتلاعاً لخطأ مؤثِّر:** الانتقاء **إثراءٌ لا مسار حفظ**،
-      //    ⟵ **وتعذّرُه يترك الحقول فارغة للإدخال اليدوي** ⛔ ولا يُسقِط
-      //    عمليةً مالية ولا يُخفي فشل حفظ.
-      return null;
-    } on MissingPluginException {
-      // ★ **منصّة بلا تنفيذ** (اختبار أو سطح مكتب) — ⟵ **الزر بلا أثر**
-      //   ⛔ ولا انهيار.
-      return null;
-    }
+    // ⛔⛔★★★ **ولا ابتلاعَ هنا** (`AM-020`) — ★ **يُترَك الاستثناءُ يصعد
+    //    إلى الورقة** ⟵ **فتعرضه شريطاً يقول للمستخدم ما يفعل** ⛔ **بدل
+    //    زرٍّ يُضغَط بلا أثرٍ ولا سبب**: ★ **وهي قاعدةُ «الفشلُ يُعرَض ولا
+    //    يُبتلَع» نفسُها** (`design-system.md` §6-ي ④).
+    //
+    // ⚠️ **والابتلاعُ كان هنا تحديداً** — ★ **فما من موضعٍ آخر كان يراه.**
+    final Map<Object?, Object?>? result =
+        await channel.invokeMapMethod<Object?, Object?>('pickContact');
     if (result == null) return null;
     final Object? name = result['name'];
     final Object? phone = result['phone'];

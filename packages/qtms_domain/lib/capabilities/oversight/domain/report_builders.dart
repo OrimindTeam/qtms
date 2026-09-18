@@ -127,6 +127,7 @@ ReportTable buildItemMovementsReport({
   required ReportPeriod period,
   required String itemName,
   required List<StockMovementCard> movements,
+  String? itemKey,
 }) {
   final List<StockMovementCard> counted = <StockMovementCard>[
     for (final StockMovementCard movement in movements)
@@ -136,7 +137,9 @@ ReportTable buildItemMovementsReport({
     report: ReportId.itemMovements,
     header: <ExportField>[
       ExportField('الفترة', period.label),
-      ExportField('النوع', itemName),
+      // ★★★ **والاسمُ المركّب هو المعروض** — `AM-025` ③ · [`DEBT-86`]:
+      //    ⟵ **فترويسةُ التقرير تُسمّي النوعَ بما تُسمّيه به كلُّ شاشة.**
+      ExportField('النوع', _ledgerName(itemKey, itemName, movements)),
     ],
     columns: const <ReportColumn>[
       ReportColumn('تاريخ المخزون'),
@@ -215,10 +218,7 @@ ReportTable buildCurrentStockReport({
       //   قُرئ الفراغُ عطلاً** (`ui-guidelines.md` §6): ⟵ **والاسمُ يصل
       //   جاهزاً من المزوّد** ⛔ **ولا يُعرَض مفتاحٌ تقني مكانه.**
       if (itemKey != null)
-        ExportField(
-          'النوع',
-          itemName ?? (visible.isEmpty ? itemKey : visible.first.itemName),
-        ),
+        ExportField('النوع', _balanceFilterName(itemKey, itemName, visible)),
     ],
     columns: const <ReportColumn>[
       ReportColumn('النوع'),
@@ -229,7 +229,8 @@ ReportTable buildCurrentStockReport({
     rows: <ReportRow>[
       for (final ItemDailyBalanceCard balance in visible)
         ReportRow(<String>[
-          balance.itemName,
+          // ★★★ **الاسمُ المركّب لا المجرَّد** — `AM-025` ③ (راجع [_balanceName]).
+          _balanceName(balance),
           formatQuantity(balance.incoming),
           formatQuantity(balance.outgoing),
           formatQuantity(balance.balance),
@@ -280,10 +281,7 @@ ReportTable buildTodayRemainderReport({
       ExportField('تاريخ المخزون', stockDate.formatReadable()),
       // ⛔⛔ **ويُصرِّح بنفسه ولو خلا الجدول** — راجع [buildCurrentStockReport].
       if (itemKey != null)
-        ExportField(
-          'النوع',
-          itemName ?? (visible.isEmpty ? itemKey : visible.first.itemName),
-        ),
+        ExportField('النوع', _balanceFilterName(itemKey, itemName, visible)),
     ],
     columns: const <ReportColumn>[
       ReportColumn('النوع'),
@@ -292,7 +290,8 @@ ReportTable buildTodayRemainderReport({
     rows: <ReportRow>[
       for (final ItemDailyBalanceCard balance in visible)
         ReportRow(<String>[
-          balance.itemName,
+          // ★★★ **الاسمُ المركّب لا المجرَّد** — `AM-025` ③ (راجع [_balanceName]).
+          _balanceName(balance),
           formatQuantity(balance.balance),
         ]),
     ],
@@ -485,7 +484,12 @@ ReportTable buildCountedIntakesReport({
       if (supplierId case final String supplier)
         ExportField('الرعوي', supplierNames[supplier] ?? supplier),
       if (itemKey case final String item)
-        ExportField('النوع', itemName ?? item),
+        // ★ **والاسمُ المركّب هنا كذلك** — `AM-025` ③: ⟵ **فلا يُصرِّح الفلترُ
+        //   باسمٍ يخالف ما تعرضه بقيةُ التقارير للنوع نفسِه.**
+        ExportField('النوع', ledgerItemDisplayName(
+          itemKey: item,
+          itemName: itemName ?? item,
+        )),
     ],
     columns: const <ReportColumn>[
       ReportColumn('تاريخ المخزون'),
@@ -1334,7 +1338,11 @@ ReportTable buildSalesByItemReport({
       final ValidatedDistributionLine line = card.lines[i];
       final _ItemSalesRollup rollup = byItem.putIfAbsent(
         line.itemId,
-        () => _ItemSalesRollup(line.itemName),
+        // ★★★ **الاسمُ المركّب** — `AM-025` ③: ⟵ **والدالةُ ثابتةُ النتيجة**
+        //    ⛔ **فلا تمسّ سطراً كُتب اسمُه مركّباً أصلاً** ([`DEBT-86`]).
+        () => _ItemSalesRollup(
+          ledgerItemDisplayName(itemKey: line.itemId, itemName: line.itemName),
+        ),
       );
       rollup.addDistribution(line.quantity);
       final Money? value = prices == null
@@ -1354,7 +1362,10 @@ ReportTable buildSalesByItemReport({
       final ValidatedCashSaleLine line = sale.lines[i];
       final _ItemSalesRollup rollup = byItem.putIfAbsent(
         line.itemId,
-        () => _ItemSalesRollup(line.itemName),
+        // ★★★ **الاسمُ المركّب** — `AM-025` ③ (راجع نظيرَه في التوزيع أعلاه).
+        () => _ItemSalesRollup(
+          ledgerItemDisplayName(itemKey: line.itemId, itemName: line.itemName),
+        ),
       );
       rollup.addCashSale(line.quantity);
       final Money? value = sale.lineTotalAt(i);
@@ -2213,6 +2224,61 @@ ReportTable buildSackPriceBreakdownReport({
 // ═════════════════════════════════════════════════════════════════════════
 // نصوصُ الخلايا — ★ **مبنيّةٌ مرةً واحدة** ⛔ **ولا تُكرَّر في شاشة**
 // ═════════════════════════════════════════════════════════════════════════
+
+// ═════════════════════════════════════════════════════════════════════════
+// ★★★ اسمُ النوع في التقارير — `AM-025` ③ · [`DEBT-86`] · [`ADR-0007`]
+// ═════════════════════════════════════════════════════════════════════════
+
+/// ★★★ **اسمُ نوعِ سطرِ الدفتر كما يُعرَض في التقرير** — `AM-025` ③.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **ولماذا لا يُعرَض [ItemDailyBalanceCard.itemName] وحدَه — عطلٌ
+/// مقيسٌ بلقطةٍ فعلية لا احتياط:** ★ **`R-02` عرض «بطوة» في صفّين متتاليين
+/// بكميتين مختلفتين** ⛔ **بلا أيِّ تمييز** — ⟵ **بينما «مخزون اليوم» تعرض
+/// البيانات نفسَها «بطوة - جونية رقم 2»**: ⟹ ⛔⛔ **شاشتان تعرضان الشيءَ
+/// نفسَه بمعيارين**، ★ **والتقريرُ هو ما يُصدَّر ويُحتَجّ به خارج التطبيق.**
+///
+/// ★ **والدالةُ الحاكمة [ledgerItemDisplayName] وحدَها** — ⛔ **ولا صيغةٌ
+/// ثانيةٌ هنا** (`coding-standards.md` §2.2 · `ui-guidelines.md` §6).
+/// ═══════════════════════════════════════════════════════════════════════
+String _balanceName(ItemDailyBalanceCard balance) => ledgerItemDisplayName(
+      itemKey: balance.itemKey,
+      itemName: balance.itemName,
+    );
+
+/// ★ اسمُ النوع في ترويسة فلترِ تقريرٍ مبنيٍّ من أرصدة الدفتر.
+///
+/// ⛔⛔ **ويُصرِّح بنفسه ولو لم يبقَ صفٌّ واحد** — ★ **وإلا قُرئ الفراغُ عطلاً**
+/// (`ui-guidelines.md` §6): ⟵ **والاسمُ يصل جاهزاً من المزوّد**، ⛔ **ولا
+/// يُعرَض مفتاحٌ تقني مكانه.** ★ **ويمرّ بالدالة الحاكمة كصفوفه حرفياً**
+/// ⟵ **فلا تُسمّي الترويسةُ النوعَ باسمٍ يخالف جدولَها.**
+String _balanceFilterName(
+  String itemKey,
+  String? itemName,
+  List<ItemDailyBalanceCard> visible,
+) {
+  for (final ItemDailyBalanceCard balance in visible) {
+    if (balance.itemKey == itemKey) return _balanceName(balance);
+  }
+  return ledgerItemDisplayName(itemKey: itemKey, itemName: itemName ?? itemKey);
+}
+
+/// ★ اسمُ النوع في ترويسة `R-01` — **من مفتاحه واسمه معاً**.
+///
+/// ⚠️ **و[itemKey] اختياريٌّ عمداً** — ★ **فالمُستدعي القديم يمرّر الاسمَ
+/// وحدَه**: ⟵ **وعندها يُشتقّ المفتاحُ من أول حركةٍ في الجدول** (**وهي كلُّها
+/// لنوعٍ واحد بحكم الفلتر**)، ⛔ **ولا يُخترَع مفتاح.**
+String _ledgerName(
+  String? itemKey,
+  String itemName,
+  List<StockMovementCard> movements,
+) {
+  final String? key = itemKey ??
+      (movements.isEmpty ? null : movements.first.itemKey);
+  if (key == null) return itemName;
+  return ledgerItemDisplayName(itemKey: key, itemName: itemName);
+}
+
 
 String _dayCell(CalendarDay? day) =>
     day == null ? 'بلا تاريخ' : day.formatReadable();

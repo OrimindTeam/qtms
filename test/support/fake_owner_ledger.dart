@@ -20,6 +20,10 @@ final class FakeOwnerLedgerDirectory implements OwnerLedgerDirectory {
   void emitSummary(String sourceId, OwnerLedgerSummary? summary) =>
       _controllerFor(sourceId).add(summary);
 
+  /// ★★ يُخفق تدفّقَ مصدرٍ — `AM-023` (**لقياس حالة الخطأ فعلاً**).
+  void emitSummaryError(String sourceId, Object error) =>
+      _controllerFor(sourceId).addError(error);
+
   /// ★ يضع سلسلةَ مصدر.
   void emitTrend(String sourceId, List<OwnerLedgerTrendPoint> points) =>
       _trendFor(sourceId).add(points);

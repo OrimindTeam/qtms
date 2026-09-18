@@ -25,6 +25,29 @@ import 'package:flutter/material.dart';
 import '../design/design_tokens.dart';
 import 'status_pill.dart';
 
+/// ★★★ **تسميةُ عدّادِ البنود بتطابقٍ عربيٍّ صحيح** — ⛔ **لا جمعٌ واحدٌ لكل
+/// عدد** (`ui-guidelines.md` §5 «قواعد جودة العربية»).
+///
+/// ⛔⛔ **ورُصد على المحاكي في جولة `AM-017`:** ★ **الترويسةُ عرضت «42 بنود»**
+/// — ⟵ **وهي خطأٌ نحويٌّ صريح**: ★ **فالعددُ 11 فأكثرَ يُميَّز بمفردٍ منصوب
+/// لا بجمع.** ★ **والمشروعُ يطبّق القاعدةَ نفسَها فعلاً في رقائق المتبقي**
+/// (`aged_remainder_screen.dart`: **«منذ يوم» · «منذ يومين» · «منذ 9 أيام»**)
+/// — ⟹ ⛔ **فبقاءُ «بنود» هنا كان انحرافاً عن ممارسةِ المشروع نفسِه.**
+///
+/// ★ **دالّةٌ نقيّةٌ تُختبَر وحدَها** — ⟵ **فالتطابقُ مقيسٌ لا مُشاهَد**
+/// (نظيرُ `packHubRows` في [`hub_section.dart`]).
+String needsActionCountLabel(int count) => switch (count) {
+      // ⛔ **والصفرُ لا يصل هنا أصلاً** — ★ **له نصُّه الخاص في الترويسة**،
+      //    ★ **لكنَّ الدالّةَ تبقى كليّةً** ⛔ **فلا حالةَ بلا جواب.**
+      0 => 'لا شيء',
+      1 => 'بندٌ واحد',
+      2 => 'بندان',
+      // ★ **جمعُ القلّة من 3 إلى 10.**
+      >= 3 && <= 10 => '$count بنود',
+      // ★★ **ومن 11 فصاعداً مفردٌ منصوب** — ⛔ **لا جمع.**
+      _ => '$count بنداً',
+    };
+
 /// بطاقةُ «يحتاج إجراء» — ترويسةٌ موحّدة وبنودٌ مُدمَجة.
 class QtmsNeedsActionCard extends StatefulWidget {
   /// ينشئ البطاقة.
@@ -94,7 +117,7 @@ class _QtmsNeedsActionCardState extends State<QtmsNeedsActionCard> {
                 label: switch ((widget.isTotalKnown, widget.total)) {
                   (false, _) => 'يحتاج إجراء — لم يكتمل القياس',
                   (true, 0) => 'لا شيء يحتاج إجراءً اليوم',
-                  (true, final int n) => 'يحتاج إجراء — $n بنود',
+                  (true, final int n) => 'يحتاج إجراء — ${needsActionCountLabel(n)}',
                 },
                 child: Padding(
                   padding: const EdgeInsets.all(Spacing.cardPadding),
@@ -120,7 +143,7 @@ class _QtmsNeedsActionCardState extends State<QtmsNeedsActionCard> {
                         label: switch ((widget.isTotalKnown, widget.total)) {
                           (false, _) => '—',
                           (true, 0) => 'لا شيء',
-                          (true, final int n) => '$n بنود',
+                          (true, final int n) => needsActionCountLabel(n),
                         },
                         triad: triad,
                       ),

@@ -202,4 +202,110 @@ void main() {
       findsOneWidget,
     );
   });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★ AM-018 — الرفضُ يُسمّي حقلَه · والنجاحُ يُرى · والفاصلُ قائم
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// ★ يملأ النموذجَ ويُقرّ ثم يضغط الحفظ.
+  Future<void> fillAndSave(
+    WidgetTester tester, {
+    String businessName = 'وكالة محمد المحامي',
+    String? separator,
+  }) async {
+    await tester.enterText(
+      find.widgetWithText(TextField, 'اسم المحل'),
+      businessName,
+    );
+    if (separator != null) {
+      await tester.enterText(
+        find.widgetWithText(TextField, 'فاصل الآلاف'),
+        separator,
+      );
+    }
+    await tester.pump();
+    await tester.ensureVisible(find.byType(CheckboxListTile));
+    await tester.pump();
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pump();
+    final Finder save =
+        find.widgetWithText(FilledButton, firstRunSetupSaveLabel);
+    await tester.ensureVisible(save);
+    await tester.pump();
+    await tester.tap(save);
+  }
+
+  testWidgets(
+    '⛔⛔★★★ AM-018: رفضُ التحقق المحلي يُسمّي حقلَه — ⛔ لا رسالةٌ عامة',
+    (WidgetTester tester) async {
+      signIn(permissions: const <Permission>{Permission.appSettingsWrite});
+      directory.emitSettings(null);
+
+      await tester.pumpWidget(app());
+      await settle(tester);
+
+      // ⛔ **اسمٌ فارغ** — `FR-M21-01`.
+      await fillAndSave(tester, businessName: '   ');
+      await settle(tester);
+
+      expect(admin.calls, 0);
+      expect(find.textContaining('اسم المحل'), findsWidgets);
+      // ⛔⛔ **ولا الرسالةُ العامة.**
+      expect(
+        find.text(catalogText(CatalogMessage.operationFailed)),
+        findsNothing,
+      );
+
+      // ⛔ **وفاصلٌ بمحرفين** — `FR-M21-02`: ★ **ورسالةٌ أخرى غيرُ الأولى.**
+      await tester.enterText(
+        find.widgetWithText(TextField, 'اسم المحل'),
+        'وكالة محمد المحامي',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'فاصل الآلاف'),
+        '__',
+      );
+      await tester.pump();
+      final Finder save =
+          find.widgetWithText(FilledButton, firstRunSetupSaveLabel);
+      await tester.ensureVisible(save);
+      await tester.pump();
+      await tester.tap(save);
+      await settle(tester);
+
+      expect(admin.calls, 0);
+      expect(find.textContaining('فاصل الآلاف'), findsWidgets);
+    },
+  );
+
+  testWidgets('★★ AM-018: ونجاحُ الحفظ يُعرَض قبل خروج الشاشة',
+      (WidgetTester tester) async {
+    signIn(permissions: const <Permission>{Permission.appSettingsWrite});
+    directory.emitSettings(null);
+
+    await tester.pumpWidget(app());
+    await settle(tester);
+
+    await fillAndSave(tester);
+    await tester.pump();
+
+    expect(admin.calls, 1);
+    expect(find.text(firstRunSetupSavedMessage), findsOneWidget);
+    await settle(tester);
+  });
+
+  testWidgets('★ AM-018: وفاصلٌ تحت عنوان «بيانات المنشأة» كشاشة الإعدادات',
+      (WidgetTester tester) async {
+    signIn(permissions: const <Permission>{Permission.appSettingsWrite});
+    directory.emitSettings(null);
+
+    await tester.pumpWidget(app());
+    await settle(tester);
+
+    // ★ **عنوانان ⟵ فاصلان** — ⛔ **ولا عنوانَ عائمٌ بلا حدّ.**
+    expect(find.byType(Divider), findsNWidgets(2));
+    final double titleY = tester.getRect(find.text('بيانات المنشأة')).bottom;
+    final double dividerY = tester.getRect(find.byType(Divider).first).top;
+    expect(dividerY, greaterThan(titleY));
+  });
 }

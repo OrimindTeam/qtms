@@ -498,4 +498,275 @@ void main() {
       expect(find.textContaining('لم يُسجَّل على هذا السجل'), findsOneWidget);
     });
   });
+
+  group('★★★ AM-025 §2 — ثلاثُ تصحيحاتٍ في بطاقة القيد (§5-ب)', () {
+    setUp(() {
+      masterData.emitItems(<ItemCard>[
+        ItemCard(
+          itemId: 'ITM-0001',
+          name: 'بطوة',
+          nature: ItemNature.countBased,
+          unit: ItemUnit.piece,
+          isActive: true,
+          isSystemDefault: false,
+        ),
+      ]);
+      masterData.emitDealers(const <DealerCard>[
+        DealerCard(
+          dealerId: 'MQT-0002',
+          name: 'سالم',
+          phone: '770000000',
+          isActive: true,
+        ),
+      ]);
+    });
+
+    testWidgets(
+      '⛔⛔★★★ ① بريدٌ مطابقٌ لاسم الفاعل يُسقَط كلياً — ⛔ ولا سطرٌ مكرَّر',
+      (WidgetTester tester) async {
+        auditLog.emitCentral(<AuditLogEntryCard>[
+          testAuditEntry(
+            userName: 'orimind@qtms.test',
+            userEmail: 'orimind@qtms.test',
+          ),
+        ]);
+        await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+        expect(
+          find.text('orimind@qtms.test'),
+          findsOneWidget,
+          reason: '★ سطرٌ واحد لا سطران — والتمييزُ غائبٌ أصلاً حين تتطابق',
+        );
+      },
+    );
+
+    testWidgets('★ وبريدٌ مختلفٌ يبقى سطراً ثانياً كما هو', (
+      WidgetTester tester,
+    ) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(userName: 'عبدالفتاح', userEmail: 'owner@qtms.test'),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(find.text('عبدالفتاح'), findsOneWidget);
+      expect(find.text('owner@qtms.test'), findsOneWidget);
+    });
+
+    testWidgets('★★★ ② معرّفُ نوعٍ خام ⟵ اسمُ النوع في سطر الهدف', (
+      WidgetTester tester,
+    ) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(entityType: itemEntityType, entityId: 'ITM-0001'),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(find.textContaining('الأنواع: بطوة'), findsOneWidget);
+      expect(find.textContaining('ITM-0001'), findsNothing);
+    });
+
+    testWidgets('★★★ ② ومعرّفُ دفعةِ تسعيرٍ ⟵ اسمُ المصدر والتاريخ مقروءَين', (
+      WidgetTester tester,
+    ) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(
+          entityType: dailyPriceEntityType,
+          entityId: 'SRC-001_20260905',
+        ),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(
+        find.textContaining('التسعير اليومي: رداع · 2026/09/05'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('★★★ ② ومعرّفُ توزيعةٍ مركَّب ⟵ اسمُ المقوت والمصدر', (
+      WidgetTester tester,
+    ) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(
+          entityType: distributionEntityType,
+          entityId: 'MQT-0002_SRC-001_20260905',
+        ),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(find.textContaining('التوزيع: سالم · رداع'), findsOneWidget);
+      expect(find.textContaining('MQT-0002'), findsNothing);
+    });
+
+    testWidgets(
+      '⛔⛔★★★ ② ورقمُ المستند يعلو كلَّ اشتقاق — AM-025 §2 ② في الكاتب',
+      (WidgetTester tester) async {
+        auditLog.emitCentral(<AuditLogEntryCard>[
+          testAuditEntry(
+            entityType: distributionEntityType,
+            entityId: 'MQT-0002_SRC-001_20260905',
+            documentNumber: 'DST-20260905-0002',
+          ),
+        ]);
+        await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+        expect(
+          find.textContaining('التوزيع: DST-20260905-0002'),
+          findsOneWidget,
+          reason: '★ الرقمُ الذي يكتبه القيد يُعرَض كما هو ⛔ ولا يُشتقّ بديلٌ',
+        );
+      },
+    );
+
+    testWidgets('⛔★ ومعرّفٌ لا يوافق الصيغة يقع على نفسه — ⛔ ولا يُفكَّك تخميناً',
+        (WidgetTester tester) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(
+          entityType: dailyPriceEntityType,
+          entityId: 'SRC-001_ليس-تاريخاً',
+        ),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(
+        find.textContaining('التسعير اليومي: SRC-001_ليس-تاريخاً'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      '⛔⛔★★★ ③ الخريطةُ تُفرَد صفّاً لكلِّ سعرٍ — ⛔ لا «حقول (2)»',
+      (WidgetTester tester) async {
+        auditLog.emitCentral(<AuditLogEntryCard>[
+          testAuditEntry(
+            entityType: dailyPriceEntityType,
+            entityId: 'SRC-001_20260905',
+            before: <String, Object?>{
+              'ITM-0001': <String, Object?>{
+                'distributionPrice': 50,
+                'minCashPrice': 40,
+              },
+            },
+            after: <String, Object?>{
+              'ITM-0001': <String, Object?>{
+                'distributionPrice': 60,
+                'minCashPrice': 45,
+              },
+            },
+          ),
+        ]);
+        await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+        // ⛔ **ولا أثرَ للاختصار القديم.**
+        expect(find.textContaining('حقول ('), findsNothing);
+        // ★ **صفّان باسم النوع واسمِ الحقل معاً.**
+        expect(find.text('بطوة · سعر التوزيع:'), findsOneWidget);
+        expect(find.text('بطوة · الحد الأدنى للبيع النقدي:'), findsOneWidget);
+        expect(find.text('50'), findsOneWidget);
+        expect(find.text('60'), findsOneWidget);
+        expect(find.text('40'), findsOneWidget);
+        expect(find.text('45'), findsOneWidget);
+      },
+    );
+
+    testWidgets('⛔★★ ③ والمفتاحُ الفرعيُّ الذي لم يتغيّر لا يُنتج صفّاً', (
+      WidgetTester tester,
+    ) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(
+          entityType: dailyPriceEntityType,
+          entityId: 'SRC-001_20260905',
+          before: <String, Object?>{
+            'ITM-0001': <String, Object?>{
+              'distributionPrice': 50,
+              'minCashPrice': 40,
+            },
+          },
+          after: <String, Object?>{
+            'ITM-0001': <String, Object?>{
+              'distributionPrice': 60,
+              'minCashPrice': 40,
+            },
+          },
+        ),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(find.text('بطوة · سعر التوزيع:'), findsOneWidget);
+      expect(find.text('بطوة · الحد الأدنى للبيع النقدي:'), findsNothing);
+    });
+
+    testWidgets('★★ ③ وغيابُ المفتاح في أحد الطرفين يُقرأ «لا قيمة»', (
+      WidgetTester tester,
+    ) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(
+          entityType: dailyPriceEntityType,
+          entityId: 'SRC-001_20260905',
+          before: <String, Object?>{
+            'ITM-0001': <String, Object?>{'distributionPrice': null},
+          },
+          after: <String, Object?>{
+            'ITM-0001': <String, Object?>{'distributionPrice': 60},
+          },
+        ),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(find.text('بطوة · سعر التوزيع:'), findsOneWidget);
+      expect(find.text('لا قيمة'), findsOneWidget);
+      expect(find.text('60'), findsOneWidget);
+    });
+
+    testWidgets('★ ③ والقائمةُ لا تُفكَّك — «قائمة (N)» باقيةٌ كما هي', (
+      WidgetTester tester,
+    ) async {
+      auditLog.emitCentral(<AuditLogEntryCard>[
+        testAuditEntry(
+          before: <String, Object?>{
+            'lines': <Object?>[1, 2],
+          },
+          after: <String, Object?>{
+            'lines': <Object?>[1, 2, 3],
+          },
+        ),
+      ]);
+      await pumpScreen(tester, const AuditLogScreen());
+      // ★★ **وإطارٌ ثانٍ للقوائم المرجعية** — ★ **مزوّداتُ الأسماء تُشترَك عند
+      //    أوّلِ بناءِ بطاقة** ( §2): ⟵ **فقيمتُها تصل في الإطار التالي.**
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(find.text('السطور:'), findsOneWidget);
+      expect(find.text('قائمة (2)'), findsOneWidget);
+      expect(find.text('قائمة (3)'), findsOneWidget);
+    });
+  });
 }

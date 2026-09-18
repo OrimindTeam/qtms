@@ -98,6 +98,9 @@ final class FakeShare implements DocumentSharer {
   /// هل تفشل الكتابة؟ — ★ **لاختبار الرسالة المصنَّفة.**
   bool fails = false;
 
+  /// ★ النصوصُ التي سُلِّمت لورقة المشاركة — `AM-023`.
+  final List<String> sharedTexts = <String>[];
+
   @override
   Future<DocumentShareOutcome> sharePdf({
     required ExportableDocument document,
@@ -105,6 +108,16 @@ final class FakeShare implements DocumentSharer {
   }) async {
     if (fails) return DocumentShareOutcome.failed;
     shared.add(document);
+    return DocumentShareOutcome.shared;
+  }
+
+  @override
+  Future<DocumentShareOutcome> shareText({
+    required String text,
+    required String subject,
+  }) async {
+    if (fails) return DocumentShareOutcome.failed;
+    sharedTexts.add(text);
     return DocumentShareOutcome.shared;
   }
 }

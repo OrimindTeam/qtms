@@ -26,6 +26,7 @@ import '../../../app/top_bar.dart';
 
 import '../../../app/router.dart';
 import '../../../core/design/design_tokens.dart';
+import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/date_labels.dart';
 import '../../../core/ui/entity_tile.dart';
@@ -61,7 +62,7 @@ class PendingEntriesScreen extends ConsumerWidget {
               child: AsyncStateView<PendingEntryCard>(
                 value: entries,
                 errorMessage: (Object _) =>
-                    'تحقق من صلاحيتك ونطاق مصادرك، ثم أعد المحاولة.',
+                    readRejectionMessage,
                 onRetry: () => ref.invalidate(pendingEntriesProvider),
                 empty: const EmptyStateSpec(
                   icon: Icons.task_alt_outlined,
@@ -71,16 +72,22 @@ class PendingEntriesScreen extends ConsumerWidget {
                   message: 'كل ما حُفظ هنا مكتملُ القيم. '
                       'وأي قيمة تُترك لاحقاً ستظهر في هذه الشاشة فوراً.',
                 ),
-                builder: (List<PendingEntryCard> items) => ListView.separated(
-                  padding: const EdgeInsets.only(
-                    bottom: Spacing.fabSafeBottom,
-                  ),
-                  itemCount: items.length,
-                  separatorBuilder: (BuildContext context, int index) =>
-                      const SizedBox(height: Spacing.cardGap),
-                  itemBuilder: (BuildContext context, int index) =>
-                      _PendingTile(entry: items[index]),
-                ),
+                builder: (List<PendingEntryCard> items) {
+                  // ★★★ **بطاقةٌ لكلِّ مستند لا لكلِّ قيمةٍ ناقصة** — `AM-025` ①
+                  //    (`pending-entries-design.md` §13) — ⛔ **والتجميعُ عرضٌ**
+                  //    ★ **والسجلُّ نفسُه سطرٌ لكلِّ قيمةٍ كما هو** (`FR-SYS-09`).
+                  final List<_PendingGroup> groups = _groupByDocument(items);
+                  return ListView.separated(
+                    padding: const EdgeInsets.only(
+                      bottom: Spacing.fabSafeBottom,
+                    ),
+                    itemCount: groups.length,
+                    separatorBuilder: (BuildContext context, int index) =>
+                        const SizedBox(height: Spacing.cardGap),
+                    itemBuilder: (BuildContext context, int index) =>
+                        _PendingTile(group: groups[index]),
+                  );
+                },
               ),
             ),
           ),
@@ -163,47 +170,116 @@ class _PendingFilterBar extends ConsumerWidget {
   }
 }
 
-/// ★★★ بطاقةُ بندٍ معلّق — **عنوانٌ مقروء + القيمة الناقصة + زر [ إدخال ]**.
-class _PendingTile extends ConsumerWidget {
-  const _PendingTile({required this.entry});
+/// ★★★ مجموعةُ بنودٍ لمستندٍ واحد — `AM-025` ① (`pending-entries-design.md` §13).
+///
+/// ⛔⛔★★★ **ولماذا مفتاحُ التجميع النوعُ والمعرّفُ معاً** — ⛔ **لا المعرّفُ
+/// وحدَه:** ★ **معرّفان متطابقان من نوعين مختلفين مستندان مختلفان** —
+/// ⟵ **وجمعُهما كان يُنتج بطاقةً تخلط شاراتِ مستندين**، ★ **وهو أسوأ من
+/// التكرار الذي جاء هذا القسمُ يعالجه أصلاً.**
+final class _PendingGroup {
+  const _PendingGroup({required this.head, required this.entries});
 
-  final PendingEntryCard entry;
+  /// أوّلُ بندٍ في المجموعة — ★ **ومنه العنوانُ والرقمُ والتاريخ.**
+  final PendingEntryCard head;
+
+  /// كلُّ بنود المستند — ★ **شارةٌ لكلٍّ منها** (§13).
+  final List<PendingEntryCard> entries;
+
+  /// ★★ أوّلُ بندٍ يملك وجهةً صالحة — و`null` **إن لم يملكها أيٌّ منها**.
+  ///
+  /// ⛔ **ومجموعةٌ بلا وجهةٍ تُعرَض ولا تُفتَح** — ★ **فاختفاؤها يُخفي نقصاً
+  /// قائماً** (`GR-50`)، ⟵ **وفتحُها على شاشةٍ مُخمَّنة أسوأ.**
+  PendingEntryCard? get destination {
+    for (final PendingEntryCard entry in entries) {
+      if (entry.hasDestination) return entry;
+    }
+    return null;
+  }
+}
+
+/// ★★★ يجمع بنودَ المستند الواحد في مجموعةٍ واحدة — **بحفظ ترتيب الدليل**.
+///
+/// ⚠️ **والترتيبُ محفوظٌ بحكم ترتيب الإدراج في `Map`** — ★ **وهو الافتراض في
+/// Dart**: ⟵ **فالمجموعةُ تقع في موضع أوّلِ بندٍ منها**، ⛔ **ولا يُعاد الفرزُ
+/// فيقفز مستندٌ فوق أحدثَ منه** (**الدليل يُرجِعها بالتاريخ تنازلياً**).
+List<_PendingGroup> _groupByDocument(List<PendingEntryCard> items) {
+  final Map<String, List<PendingEntryCard>> byDocument =
+      <String, List<PendingEntryCard>>{};
+  for (final PendingEntryCard item in items) {
+    final String key = '${item.kind?.name ?? 'غير معروف'}/${item.documentId}';
+    byDocument.putIfAbsent(key, () => <PendingEntryCard>[]).add(item);
+  }
+  return <_PendingGroup>[
+    for (final List<PendingEntryCard> group in byDocument.values)
+      _PendingGroup(head: group.first, entries: group),
+  ];
+}
+
+/// ★★★ بطاقةُ مستندٍ معلَّق — **عنوانٌ مقروء + شارةٌ لكلِّ قيمةٍ ناقصة + زر [ إدخال ]**.
+///
+/// ⛔⛔★★★ **وبطاقةٌ واحدةٌ للمستند لا لكلِّ قيمة** — `AM-025` ① (§13):
+/// ⚠️ **والعطلُ مقيسٌ بلقطةٍ فعلية لا مفترَض:** ★ **«جونية رقم 2» ظهرت
+/// ببطاقتين عنوانُهما وسطرُهما الثانوي متطابقان حرفياً**، ⟵ **فتُقرآن عند
+/// المسح السريع مستندين مختلفين** ⛔ **لا مستنداً واحداً ينقصه شيئان.**
+///
+/// ⛔⛔ **وسجلُّ البنود لم يُمَسّ** — ★ **السحابةُ تكتبه وتمحوه بندَ بند**
+/// (`FR-SYS-09`): ⟵ **والتجميعُ عرضٌ في الشاشة وحدَها**، ★ **والعدّادُ يبقى
+/// عددَ القيم لا عددَ المستندات.**
+class _PendingTile extends ConsumerWidget {
+  const _PendingTile({required this.group});
+
+  final _PendingGroup group;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => EntityTile(
-        leading: IconBadgeBox(
-          icon: Icons.hourglass_bottom_outlined,
-          // ★★ **⏳ برتقالية موحّدة في كل النظام** — §4 من مستند الوحدة:
-          //    ⛔ **ولا شكلَ بديل في أي شاشة**، ★ **وعائلةُ «تنبيه · تأخّر»
-          //    هي `warning`** (`design-system.md` §3.4).
-          triad: SemanticTriads.warning,
-        ),
-        title: entry.readableTitle,
-        subtitle: _subtitle(entry),
-        badges: <Widget>[
+  Widget build(BuildContext context, WidgetRef ref) {
+    final PendingEntryCard head = group.head;
+    final PendingEntryCard? destination = group.destination;
+    return EntityTile(
+      leading: IconBadgeBox(
+        icon: Icons.hourglass_bottom_outlined,
+        // ★★ **⏳ برتقالية موحّدة في كل النظام** — §4 من مستند الوحدة:
+        //    ⛔ **ولا شكلَ بديل في أي شاشة**، ★ **وعائلةُ «تنبيه · تأخّر»
+        //    هي `warning`** (`design-system.md` §3.4).
+        triad: SemanticTriads.warning,
+      ),
+      title: head.readableTitle,
+      subtitle: _subtitle(head),
+      // ★★ **شارةٌ لكلِّ قيمةٍ ناقصة** — ★ **و[EntityTile] تضعها في `Wrap`
+      //    في سطرها المستقل أصلاً** (`DEBT-36`): ⛔ **فلا تُزاحم النصّ.**
+      badges: <Widget>[
+        for (final PendingEntryCard entry in group.entries)
           StatusPill(
             label: entry.missingField,
             triad: SemanticTriads.warning,
             icon: Icons.hourglass_empty,
           ),
-        ],
-        actions: <Widget>[
-          if (entry.hasDestination)
-            TextButton(
-              onPressed: () => _open(context, ref, entry),
-              child: const Text('إدخال'),
-            )
-          else
-            // ⛔ **بندٌ من إصدارٍ أحدث يُعرَض ولا يُفتَح** — ★ **فاختفاؤه
-            //   يُخفي نقصاً قائماً**، ⛔ **وفتحُه على شاشةٍ مُخمَّنة أسوأ.**
-            Text(
-              'حدِّث التطبيق لفتح هذا البند',
-              style: TypeScale.caption
-                  .copyWith(color: SemanticColors.textTertiary),
-            ),
-        ],
-        semanticLabel: '${entry.readableTitle} — ${entry.missingField}',
-      );
+      ],
+      actions: <Widget>[
+        if (destination case final PendingEntryCard target)
+          // ★★ **زرٌّ واحدٌ للمستند** — §13: ⟵ **كلُّ حقولِه تُفتَح من شاشته
+          //    هي** (§6)، ⛔ **فزرٌّ لكلِّ شارةٍ تكرارٌ بلا وجهةٍ ثانية.**
+          TextButton(
+            onPressed: () => _open(context, ref, target),
+            child: const Text('إدخال'),
+          )
+        else
+          // ⛔ **بندٌ من إصدارٍ أحدث يُعرَض ولا يُفتَح** — ★ **فاختفاؤه
+          //   يُخفي نقصاً قائماً**، ⛔ **وفتحُه على شاشةٍ مُخمَّنة أسوأ.**
+          Text(
+            'حدِّث التطبيق لفتح هذا البند',
+            style: TypeScale.caption
+                .copyWith(color: SemanticColors.textTertiary),
+          ),
+      ],
+      // ★ **وقارئُ الشاشة يسمع المجموعة مجموعةً** — §13.
+      semanticLabel: '${head.readableTitle} — ${_missingFields(group)}',
+    );
+  }
+
+  /// ★ كلُّ القيم الناقصة في نصٍّ واحد — **للوصف الدلالي وحدَه**.
+  static String _missingFields(_PendingGroup group) => group.entries
+      .map((PendingEntryCard entry) => entry.missingField)
+      .join(' · ');
 
   /// ★ سطرٌ ثانويٌّ واحد — **الرقم والتاريخ** (§6.د: سطرٌ واحد لا أكثر).
   static String _subtitle(PendingEntryCard entry) {

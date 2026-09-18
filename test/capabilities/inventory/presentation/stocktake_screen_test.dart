@@ -16,6 +16,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
+import 'package:qtms/core/design/design_tokens.dart';
+import 'package:qtms/core/ui/destructive_sheet.dart';
+import 'package:qtms/core/ui/sticky_action_bar.dart';
+import 'package:qtms/core/messages/error_messages.dart';
 import 'package:qtms/capabilities/inventory/application/inventory_providers.dart';
 import 'package:qtms/capabilities/inventory/application/stocktake_providers.dart';
 import 'package:qtms/capabilities/inventory/presentation/stocktake_screen.dart';
@@ -374,7 +378,110 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(admin.approved, isEmpty);
-      expect(find.textContaining('أدخل العدّ الفعلي'), findsOneWidget);
+      // ★★★ **والرسالةُ تُسمّي السطرَ الناقص باسمه المعروض** — `AM-021` ⑥:
+      //    ⛔ **لا «لكل نوع» مجرَّدة** (`ui-guidelines.md` §6).
+      expect(find.text('أدخل العدّ الفعلي لـ«عوارض».'), findsOneWidget);
+      // ★★ **وحدٌّ لونيٌّ على الحقل الناقص مع تلميحٍ نصّي** — ⛔ **ولا لونَ
+      //    وحده ينقل المعنى** (§8 المحظور الثاني عشر).
+      final TextField field = tester.widget<TextField>(
+        find.byKey(const Key('stocktake-count-ITM-0001')),
+      );
+      expect(field.decoration!.helperText, stocktakeMissingCountHint);
+      expect(
+        field.decoration!.enabledBorder,
+        isA<OutlineInputBorder>().having(
+          (OutlineInputBorder border) => border.borderSide.color,
+          'لونُ الحدّ',
+          SemanticTriads.danger.border,
+        ),
+      );
+    });
+
+    testWidgets(
+        '⛔⛔★★★ AM-021 ⑥: وتُسمّى السطورُ الناقصة الأولُ منها ويُعَدّ الباقي',
+        (WidgetTester tester) async {
+      directory.emit(<StocktakeCard>[
+        testStocktake(
+          lines: const <StocktakeCardLine>[
+            StocktakeCardLine(
+              itemKey: 'ITM-0001',
+              itemName: 'عوارض',
+              bookBalance: PieceQuantity(PieceCount(80)),
+            ),
+            StocktakeCardLine(
+              itemKey: 'ITM-0002',
+              itemName: 'عتود',
+              bookBalance: PieceQuantity(PieceCount(40)),
+            ),
+            StocktakeCardLine(
+              itemKey: 'ITM-0003',
+              itemName: 'سلة',
+              bookBalance: PieceQuantity(PieceCount(10)),
+            ),
+          ],
+        ),
+      ]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      // ★ **سطرٌ واحدٌ يُعَدّ والاثنان الباقيان ناقصان.**
+      await tester.enterText(
+        find.byKey(const Key('stocktake-count-ITM-0001')),
+        '80',
+      );
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.byKey(const Key('stocktake-approve')));
+      await tester.tap(find.byKey(const Key('stocktake-approve')));
+      await tester.pumpAndSettle();
+
+      expect(admin.approved, isEmpty);
+      expect(
+        find.text('أدخل العدّ الفعلي لـ«عتود» و1 سطرٍ آخر بلا عدّ.'),
+        findsOneWidget,
+      );
+      // ⛔ **والسطرُ المكتملُ بلا حدٍّ أحمر** — ★ **فالحدُّ إشارةٌ لا زينة.**
+      final TextField done = tester.widget<TextField>(
+        find.byKey(const Key('stocktake-count-ITM-0001')),
+      );
+      expect(done.decoration!.enabledBorder, isNull);
+      expect(done.decoration!.helperText, isNull);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ AM-021 ⑥: والحدُّ الأحمر يُطفأ بعد إصلاح السطر واعتمادٍ ناجح',
+        (WidgetTester tester) async {
+      directory.emit(<StocktakeCard>[testStocktake()]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await scrollTo(tester, find.byKey(const Key('stocktake-approve')));
+      await tester.tap(find.byKey(const Key('stocktake-approve')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('stocktake-count-ITM-0001')))
+            .decoration!
+            .helperText,
+        stocktakeMissingCountHint,
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('stocktake-count-ITM-0001')),
+        '78',
+      );
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.byKey(const Key('stocktake-approve')));
+      await tester.tap(find.byKey(const Key('stocktake-approve')));
+      await tester.pumpAndSettle();
+
+      expect(admin.approved, isNotEmpty);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('stocktake-count-ITM-0001')))
+            .decoration!
+            .helperText,
+        isNull,
+      );
     });
 
     testWidgets('⛔⛔★★★ ومن لا يملك `stocktakeApprove` لا يعتمد',
@@ -407,6 +514,9 @@ void main() {
 
       await scrollTo(tester, find.byKey(const Key('stocktake-cancel')));
       await tester.tap(find.byKey(const Key('stocktake-cancel')));
+      await tester.pumpAndSettle();
+      // ★★★ **والتنفيذُ خلف ورقة التأكيد** — `AM-021` ⑤.
+      await tester.tap(find.text('تأكيد إلغاء الجرد'));
       await tester.pump();
 
       expect(find.text('جارٍ الإلغاء…'), findsOneWidget);
@@ -425,13 +535,121 @@ void main() {
       await scrollTo(tester, find.byKey(const Key('stocktake-cancel')));
       await tester.tap(find.byKey(const Key('stocktake-cancel')));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('تأكيد إلغاء الجرد'));
+      await tester.pumpAndSettle();
 
       expect(admin.cancelled, <String>['STK-20260905-001']);
     });
   });
 
+  group('⛔⛔★★★ AM-021 ⑤ — إلغاءُ الجرد بالورقة المدمّرة الموحّدة', () {
+    testWidgets('★★★ ولا تنفيذَ بضغطةٍ واحدة — الورقةُ تُفتَح ولا يُلغى شيء',
+        (WidgetTester tester) async {
+      // ⚠️⚠️ **وكان `TextButton` أحمرَ ينفّذ مباشرةً** — ⛔ **بلا تأكيدٍ ولا
+      //   مخرَج**: ⟵ **بينما إلغاءُ الوارد والجونية والتوزيعة والبيع النقدي
+      //   كلُّها بالورقة** (`ADR-0021` `P6`).
+      directory.emit(<StocktakeCard>[testStocktake()]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await scrollTo(tester, find.byKey(const Key('stocktake-cancel')));
+      await tester.tap(find.byKey(const Key('stocktake-cancel')));
+      await tester.pumpAndSettle();
+
+      expect(admin.cancelled, isEmpty);
+      // ★ **عنوانٌ يسمّي المستند برقمه** — ⛔ **لا «هل أنت متأكد؟»** (§6).
+      //   ★ **ويُقاس داخل الورقة وحدَها** — ⟵ **فالزرُّ تحتها يحمل النصَّ
+      //   نفسَه عمداً**: ⛔ **ووعدُ الزرّ وعنوانُ الورقة لا يفترقان.**
+      expect(
+        find.descendant(
+          of: find.byType(QtmsDestructiveSheet),
+          matching: find.text('إلغاء الجرد STK-20260905-001'),
+        ),
+        findsOneWidget,
+      );
+      // ★ **وجملةُ أثرٍ صريحة.**
+      expect(find.textContaining('الإلغاء يَسِم مسوّدة الجرد'), findsOneWidget);
+      // ⛔⛔★★★ **وزرُّ تراجعٍ إلزامي** — `ADR-0021` القيد 4.
+      expect(find.text('تراجع'), findsOneWidget);
+      // ★★ **وسببُ الإلغاء اختياريٌّ ولا يُعطِّل الزرّ** (`ADR-0020`).
+      expect(find.text('سبب الإلغاء (اختياري)'), findsOneWidget);
+      final FilledButton confirm = tester.widget<FilledButton>(
+        find.ancestor(
+          of: find.text('تأكيد إلغاء الجرد'),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      expect(confirm.onPressed, isNotNull);
+    });
+
+    testWidgets('★★★ و«تراجع» يُغلق الورقة بلا إلغاءٍ واحد',
+        (WidgetTester tester) async {
+      directory.emit(<StocktakeCard>[testStocktake()]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await scrollTo(tester, find.byKey(const Key('stocktake-cancel')));
+      await tester.tap(find.byKey(const Key('stocktake-cancel')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('تراجع'));
+      await tester.pumpAndSettle();
+
+      expect(admin.cancelled, isEmpty);
+      expect(find.text('تأكيد إلغاء الجرد'), findsNothing);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ وسببُ الإلغاء من الورقة لا من حقل ملاحظة الاعتماد',
+        (WidgetTester tester) async {
+      // ⛔⛔★★★ **وكان الحقلُ الواحدُ يُرسَل للعمليتين معاً** — ⟵ **فمن كتب
+      //   ملاحظةً على العدّ ثم ألغى أُرسلت ملاحظتُه سبباً للإلغاء**:
+      //   ★ **وهو ما تمنعه القاعدةُ الباقية من [`ADR-0020`].**
+      directory.emit(<StocktakeCard>[testStocktake()]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await tester.enterText(
+        find.byKey(const Key('stocktake-approve-reason')),
+        'ملاحظةٌ على العدّ لا على الإلغاء',
+      );
+      await tester.pumpAndSettle();
+
+      await scrollTo(tester, find.byKey(const Key('stocktake-cancel')));
+      await tester.tap(find.byKey(const Key('stocktake-cancel')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('تأكيد إلغاء الجرد'));
+      await tester.pumpAndSettle();
+
+      expect(admin.cancelled, <String>['STK-20260905-001']);
+      // ⛔ **والفراغُ يُقرأ غياباً لا نصّاً** (`blankToNull`).
+      expect(admin.cancelReasons.single, isNull);
+    });
+
+    testWidgets('★★★ والرفضُ يُعرَض داخل الورقة وهي مفتوحة — ⛔ ولا يُبتلَع',
+        (WidgetTester tester) async {
+      admin.nextCancel = Future<Outcome<void>>.value(
+        const Failure<void>(ValidationError('BR-M16-XX')),
+      );
+      directory.emit(<StocktakeCard>[testStocktake()]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await scrollTo(tester, find.byKey(const Key('stocktake-cancel')));
+      await tester.tap(find.byKey(const Key('stocktake-cancel')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('تأكيد إلغاء الجرد'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('تأكيد إلغاء الجرد'), findsOneWidget);
+      expect(
+        find.text(catalogText(CatalogMessage.operationFailed)),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('⛔⛔★★★ لافتةُ النجاح تبقى عبر تبدّل المرحلة', () {
-    testWidgets('★★★ واعتمادٌ ناجحٌ يُغلِق المسوّدة ويُبقي «✅ اعتُمد الجرد»',
+    testWidgets('★★★ واعتمادٌ ناجحٌ يُغلِق المسوّدة ويُبقي لافتةَ «اعتُمد الجرد»',
         (WidgetTester tester) async {
       // ⚠️ **ارتدادٌ رُصد على المحاكي 2026-09-05** — ★ **الاعتمادُ يُغلِق
       //   المسوّدة فيُستبدَل النموذج**: ⛔ **وكانت اللافتةُ تُتلَف معه**،
@@ -460,6 +678,168 @@ void main() {
         find.textContaining('اعتُمد الجرد STK-20260905-001'),
         findsOneWidget,
       );
+    });
+  });
+
+  group('⛔⛔★★★ AM-021 ④ — سطرُ حالة الجرد بثلاثيةٍ لونية لا نصٌّ عارٍ', () {
+    /// ★ يقرأ لافتةَ الحالة من شريط الإجراء الثابت — و`null` حين لا حالة.
+    ///
+    /// ⛔⛔ **ونفسُ مُساعِد `disposal_screen_test.dart` حرفاً بحرف** — ★ **فالنمطُ
+    /// المرجعيُّ واحدٌ ويُقاس بالطريقة نفسِها** (§8 المحظور 11).
+    QtmsActionStatus? statusOf(WidgetTester tester) {
+      final Finder banner = find.byType(QtmsActionStatus);
+      if (banner.evaluate().isEmpty) return null;
+      return tester.widget<QtmsActionStatus>(banner);
+    }
+
+    testWidgets('★★★ ورفضُ البدء بلا نوعٍ بثلاثية `danger` وأيقونةٍ متجهية',
+        (WidgetTester tester) async {
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await scrollTo(tester, find.byKey(const Key('stocktake-start')));
+      await tester.tap(find.byKey(const Key('stocktake-start')));
+      await tester.pumpAndSettle();
+
+      final QtmsActionStatus? status = statusOf(tester);
+      expect(status, isNotNull);
+      expect(status!.triad, SemanticTriads.danger);
+      expect(status.icon, Icons.error_outline);
+      expect(status.message, 'اختر نوعاً واحداً على الأقل لجرده.');
+      // ⛔ **ولا رمزَ إيموجي في الشاشة كلِّها بعد اليوم.**
+      expect(find.textContaining('❌'), findsNothing);
+    });
+
+    testWidgets('★★★ وبدءٌ ناجحٌ بثلاثية `success` ⛔ بلا «✅» إيموجي',
+        (WidgetTester tester) async {
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+      await tapAddLine(tester);
+      // ★ **وبنفس صيغة اختيار النوع القائمة في هذا الملف** — ⛔ **ولا ضغطةٌ
+      //   على تسميةٍ غيرِ قابلةٍ للاختبار اللمسي.**
+      await tester.tap(find.byType(DropdownMenu<String>).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('عوارض').last);
+      await tester.pumpAndSettle();
+
+      await scrollTo(tester, find.byKey(const Key('stocktake-start')));
+      await tester.tap(find.byKey(const Key('stocktake-start')));
+      await tester.pumpAndSettle();
+
+      final QtmsActionStatus? status = statusOf(tester);
+      expect(status, isNotNull);
+      expect(status!.triad, SemanticTriads.success);
+      expect(status.icon, Icons.check_circle_outline);
+      expect(status.message, 'بدأ الجرد STK-20260905-001');
+      expect(find.textContaining('✅'), findsNothing);
+    });
+
+    testWidgets('★★★ وحرسُ العدّ الناقص بثلاثية `danger` بنصّه المُسمّى',
+        (WidgetTester tester) async {
+      directory.emit(<StocktakeCard>[testStocktake()]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await scrollTo(tester, find.byKey(const Key('stocktake-approve')));
+      await tester.tap(find.byKey(const Key('stocktake-approve')));
+      await tester.pumpAndSettle();
+
+      final QtmsActionStatus? status = statusOf(tester);
+      expect(status, isNotNull);
+      expect(status!.triad, SemanticTriads.danger);
+      expect(status.message, 'أدخل العدّ الفعلي لـ«عوارض».');
+    });
+
+    testWidgets('★★★ واعتمادٌ ناجحٌ بثلاثية `success`',
+        (WidgetTester tester) async {
+      directory.emit(<StocktakeCard>[testStocktake()]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await tester.enterText(
+        find.byKey(const Key('stocktake-count-ITM-0001')),
+        '78',
+      );
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.byKey(const Key('stocktake-approve')));
+      await tester.tap(find.byKey(const Key('stocktake-approve')));
+      await tester.pumpAndSettle();
+
+      final QtmsActionStatus? status = statusOf(tester);
+      expect(status, isNotNull);
+      expect(status!.triad, SemanticTriads.success);
+      expect(status.message, 'اعتُمد الجرد STK-20260905-001');
+    });
+
+    testWidgets('★★★ وإلغاءٌ ناجحٌ بثلاثية `success` بعد إغلاق الورقة',
+        (WidgetTester tester) async {
+      directory.emit(<StocktakeCard>[testStocktake()]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await scrollTo(tester, find.byKey(const Key('stocktake-cancel')));
+      await tester.tap(find.byKey(const Key('stocktake-cancel')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('تأكيد إلغاء الجرد'));
+      await tester.pumpAndSettle();
+
+      final QtmsActionStatus? status = statusOf(tester);
+      expect(status, isNotNull);
+      expect(status!.triad, SemanticTriads.success);
+      expect(status.message, 'أُلغي الجرد STK-20260905-001');
+    });
+
+    testWidgets(
+        '⛔⛔★★★ ورفضُ السحابة عند الاعتماد بثلاثية `danger` بنصّ الكتالوج',
+        (WidgetTester tester) async {
+      admin.nextApprove = const Failure<void>(ValidationError('BR-M16-XX'));
+      directory.emit(<StocktakeCard>[testStocktake()]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await tester.enterText(
+        find.byKey(const Key('stocktake-count-ITM-0001')),
+        '78',
+      );
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.byKey(const Key('stocktake-approve')));
+      await tester.tap(find.byKey(const Key('stocktake-approve')));
+      await tester.pumpAndSettle();
+
+      final QtmsActionStatus? status = statusOf(tester);
+      expect(status, isNotNull);
+      expect(status!.triad, SemanticTriads.danger);
+      expect(status.message, catalogText(CatalogMessage.operationFailed));
+    });
+
+    testWidgets(
+        '⛔⛔★★★ ولافتةُ النجاح تعبر تبدّلَ المرحلة بثلاثيتها — لا بنصّها وحدَه',
+        (WidgetTester tester) async {
+      // ⚠️ **ارتدادُ 2026-09-05 نفسُه، مقيساً على النمط الجديد:** ★ **الاعتمادُ
+      //   يُغلِق المسوّدة فيُستبدَل النموذج**، ⛔ **واللافتةُ يجب أن تبقى.**
+      directory.emit(<StocktakeCard>[testStocktake()]);
+      await pumpStocktake(tester);
+      await chooseSource(tester);
+
+      await tester.enterText(
+        find.byKey(const Key('stocktake-count-ITM-0001')),
+        '78',
+      );
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.byKey(const Key('stocktake-approve')));
+      await tester.tap(find.byKey(const Key('stocktake-approve')));
+      await tester.pumpAndSettle();
+
+      directory.emit(<StocktakeCard>[
+        testStocktake(status: StocktakeStatus.approved),
+      ]);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('stocktake-start')), findsOneWidget);
+      final QtmsActionStatus? status = statusOf(tester);
+      expect(status, isNotNull);
+      expect(status!.triad, SemanticTriads.success);
+      expect(status.message, 'اعتُمد الجرد STK-20260905-001');
     });
   });
 

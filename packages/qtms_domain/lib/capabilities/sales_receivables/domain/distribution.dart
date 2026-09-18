@@ -634,6 +634,21 @@ final class ValidatedDistribution {
 /// ★ الحدّ الأدنى لعدد السطور — **مستندٌ بلا سطر لا يُنشئ حركة فلا معنى له**.
 const int distributionMinLines = 1;
 
+/// ⛔⛔★★★ رمزُ رفضِ «توزيعةٌ بلا سطرٍ صالح» — `ERR_DIST_010` (`IQ-043`).
+///
+/// ⚠️⚠️★★★ **ولماذا رمزُ كتالوجٍ هنا وحدَه بينما البقيةُ رموزُ قواعد**
+/// (`BR-M10-15` · `GR-19` …): ★ **لأن القيد ② («سطرٌ واحد على الأقل») لا
+/// معرّفَ متطلبٍ له أصلاً في** `FR-M10.md` — ⟵ **وكان يُعار `FR-M10-13`
+/// وهو نصُّه «كل عملية توزيع تُنفَّذ داخل معاملة ذرّية واحدة»** ⛔ **فلا
+/// يصف الحالة.** ⟹ ⛔⛔ **واختراعُ معرّفِ قاعدةٍ لا وجود له في المتطلبات
+/// يكسر التتبّع**، ★ **بينما `ERR_DIST_010` رمزٌ مسجَّلٌ باعتماد المالك**
+/// (`error-codes-catalog.md` §`DIST`).
+///
+/// ★ **وهو الحالةُ الوحيدة من الأربع التي تبلغ المستخدمَ فعلاً** — ⟵ **الشاشةُ
+/// تُسقِط الصفَّ الناقص قبل التحقق** (`_linesFor`)، ⛔ **ولا حقلَ ملاحظةٍ في
+/// ورقة التوزيع أصلاً.**
+const String distributionNeedsLineCode = 'ERR_DIST_010';
+
 /// يفحص مستند توزيع — `FR-M10-04` … `FR-M10-19`.
 ///
 /// ═══════════════════════════════════════════════════════════════════════
@@ -661,7 +676,10 @@ Outcome<ValidatedDistribution> validateDistribution(DistributionInput input) {
     return const Failure<ValidatedDistribution>(ValidationError('FR-M10-04'));
   }
   if (input.lines.length < distributionMinLines) {
-    return const Failure<ValidatedDistribution>(ValidationError('FR-M10-13'));
+    // ⛔⛔★★★ **برمزه المعتمد لا بالجامع** — [distributionNeedsLineCode].
+    return const Failure<ValidatedDistribution>(
+      ValidationError(distributionNeedsLineCode),
+    );
   }
 
   final Outcome<List<ValidatedDistributionLine>> lines =

@@ -32,6 +32,17 @@ import 'permission_gate.dart';
 import 'user_disable_sheet.dart';
 import 'user_form_screen.dart';
 
+/// ★ نصُّ غياب البريد — ⛔ **ولا نصٌّ محفورٌ في موضعين.**
+const String noEmailLabel = 'بلا بريد';
+
+/// ★★★ **السطرُ الثانوي لبطاقة المستخدم** — `AM-018` · §8 المحظور 13.
+///
+/// ⛔⛔ **بريدٌ غيرُ فارغٍ وإلا نصٌّ بشريٌّ صريح** — ★ **بفحص `isNotEmpty` لا
+/// `!= null` وحدَه**: ⟵ **فنصٌّ فارغٌ يمرّ من `??` فيُعرَض سطرٌ خاوٍ**،
+/// ⛔ **ولا معرّفٌ داخليٌّ يحلّ محلَّه أبداً.**
+String userSubtitle(String? email) =>
+    (email != null && email.trim().isNotEmpty) ? email : noEmailLabel;
+
 /// قائمة المستخدمين.
 class UsersScreen extends ConsumerWidget {
   /// ينشئ الشاشة.
@@ -146,7 +157,11 @@ class _NewUserButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => FloatingActionButton.extended(
         onPressed: () => showUserForm(context),
-        icon: const Icon(Icons.person_add_alt),
+        // ★★ **أيقونةٌ واحدةٌ لكلِّ فعلٍ عبر الشاشات الشقيقة** (`AM-018` ·
+        //   `design-system.md` §6-ج): ⟵ **«إضافة شخص» في المستخدمين والرعية
+        //   والمقاوته أيقونةٌ واحدة** — ⛔ **ولا ثلاثةُ متغيّراتٍ دقيقةٍ من
+        //   عائلةٍ واحدةٍ لا يميّزها أحد.**
+        icon: const Icon(Icons.person_add_alt_outlined),
         label: const Text('مستخدم جديد'),
       );
 }
@@ -172,7 +187,14 @@ class _UserTile extends ConsumerWidget {
         // ★★ **والبريدُ سطراً ثانياً** — `AM-008` ④: ⛔ **لا بديلاً عن الدور.**
         //   ⚠️ **وحسابٌ بلا بريدٍ حالةٌ لا تقع عملياً** (`FR-M1-01` يفرضه)،
         //   ★ **ويُصرَّح بها بدل سطرٍ خاوٍ.**
-        subtitle: user.email ?? 'بلا بريد',
+        //
+        // ⛔⛔★★★ **والفراغُ يُعامَل غياباً لا نصّاً** — `AM-018` ·
+        //   `design-system.md` §8 المحظور 13: ⟵ **و`??` وحدها تمرّ من النصّ
+        //   الفارغ مرورَ الكرام فيُعرَض سطرٌ خاوٍ**، ★ **والفحصُ `isNotEmpty`**
+        //   (وهو نظيرُ `blankToNull` في طبقة النطاق). ⛔⛔ **ولا حقلَ آخرَ من
+        //   المستند يحلّ محلَّه** — ⟵ **ومعرّفٌ داخليٌّ في موضع البريد أسوأُ
+        //   من فراغ.**
+        subtitle: userSubtitle(user.email),
         // ★★★ **الصورة الرمزية مقدّمةً** — `AM-008` ④: **دائريةٌ بالحرف الأول.**
         //
         // ⛔⛔★★ **وأيقونة 🕘 انتقلت إلى صفّ الإجراءات ولم تسقط** —

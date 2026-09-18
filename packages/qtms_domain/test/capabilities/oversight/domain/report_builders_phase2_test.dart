@@ -1167,4 +1167,65 @@ void main() {
       expect(headerOf(table, 'النوع'), isNull);
     });
   });
+
+  group('★★★ AM-025 ③ — اسمُ النوع في التقارير من الدفتر (reporting §7.3)', () {
+    /// ★ **جونيتان من نوعٍ واحد في يومٍ واحد** — ⟵ **وهو ما رصدته المراجعة
+    /// بلقطةٍ فعلية:** ⛔ **صفّان باسم «بطوة» بكميتين مختلفتين بلا تمييز.**
+    List<ItemDailyBalanceCard> twoOrigins() => <ItemDailyBalanceCard>[
+          balanceOf(itemKey: 'ITM-0001', name: 'بطوة', pieces: 50),
+          balanceOf(itemKey: 'بطوة - جونية رقم 2', name: 'بطوة', pieces: 10),
+        ];
+
+    test('⛔⛔★★★ R-02: المفتاحُ المركّب يُعرَض بتمامه — ⛔ لا «بطوة» مرتين', () {
+      final ReportTable table = buildCurrentStockReport(
+        stockDate: dayA,
+        balances: twoOrigins(),
+      );
+      expect(table.rows, hasLength(2));
+      expect(cellOf(table, 0, 0), 'بطوة');
+      expect(
+        cellOf(table, 1, 0),
+        'بطوة - جونية رقم 2',
+        reason: '★ نفسُ ما تعرضه «مخزون اليوم» لنفس البيانات — DEBT-86',
+      );
+    });
+
+    test('★★ R-05: والحكمُ نفسُه في متبقي اليوم — المصدرُ واحد', () {
+      final ReportTable table = buildTodayRemainderReport(
+        stockDate: dayA,
+        balances: twoOrigins(),
+      );
+      expect(cellOf(table, 0, 0), 'بطوة');
+      expect(cellOf(table, 1, 0), 'بطوة - جونية رقم 2');
+    });
+
+    test('★★ وترويسةُ الفلتر تُسمّي النوعَ كما يُسمّيه جدولُها', () {
+      final ReportTable table = buildCurrentStockReport(
+        stockDate: dayA,
+        balances: twoOrigins(),
+        itemKey: 'بطوة - جونية رقم 2',
+      );
+      expect(table.rows, hasLength(1));
+      expect(headerOf(table, 'النوع'), 'بطوة - جونية رقم 2');
+    });
+
+    test('⛔⛔ ولا رقمَ تغيّر ولا إجمالي — تغييرُ نصِّ خليةٍ لا تغييرُ حساب', () {
+      final ReportTable table = buildCurrentStockReport(
+        stockDate: dayA,
+        balances: twoOrigins(),
+      );
+      expect(totalOf(table, 'إجمالي الوارد'), contains('60 حبة'));
+      expect(totalOf(table, 'عدد الأنواع'), '2');
+    });
+
+    test('★ ومفتاحُ سجلِ نوعٍ عاديّ يُعرَض باسمه المخزَّن — بلا تغيير', () {
+      final ReportTable table = buildCurrentStockReport(
+        stockDate: dayA,
+        balances: <ItemDailyBalanceCard>[
+          balanceOf(itemKey: 'ITM-0002', name: 'شامي', pieces: 30),
+        ],
+      );
+      expect(cellOf(table, 0, 0), 'شامي');
+    });
+  });
 }

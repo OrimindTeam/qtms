@@ -321,9 +321,14 @@ class _PasswordSectionState extends ConsumerState<_PasswordSection> {
   Widget build(BuildContext context) => _Section(
         title: 'تغيير كلمة المرور',
         children: <Widget>[
-          _PasswordField(controller: _current, label: 'كلمة المرور الحالية'),
+          _PasswordField(
+            controller: _current,
+            label: 'كلمة المرور الحالية',
+            onChanged: _onFieldChanged,
+          ),
           const SizedBox(height: Spacing.space12),
           _PasswordField(
+            onChanged: _onFieldChanged,
             controller: _next,
             // ★★★ **والحدُّ ثمانيةٌ لا ستّة** — [`CR-012`] §2.2:
             //    ⛔ **ونصُّ الحقل يقوله صراحةً** ⟵ **فلا يُفاجأ المستخدم برفض.**
@@ -333,8 +338,19 @@ class _PasswordSectionState extends ConsumerState<_PasswordSection> {
           _PasswordField(
             controller: _confirm,
             label: 'تأكيد كلمة المرور الجديدة',
+            onChanged: _onFieldChanged,
           ),
-          if (_status case final String message) ...<Widget>[
+          // ⛔⛔★★★ **والرفضُ يُعرَض قبل الضغطة لا بعدها** — `AM-018` ·
+          //    `design-system.md` §6-ط: ⟵ **زرٌّ معطَّلٌ بلا سببٍ مكتوبٍ
+          //    يُقرأ عطلاً لا رفضاً**، ★ **فالسببُ يظهر لحظةَ اكتمال الحقول
+          //    الثلاثة** ⛔ **ولا يُنتظَر ضغطٌ لا يقع.**
+          //
+          // ⚠️⚠️ **والنصُّ من طبقة النطاق نفسِها** (`validatePasswordChange`)
+          //    — ⛔ **ولا شرطٌ ثانٍ مكتوبٌ في الشاشة يفترق عنه.**
+          if (_liveRejection case final String message) ...<Widget>[
+            const SizedBox(height: Spacing.space12),
+            QtmsInlineBanner(text: message, triad: SemanticTriads.danger),
+          ] else if (_status case final String message) ...<Widget>[
             const SizedBox(height: Spacing.space12),
             QtmsInlineBanner(
               text: message,
@@ -344,12 +360,60 @@ class _PasswordSectionState extends ConsumerState<_PasswordSection> {
             ),
           ],
           const SizedBox(height: Spacing.space16),
+          // ⛔⛔★★★ **زرٌّ ثنائي الحالة بشرط اكتمال** — `design-system.md`
+          //    §6-ي (`AM-018`): ⟵ **زرٌّ يبدو مفعَّلاً كاملَ اللون على حقولٍ
+          //    فارغة يَعِد بما سيُرفَض**، ★ **وهو عينُ ما يمنعه الحرسُ
+          //    الرباعي** (§6-ط البند ④) **منقولاً إلى اكتمال النموذج.**
+          //
+          // ⚠️⚠️ **والشرطُ عرضٌ لا حماية** — ★ **`validatePasswordChange` في
+          //    طبقة النطاق باقيةٌ حارساً أولَ، وخدمةُ المصادقة ثانياً**:
+          //    ⛔ **ولا قاعدةٌ تُنقَل إلى الشاشة** (`ADR-0010` القاعدة 1).
           FilledButton(
-            onPressed: _busy ? null : _submit,
-            child: const Text('تغيير كلمة المرور'),
+            onPressed: (_busy || !_canSubmit) ? null : _submit,
+            child: _busy
+                // ★ **مؤشّرٌ داخل الزر بعرضٍ ثابت** — §6-ج (منع القفز).
+                ? const SizedBox(
+                    height: Sizes.iconMd,
+                    width: Sizes.iconMd,
+                    child: CircularProgressIndicator(
+                      strokeWidth: Sizes.focusWidth,
+                      color: SemanticColors.textOnInverse,
+                    ),
+                  )
+                : const Text('تغيير كلمة المرور'),
           ),
         ],
       );
+
+  /// ★★ **شرطُ اكتمال النموذج** — ⛔ **إخبارٌ لا حسم** (راجع الملاحظة أعلاه).
+  ///
+  /// ★ **نظيرُ `_canSubmit` في شاشة الدخول حرفياً** — ⟵ **والحقولُ الثلاثةُ
+  /// غيرُ فارغة، ثم يحكم النطاقُ على الباقي** ⛔ **ولا شرطٌ يُعاد كتابتُه هنا.**
+  bool get _canSubmit => _filled && _validated is Success<PasswordChange>;
+
+  /// ★ هل امتلأت الحقول الثلاثة؟ — ★ **وقبل ذلك لا يُقال شيء**: ⟵ **ورفضٌ
+  /// يظهر على حقلٍ لم يُكتب بعد إزعاجٌ لا إرشاد.**
+  bool get _filled =>
+      _current.text.isNotEmpty &&
+      _next.text.isNotEmpty &&
+      _confirm.text.isNotEmpty;
+
+  /// ★★ **حكمُ طبقة النطاق على المُدخَل الحالي** — ⛔ **ولا نسخةَ منه هنا.**
+  Outcome<PasswordChange> get _validated => validatePasswordChange(
+        currentPassword: _current.text,
+        newPassword: _next.text,
+        confirmation: _confirm.text,
+      );
+
+  /// ★★ **سببُ الرفض المعروضُ حيّاً** — و`null` قبل اكتمال الحقول أو عند صحّتها.
+  String? get _liveRejection => switch (_filled ? _validated : null) {
+        Failure<PasswordChange>(:final AppError error) => _rejectionText(error),
+        _ => null,
+      };
+
+  /// ★ كلُّ حرفٍ يُعيد تقييم [_canSubmit] — ⛔ **ولا يبقى الزرُّ معطَّلاً
+  /// بعد اكتمال الحقول ولا مفعَّلاً بعد إفراغها.**
+  void _onFieldChanged(String _) => setState(() {});
 
   Future<void> _submit() async {
     // ① ★★ **الفحصُ في طبقة النطاق** — ⛔ **ولا شرطٌ مكتوبٌ في شاشة**
@@ -430,10 +494,17 @@ class _PasswordSectionState extends ConsumerState<_PasswordSection> {
 }
 
 class _PasswordField extends StatefulWidget {
-  const _PasswordField({required this.controller, required this.label});
+  const _PasswordField({
+    required this.controller,
+    required this.label,
+    this.onChanged,
+  });
 
   final TextEditingController controller;
   final String label;
+
+  /// ★ يُبلِّغ القسمَ بكل تغيير — ⟵ **فيُعاد تقييمُ شرط اكتمال النموذج.**
+  final ValueChanged<String>? onChanged;
 
   @override
   State<_PasswordField> createState() => _PasswordFieldState();
@@ -446,6 +517,7 @@ class _PasswordFieldState extends State<_PasswordField> {
   Widget build(BuildContext context) => TextField(
         controller: widget.controller,
         obscureText: !_visible,
+        onChanged: widget.onChanged,
         decoration: InputDecoration(
           labelText: widget.label,
           // ★★ **مبدّل الإظهار** — ★ **نفسُ سبب شاشة الدخول:** ⟵ **إدخالٌ

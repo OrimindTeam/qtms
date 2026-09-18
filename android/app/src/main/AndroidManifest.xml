@@ -82,6 +82,19 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="sms"/>
         </intent>
+        <!-- ★★ AM-018: سطور تواصل جهة التطوير في «حول التطبيق» قابلة للنقر
+             (docs/19-assets/developer-identity.md §4) — ⟵ وبدون هذين
+             الإعلانين تُرجِع `canLaunchUrl`/`launchUrl` تعذّراً على أندرويد
+             11+ فيبدو السطرُ معطوباً وهو سليم.
+             ⛔ وليست إذناً: لا `<uses-permission>` واحدة تُضاف. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="mailto"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="tel"/>
+        </intent>
         <!-- ★ ومشاركةُ الملف المُصدَّر عبر ورقة النظام — FR-M20-14. -->
         <intent>
             <action android:name="android.intent.action.SEND"/>

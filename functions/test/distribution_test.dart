@@ -389,6 +389,35 @@ void main() {
       expect(plan.entry.target.entityType, distributionEntityType);
       expect(plan.entry.target.sourceId, sourceA);
     });
+
+    test(
+      '⛔⛔★★★ AM-025 §2 ②: ورقمُ المستند يُكتَب معه — ⛔ لا معرّفٌ خامٌّ وحدَه',
+      () {
+        // ★★ **وسطرُ الهدف في سجل التدقيق كان «`MQT-…_SRC-…_2026…`»** —
+        //    ⟵ **معرّفاً تقنياً مركّباً في موضعٍ يقرؤه المدقّق**، ★ **بينما
+        //    شاشةُ التوزيع تعرض لنفس السجل رقمَه.** ⛔ **والمعرّفُ لا يُمَسّ:**
+        //    ★ **السجلُّ السياقي 🕘 يستعلم به وحدَه** (`FR-M18-10`).
+        for (final DistributionOperation operation
+            in DistributionOperation.values) {
+          final DistributionAccepted plan = accepted(
+            planDistribution(
+              request(
+                distribution: payload(),
+                storedDocument: operation.isCreate ? null : stored(),
+                reason: 'تصحيح',
+              ),
+              operation,
+            ),
+          );
+          expect(
+            plan.entry.target.documentNumber,
+            docNumber,
+            reason: '★ في الإنشاء والتعديل والإلغاء معاً — ⛔ لا في واحدٍ منها',
+          );
+          expect(plan.entry.target.entityId, compositeA);
+        }
+      },
+    );
   });
 
   // ═══════════════════════════════════════════════════════════════════════

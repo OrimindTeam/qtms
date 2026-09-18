@@ -49,6 +49,7 @@ import '../../../core/ui/needs_action_card.dart';
 import '../../../core/ui/needs_action_row.dart';
 import '../../../core/ui/status_pill.dart';
 import '../../financial_outflow/application/owner_ledger_providers.dart';
+import '../../financial_outflow/presentation/owner_ledger_actions.dart';
 import '../../financial_outflow/presentation/owner_ledger_card.dart';
 import '../../financial_outflow/presentation/owner_ledger_format.dart';
 import '../../financial_outflow/presentation/source_ledger_strip.dart';
@@ -347,23 +348,13 @@ class _OwnerLedgerPanel extends ConsumerWidget {
           AsyncValue<OwnerLedgerProjection?>(
             :final OwnerLedgerProjection? value
           ) =>
-            OwnerLedgerCard(
-              initiallyExpanded: false,
-              summary: ownerLedgerViewOf(
-                value ??
-                    projectOwnerLedgerSummary(
-                      computeOwnerLedgerSummary(
-                        sourceId: sourceId ?? allSourcesScopeId,
-                        date: day,
-                        contributions: const OwnerLedgerContributions(),
-                      ),
-                      ref.watch(ownerLedgerVisibilityProvider),
-                    ),
-                scopeLabel: scopeLabel,
-                isLive: true,
-              ),
-              onRowTap: (String label) =>
-                  _openLedgerRowDetail(context, ref, label),
+            _card(
+              context,
+              ref,
+              value,
+              day: day,
+              sourceId: sourceId,
+              scopeLabel: scopeLabel,
             ),
         },
         const SizedBox(height: Spacing.space16),
@@ -373,33 +364,44 @@ class _OwnerLedgerPanel extends ConsumerWidget {
     );
   }
 
+  /// ★ البطاقةُ موصولةً بإجرائيها — ⛔ **بنفس خريطة الشاشة المستقلة**
+  /// (`AM-023` · `design-system.md` §7.1 القاعدتان 5 و10): ⟵ **فالسهمُ نفسُه
+  /// لا يفتح وجهتين مختلفتين، وأيقونةُ المشاركة لا تغيب في أحد الموضعين.**
+  Widget _card(
+    BuildContext context,
+    WidgetRef ref,
+    OwnerLedgerProjection? value, {
+    required CalendarDay day,
+    required String? sourceId,
+    required String scopeLabel,
+  }) {
+    final OwnerLedgerSummaryView view = ownerLedgerViewOf(
+      value ??
+          projectOwnerLedgerSummary(
+            computeOwnerLedgerSummary(
+              sourceId: sourceId ?? allSourcesScopeId,
+              date: day,
+              contributions: const OwnerLedgerContributions(),
+            ),
+            ref.watch(ownerLedgerVisibilityProvider),
+          ),
+      scopeLabel: scopeLabel,
+      isLive: true,
+    );
+    return OwnerLedgerCard(
+      initiallyExpanded: false,
+      summary: view,
+      onRowTap: (String label) => openOwnerLedgerRow(context, ref, label),
+      onShare: () =>
+          shareOwnerLedgerSummary(context, ref, view: view, day: day),
+    );
+  }
+
   String _sourceName(List<SourceCard> sources, String sourceId) {
     for (final SourceCard source in sources) {
       if (source.sourceId == sourceId) return source.name;
     }
     return sourceId;
-  }
-
-  /// ★★★ **تفكيكُ بندٍ إلى وجهته** — §7.1 القاعدة 5: **السهمُ وعدٌ بوجهة.**
-  ///
-  /// ⛔⛔ **ووجهةُ من لا يملك مفتاحَها هي شاشةُ الضمار نفسُها** — ⟵ **فلا
-  /// وعدٌ يُخلَف ولا شاشةٌ تُفتَح على رفض** (`RISK-02`).
-  void _openLedgerRowDetail(BuildContext context, WidgetRef ref, String label) {
-    bool can(Permission permission) =>
-        ref.read(hasPermissionProvider(permission));
-
-    final String route = switch (label) {
-      'إجمالي الضمار' when can(Permission.dealerStatementView) =>
-        dealerStatementRoute,
-      'الواصل' when can(Permission.receiptCreate) => receiptRoute,
-      'الخصومات' when can(Permission.discountCreate) => discountRoute,
-      'إجمالي الضريبة' when can(Permission.sackView) => sackFinanceRoute,
-      'السحبيات' || 'الخرجيات' when can(Permission.withdrawalCreate) ||
-              can(Permission.expenseCreate) =>
-        outflowRoute,
-      _ => ownerLedgerRoute,
-    };
-    context.go(route);
   }
 }
 

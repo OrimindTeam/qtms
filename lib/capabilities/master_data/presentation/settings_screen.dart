@@ -58,75 +58,100 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: const QtmsTopBar(screenTitle: settingsScreenTitle),
-      body: ListView(
-        padding: const EdgeInsetsDirectional.all(Spacing.screenPadding),
-        children: <Widget>[
-          Text(
-            'العرض',
-            style: TypeScale.titleSm.copyWith(color: SemanticColors.textPrimary),
-          ),
-          const SizedBox(height: Spacing.space8),
-          const Divider(height: Sizes.borderWidth),
-          SwitchListTile.adaptive(
-            value: showPieceWeight,
-            onChanged: (bool value) =>
-                ref.read(showPieceWeightProvider.notifier).set(enabled: value),
-            title: const Text(showPieceWeightToggleLabel),
-            // ⛔⛔★★★ **والنصُّ يُعلن حدَّ الخيار صراحةً** — `AM-012` §4.4:
-            //    ★ **«تجميلي/عرضي فقط، ولا يؤثر إطلاقاً على الطبيعة العددية
-            //    للنوع»** ⟵ **ومبدِّلٌ في شاشةِ إعداداتٍ بلا نصٍّ يُوهم
-            //    بأنه يغيّر وحدةَ الحساب** ⛔ **وهو أخطر التباسٍ ممكن هنا.**
-            subtitle: const Text(
-              'يظهر الاسم هكذا: «بطّوه وزن (200 جرام)». '
-              'خيار عرض فقط — ولا يغيّر وحدة النوع ولا أي حساب، '
-              'ويبقى العدّ بالحبة في كل الشاشات والتقارير.',
+      // ⛔⛔★★★ **والتذييلُ مثبَّتٌ عند القاع لا ملتصقٌ بآخر مجموعة**
+      //    (`AM-018` · `ui-guidelines.md` نمط 7): ⟵ **مجموعتان تشغلان ثلثَ
+      //    الارتفاع كانتا تُظهِران التذييلَ في وسط الشاشة فيُقرأ محتوىً لا
+      //    تذييلاً** — ★ **والمباعدةُ المرنة تُعيده إلى موضعه الدلالي**
+      //    ⛔ **بلا محتوىً مصطنَعٍ يملأ الفراغ** (`FR-M21-05`).
+      //
+      // ⚠️★★ **و[IntrinsicHeight] ليست زينة** — ★ **[Spacer] مرنٌ**،
+      //    ⟵ **ومرونةٌ داخل مُمرِّرٍ ارتفاعُه غيرُ محدود تُسقِط الرسم**
+      //    (`RenderFlex … unbounded height`): ★ **فهي تُحوِّل القيدَ الأدنى
+      //    إلى ارتفاعٍ محكَم** ⛔ **ولا يُعالَج بارتفاعٍ محفور.**
+      body: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) =>
+            SingleChildScrollView(
+          padding: const EdgeInsetsDirectional.all(Spacing.screenPadding),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight - (Spacing.screenPadding * 2),
             ),
-            contentPadding: EdgeInsets.zero,
-          ),
-          const SizedBox(height: Spacing.space8),
-          Text(
-            // ★★ **وإفصاحٌ عن محلّية التفضيل** — ⛔ **ولا يُترك يُكتشَف:**
-            //    ⟵ **فمن يبدّله على هاتفٍ ثم يفتح آخر لا يظنّه عطلاً.**
-            'هذا الخيار محفوظ على هذا الجهاز وحده.',
-            style:
-                TypeScale.bodyMd.copyWith(color: SemanticColors.textSecondary),
-          ),
-          const SizedBox(height: Spacing.sectionGap),
-          // ★★ **مجموعةُ «حول»** — `ui-guidelines.md` §3 نمط 7 يذكرها صراحةً
-          //    ضمن مجموعات الإعدادات المتوقَّعة.
-          Text(
-            settingsAboutGroupTitle,
-            style: TypeScale.titleSm.copyWith(color: SemanticColors.textPrimary),
-          ),
-          const SizedBox(height: Spacing.space8),
-          const Divider(height: Sizes.borderWidth),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text(aboutScreenTitle),
-            trailing: const Icon(Icons.chevron_left),
-            onTap: () => context.go(aboutRoute),
-            contentPadding: EdgeInsets.zero,
-          ),
-          const SizedBox(height: Spacing.sectionGap),
-          // ★★★ **تذييلُ الإصدار والإسناد** — `FR-SYS-28` الموضع 2.
-          //
-          // ⛔⛔ **ومرةً واحدةً في هذه الشاشة** (`developer-identity.md` §4) —
-          //    ★ **يحرسُه اختبارُ الشاشة.**
-          switch (identity) {
-            AsyncValue<DeveloperIdentity>(
-              value: final DeveloperIdentity value?
-            ) =>
-              DeveloperAttribution(
-                identity: value,
-                variant: DeveloperAttributionVariant.footer,
-                versionLabel: appVersionLabel,
+            child: IntrinsicHeight(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text(
+                    'العرض',
+                    style: TypeScale.titleSm.copyWith(color: SemanticColors.textPrimary),
+                  ),
+                  const SizedBox(height: Spacing.space8),
+                  const Divider(height: Sizes.borderWidth),
+                  SwitchListTile.adaptive(
+                    value: showPieceWeight,
+                    onChanged: (bool value) =>
+                        ref.read(showPieceWeightProvider.notifier).set(enabled: value),
+                    title: const Text(showPieceWeightToggleLabel),
+                    // ⛔⛔★★★ **والنصُّ يُعلن حدَّ الخيار صراحةً** — `AM-012` §4.4:
+                    //    ★ **«تجميلي/عرضي فقط، ولا يؤثر إطلاقاً على الطبيعة العددية
+                    //    للنوع»** ⟵ **ومبدِّلٌ في شاشةِ إعداداتٍ بلا نصٍّ يُوهم
+                    //    بأنه يغيّر وحدةَ الحساب** ⛔ **وهو أخطر التباسٍ ممكن هنا.**
+                    subtitle: const Text(
+                      'يظهر الاسم هكذا: «بطّوه وزن (200 جرام)». '
+                      'خيار عرض فقط — ولا يغيّر وحدة النوع ولا أي حساب، '
+                      'ويبقى العدّ بالحبة في كل الشاشات والتقارير.',
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: Spacing.space8),
+                  Text(
+                    // ★★ **وإفصاحٌ عن محلّية التفضيل** — ⛔ **ولا يُترك يُكتشَف:**
+                    //    ⟵ **فمن يبدّله على هاتفٍ ثم يفتح آخر لا يظنّه عطلاً.**
+                    'هذا الخيار محفوظ على هذا الجهاز وحده.',
+                    style:
+                        TypeScale.bodyMd.copyWith(color: SemanticColors.textSecondary),
+                  ),
+                  const SizedBox(height: Spacing.sectionGap),
+                  // ★★ **مجموعةُ «حول»** — `ui-guidelines.md` §3 نمط 7 يذكرها صراحةً
+                  //    ضمن مجموعات الإعدادات المتوقَّعة.
+                  Text(
+                    settingsAboutGroupTitle,
+                    style: TypeScale.titleSm.copyWith(color: SemanticColors.textPrimary),
+                  ),
+                  const SizedBox(height: Spacing.space8),
+                  const Divider(height: Sizes.borderWidth),
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text(aboutScreenTitle),
+                    trailing: const Icon(Icons.chevron_left),
+                    onTap: () => context.go(aboutRoute),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: Spacing.sectionGap),
+                  // ★★ **والمباعدةُ المرنة تأخذ ما تبقّى** — ⛔ **لا ارتفاعٌ محفور.**
+                  const Spacer(),
+                  // ★★★ **تذييلُ الإصدار والإسناد** — `FR-SYS-28` الموضع 2.
+                  //
+                  // ⛔⛔ **ومرةً واحدةً في هذه الشاشة** (`developer-identity.md` §4) —
+                  //    ★ **يحرسُه اختبارُ الشاشة.**
+                  switch (identity) {
+                    AsyncValue<DeveloperIdentity>(
+                      value: final DeveloperIdentity value?
+                    ) =>
+                      DeveloperAttribution(
+                        identity: value,
+                        variant: DeveloperAttributionVariant.footer,
+                        versionLabel: appVersionLabel,
+                      ),
+                    // ⚠️★★ **وتعذُّرُ البصمة لا يُسقِط شاشةَ الإعدادات ولا يعترض**
+                    //    (§5 البند 8: «**بصمةٌ تعترض المستخدم**» ممنوعة) — ★ **يبقى
+                    //    رقمُ الإصدار وحدَه**: ⟵ **وهو بيانُ المنتج لا بيانُ المطوّر.**
+                    _ => const _VersionOnlyFooter(),
+                  },
+                ],
               ),
-            // ⚠️★★ **وتعذُّرُ البصمة لا يُسقِط شاشةَ الإعدادات ولا يعترض**
-            //    (§5 البند 8: «**بصمةٌ تعترض المستخدم**» ممنوعة) — ★ **يبقى
-            //    رقمُ الإصدار وحدَه**: ⟵ **وهو بيانُ المنتج لا بيانُ المطوّر.**
-            _ => const _VersionOnlyFooter(),
-          },
-        ],
+            ),
+          ),
+        ),
       ),
     );
   }

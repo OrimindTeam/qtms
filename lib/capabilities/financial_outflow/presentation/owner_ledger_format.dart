@@ -80,3 +80,47 @@ String? _deltaLabel(Money current, Money? previous) {
 }
 
 String _riyals(Money amount) => formatRiyals(amount);
+
+/// ★★★ **نصُّ مشاركةِ ملخّص اليوم** — `AM-023` (`design-system.md` §7.1
+/// القاعدة 10).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **مبنيٌّ من حقول [OwnerLedgerSummaryView] نفسِها** — ★ **بلا حسابٍ
+/// ولا إعادةِ تنسيقٍ ولا فاصلةِ آلافٍ ثانية**: ⟵ **فما يُشارَك هو حرفياً ما
+/// يُقرأ على الشاشة**، ⛔ **ولا رقمَ في الرسالة يخالف رقماً في البطاقة.**
+///
+/// ⛔⛔★★★ **والبندُ المحكومُ بصلاحيةٍ يغيب عن النصّ كما يغيب عن البطاقة**
+/// (`owner-ledger-summary-design.md` §5 · `E-29`): ★ **و`null` هنا تعني
+/// «لا يُكتب السطرُ أصلاً»** ⛔ **لا صفراً** — ⟵ **وإلا صارت المشاركةُ قناةَ
+/// تسريبٍ لِما مُنع صاحبُها من رؤيته على الشاشة.**
+///
+/// ⛔⛔★★ **ولا بصمةَ جهةِ تطويرٍ فيه** — `developer-identity.md` §3 الممنوع 6
+/// (**بصمةٌ في أي مخرَجٍ مُصدَّر**): ★ **وهذا مخرَجٌ يُسلَّم خارج التطبيق.**
+/// ═══════════════════════════════════════════════════════════════════════
+String ownerLedgerShareText(
+  OwnerLedgerSummaryView view, {
+  required String dayLabel,
+}) {
+  final StringBuffer buffer = StringBuffer()
+    ..writeln('ضمار المالك — $dayLabel')
+    ..writeln(view.scopeLabel)
+    ..writeln()
+    ..writeln('إجمالي الضمار: ${view.totalDebt}')
+    ..writeln('— منه آجل: ${view.credit}')
+    ..writeln('— منه نقدي: ${view.cash}')
+    ..writeln('الواصل: ${view.settledOfDay}')
+    ..writeln('الخصومات: ${view.discounts}')
+    ..writeln('باقي الضمار قبل الخصم: ${view.remainingBeforeDiscount}')
+    ..writeln('باقي الضمار بعد الخصم: ${view.remainingAfterDiscount}')
+    ..writeln('إجمالي الضريبة: ${view.tax}')
+    ..writeln('الباقي بعد الخصم والضريبة: ${view.remainingAfterTax}');
+  // ⛔⛔ **والبندان المحكومان لا يُكتبان لمن لا يملكهما** — راجع الترويسة.
+  if (view.withdrawals case final String amount) {
+    buffer.writeln('السحبيات: $amount');
+  }
+  if (view.expenses case final String amount) {
+    buffer.writeln('الخرجيات: $amount');
+  }
+  buffer.write('الصافي النهائي: ${view.netFinal} ${view.currencyLabel}');
+  return buffer.toString();
+}

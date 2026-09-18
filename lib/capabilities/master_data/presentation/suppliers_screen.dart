@@ -9,6 +9,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
@@ -61,7 +62,9 @@ class _NewSupplierButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => FloatingActionButton.extended(
         onPressed: () => showSupplierForm(context),
-        icon: const Icon(Icons.person_add_alt_1_outlined),
+        // ★★ **أيقونةٌ واحدةٌ لكلِّ فعلٍ عبر الشاشات الشقيقة** (`AM-018` ·
+        //   `design-system.md` §6-ج) — ⛔ **ولا تمايزَ بلا توثيق.**
+        icon: const Icon(Icons.person_add_alt_outlined),
         label: const Text('رعوي جديد'),
       );
 }
@@ -161,6 +164,9 @@ class _SupplierFormSheetState extends ConsumerState<SupplierFormSheet> {
   CatalogMessage? _rejection;
   bool _submitting = false;
 
+  /// ★ **تعذّرَ فتحُ مُنتقي جهات الاتصال** — `AM-020`.
+  bool _pickerFailed = false;
+
   bool get _isEdit => widget.existing != null;
 
   @override
@@ -197,6 +203,12 @@ class _SupplierFormSheetState extends ConsumerState<SupplierFormSheet> {
                 icon: const Icon(Icons.contacts_outlined),
                 label: const Text('جلب من جهات الاتصال'),
               ),
+              // ⛔⛔★★★ **والتعذّرُ يُقال تحت زرِّه مباشرةً** (`AM-020`) —
+              //    ★ **حيث وقع الفعل** ⛔ **لا في رسالةٍ عامةٍ أسفل الورقة.**
+              if (_pickerFailed) ...<Widget>[
+                const SizedBox(height: Spacing.space12),
+                const ContactPickerFailureBanner(),
+              ],
               const SizedBox(height: Spacing.space12),
             ],
             MasterDataField(
@@ -244,22 +256,67 @@ class _SupplierFormSheetState extends ConsumerState<SupplierFormSheet> {
               RejectionBanner(message: _rejection!),
             ],
             const SizedBox(height: Spacing.space16),
-            FilledButton(
-              onPressed: _submitting ? null : _submit,
-              child: Text(_isEdit ? 'حفظ التعديل' : 'إنشاء'),
+            // ⛔⛔★★★ **والزرُّ يُعطَّل لغياب سبب التعطيل** (`AM-020`) —
+            //    ★ **الدالةُ المشتركةُ نفسُها في النماذج الأربعة**
+            //    (`design-system.md` §6-ط ④).
+            MasterDataSubmitButton(
+              label: _isEdit ? 'حفظ التعديل' : 'إنشاء',
+              submitting: _submitting,
+              requiresDisableReason: _isEdit && !_isActive,
+              disableReason: _disableReason,
+              onSubmit: _submit,
             ),
+            if (!_isEdit) ...<Widget>[
+              const SizedBox(height: Spacing.space12),
+              Text(
+                // ⚙️★★ `FR-M3-04` **(حرجة)** — **أثرٌ يجب أن يعرفه المستخدم
+                //   قبل الحفظ** (`AM-020`): ⟵ **وتُنشئه `provisionAccountsOnPartyAdd`
+                //   فعلاً** ⛔ **لا وعدٌ في نصّ**.
+                //
+                // ⛔⛔★★★ **وغيابُه كان سهواً لا قراراً:** ★ **المصدرُ والمقوتُ
+                //   يُعلنان أثرَهما** (`FR-M2-04` · `FR-M4-05`)، ⟵ **والرعوي
+                //   له الأثرُ نفسُه بحرف `FR-M3-04`** ⛔ **فصمتُه وحدَه كان
+                //   يُقرأ نفياً للأثر.**
+                //
+                // ⚠️ **ولا يعني ذلك جمعَ حساباته:** `FR-M3-05` قائمٌ بحرفه —
+                //   ★ **حسابُه في كل مصدرٍ مستقل** (`ADR-0005`).
+                'يُنشأ للرعوي تلقائياً حسابٌ في كل مصدر قائم، وفي كل مصدر '
+                'يُضاف مستقبلاً.',
+                style: TypeScale.bodyMd
+                    .copyWith(color: SemanticColors.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
+  /// ⛔⛔★★★ **والتعذّرُ يُعرَض ولا يُبتلَع** (`AM-020`) — ★ **الاستثناءان
+  /// يُلتقطان هنا** (`PlatformException` **لرفض الإذن أو غياب تطبيق جهات
+  /// اتصال**، و`MissingPluginException` **لمنصّةٍ بلا تنفيذ**) ⟵ **فيُرفَع
+  /// شريطُ تحذيرٍ يقول للمستخدم ما يفعل**: ⛔ **وزرٌّ يُضغَط بلا أثرٍ ولا
+  /// رسالةٍ يترك المستخدمَ يظنّ التطبيقَ معطَّلاً.**
   Future<void> _fillFromContacts(ContactPicker picker) async {
-    final PickedContact? contact = await picker.pickOne();
+    // ★ **ومحاولةٌ جديدة تمسح تحذيرَ السابقة** — ⟵ **فلا يبقى تحذيرٌ معلَّقاً
+    //   بعد أن زال سببُه** (منحُ الإذن · تثبيتُ تطبيق جهات اتصال).
+    if (_pickerFailed) setState(() => _pickerFailed = false);
+    final PickedContact? contact;
+    try {
+      contact = await picker.pickOne();
+    } on PlatformException {
+      if (mounted) setState(() => _pickerFailed = true);
+      return;
+    } on MissingPluginException {
+      if (mounted) setState(() => _pickerFailed = true);
+      return;
+    }
     if (contact == null || !mounted) return;
     // ★ **يملأ ولا يقفل** — `FR-M3-03`: «مع إمكانية التعديل اليدوي بعده».
     setState(() {
-      if (contact.name.isNotEmpty) _name.text = contact.name;
+      _pickerFailed = false;
+      if (contact!.name.isNotEmpty) _name.text = contact.name;
       _phone.text = contact.phone;
     });
   }

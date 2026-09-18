@@ -30,6 +30,15 @@ final class FakeSackValuationDirectory implements SackValuationDirectory {
   /// الورقة تقرأ من جديد في كل فتحة**، ⛔ **ولا تُعيد لقطةً مخزَّنة.**
   int breakdownCallCount = 0;
 
+  /// ★★★ **يُبقي رصيدَ الرعوي في حالة تحميلٍ أبديّة** — `AM-021` ③.
+  ///
+  /// ⛔⛔ **و`AsyncData(null)` ليست `AsyncLoading`** — ★ **الأولى «لا حساب
+  /// أو لا صلاحية» والثانية «انتظر»**: ⟵ **والبطاقةُ تُخفى في الأولى
+  /// وتُرسَم هيكلاً في الثانية.**
+  void holdBalance() => _balancePending = true;
+
+  bool _balancePending = false;
+
   /// يبثّ رصيد الرعوي.
   void emitBalance(SupplierBalanceCard? value) {
     _currentBalance = value;
@@ -57,6 +66,11 @@ final class FakeSackValuationDirectory implements SackValuationDirectory {
     required String supplierId,
     required String sourceId,
   }) async* {
+    // ★★★ **والتعليقُ يسبق البثّ** — راجع [holdBalance].
+    if (_balancePending) {
+      await Completer<void>().future;
+      return;
+    }
     yield _currentBalance;
     yield* _balance.stream;
   }

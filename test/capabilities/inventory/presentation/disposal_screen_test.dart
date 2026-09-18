@@ -18,6 +18,9 @@ import 'package:qtms/capabilities/inventory/application/disposal_providers.dart'
 import 'package:qtms/capabilities/inventory/application/inventory_providers.dart';
 import 'package:qtms/capabilities/inventory/presentation/disposal_screen.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
+import 'package:qtms/core/design/design_tokens.dart';
+import 'package:qtms/core/messages/error_messages.dart';
+import 'package:qtms/core/ui/sticky_action_bar.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_disposal.dart';
@@ -236,6 +239,84 @@ void main() {
 
       expect(admin.created, isEmpty);
       expect(find.textContaining('أضف نوعاً واحداً'), findsOneWidget);
+    });
+  });
+
+  group('⛔⛔★★★ AM-021 ④ — سطرُ الحالة بثلاثيةٍ لونية لا نصٌّ عارٍ', () {
+    /// ★ يقرأ لافتةَ الحالة من شريط الإجراء الثابت — و`null` حين لا حالة.
+    QtmsActionStatus? statusOf(WidgetTester tester) {
+      final Finder banner = find.byType(QtmsActionStatus);
+      if (banner.evaluate().isEmpty) return null;
+      return tester.widget<QtmsActionStatus>(banner);
+    }
+
+    testWidgets('★★★ والفشلُ بثلاثية `danger` وأيقونةٍ متجهية',
+        (WidgetTester tester) async {
+      // ⛔⛔ **وكان `Text` عارياً يحمل «❌»** — ★ **والإيموجي يتبع خطَّ الجهاز
+      //   ولا يُلوَّن ولا يرث المقاس** (`design-system.md` §8 المحظور 12).
+      await pumpDisposal(tester);
+      await chooseSource(tester);
+
+      await tester.tap(find.byKey(const Key('disposal-save')));
+      await tester.pumpAndSettle();
+
+      final QtmsActionStatus? status = statusOf(tester);
+      expect(status, isNotNull);
+      expect(status!.triad, SemanticTriads.danger);
+      expect(status.icon, Icons.error_outline);
+      expect(status.message, 'أضف نوعاً واحداً على الأقل بكميةٍ أكبر من صفر.');
+      // ⛔ **ولا رمزَ إيموجي في النصّ بعد اليوم.**
+      expect(status.message.contains('❌'), isFalse);
+      expect(find.textContaining('❌'), findsNothing);
+    });
+
+    testWidgets('★★★ والنجاحُ بثلاثية `success` ⛔ بلا «✅» إيموجي',
+        (WidgetTester tester) async {
+      await pumpDisposal(tester);
+      await chooseSource(tester);
+      await tapAddLine(tester);
+
+      await tester.tap(find.byKey(const Key('disposal-qty-0')));
+      await tester.enterText(find.byKey(const Key('disposal-qty-0')), '4');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('النوع').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('عوارض').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('disposal-save')));
+      await tester.pumpAndSettle();
+
+      final QtmsActionStatus? status = statusOf(tester);
+      expect(status, isNotNull);
+      expect(status!.triad, SemanticTriads.success);
+      expect(status.icon, Icons.check_circle_outline);
+      expect(status.message, 'سُجِّل الإتلاف DSP-20260904-0001');
+      expect(find.textContaining('✅'), findsNothing);
+    });
+
+    testWidgets('★★ ورفضُ السحابة يُعرَض بنصّ الكتالوج بثلاثية `danger`',
+        (WidgetTester tester) async {
+      admin.nextResult = const Failure<String>(ValidationError('BR-M8-XX'));
+      await pumpDisposal(tester);
+      await chooseSource(tester);
+      await tapAddLine(tester);
+
+      await tester.tap(find.byKey(const Key('disposal-qty-0')));
+      await tester.enterText(find.byKey(const Key('disposal-qty-0')), '4');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('النوع').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('عوارض').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('disposal-save')));
+      await tester.pumpAndSettle();
+
+      final QtmsActionStatus? status = statusOf(tester);
+      expect(status, isNotNull);
+      expect(status!.triad, SemanticTriads.danger);
+      expect(status.message, catalogText(CatalogMessage.operationFailed));
     });
   });
 

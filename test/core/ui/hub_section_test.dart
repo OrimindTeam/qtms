@@ -147,10 +147,15 @@ void main() {
     });
   });
 
-  group('★★★ الشبكةُ — عمودان دون `expanded` وثلاثةٌ فوقه (`AM-017`)', () {
-    test('★ الموزّعُ المركزي يعطي 2 عند 360 و3 فوق 600', () {
-      expect(Breakpoints.hubColumns(360), 2);
-      expect(Breakpoints.hubColumns(599), 2);
+  group('★★★ الشبكةُ — ثلاثةُ أعمدةٍ في كل العروض (`AM-027`)', () {
+    test('★ الموزّعُ المركزي يعطي 3 في كل عرضٍ — ⛔ ولا عمودين دون 600', () {
+      // ⛔⛔★★ **والقياسُ على العرض *الداخلي* لا على عرض الجهاز:** ★ **الشبكةُ
+      //    تُبنى داخل حشو الشاشة** ⟵ **فهاتفُ 360 يعطيها 328**: ⟹ **وأيُّ
+      //    شرطٍ `< compact` كان سيُعيدها عمودين على الجهاز نفسِه الذي طُلبت
+      //    له الثلاثة.**
+      expect(Breakpoints.hubColumns(328), 3);
+      expect(Breakpoints.hubColumns(360), 3);
+      expect(Breakpoints.hubColumns(599), 3);
       expect(Breakpoints.hubColumns(720), 3);
     });
 
@@ -178,7 +183,7 @@ void main() {
       expect(hubEntrySpan(entry('أ'), 3), 1);
     });
 
-    testWidgets('★★ واثنا عشرَ مدخلاً تُرسَم في سبعة صفوفٍ بارتفاع البلاطة', (
+    testWidgets('★★ واثنا عشرَ مدخلاً تُرسَم في خمسةِ صفوفٍ بارتفاع البلاطة', (
       WidgetTester tester,
     ) async {
       await pumpSection(
@@ -189,13 +194,15 @@ void main() {
         ],
       );
 
-      // ★ **سبعةُ صفوفٍ: صفُّ الأساسي + خمسةُ صفوفٍ مزدوجة + صفُّ الأخير.**
+      // ★ **خمسةُ صفوفٍ بعد `AM-027`: صفُّ الأساسي (خانتان + مدخل) ثم عشرةُ
+      //    مداخلَ في ثلاثةِ صفوفٍ ثلاثيةٍ وصفٍّ أخيرٍ بمدخلٍ واحد.**
+      //    ⛔ **وكانت سبعةً بعمودين.**
       final double gridHeight = tester
           .getSize(find.byType(QtmsHubSection))
           .height;
-      const double rows = 7;
+      const double rows = 5;
       final double expected = rows * Sizes.hubTileHeight +
-          (rows - 1) * Spacing.space12 +
+          (rows - 1) * Spacing.space8 +
           // ★ عنوانُ القسم وفاصلُه وفاصلُ القسم السفلي.
           Spacing.space8 +
           Spacing.space24;

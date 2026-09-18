@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/inventory/application/inventory_providers.dart';
 import 'package:qtms/capabilities/inventory/application/sack_valuation_providers.dart';
+import 'package:qtms/capabilities/inventory/presentation/sack_finance_cards.dart';
 import 'package:qtms/capabilities/inventory/presentation/sack_finance_screen.dart';
 import 'package:qtms/capabilities/inventory/presentation/sack_tax_sheet.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
@@ -227,6 +228,125 @@ void main() {
       );
 
       expect(find.text('—'), findsOneWidget);
+    });
+  });
+
+  group('⛔⛔★★★ AM-021 — «غير نهائي» على إجماليات اليوم وهياكلُ التحميل', () {
+    testWidgets('★★★ ① شارةُ «غير نهائي» على إجماليات اليوم حين ضريبةٌ معلّقة',
+        (WidgetTester tester) async {
+      // ⛔⛔★★★ **و«إجمالي الضريبة: 0 ريال» فوق جونيةٍ ضريبتُها معلّقة
+      //   *حكمٌ* لا تقرير** — ⟵ **والصفرُ يُقرأ «لا ضريبةَ على اليوم»**
+      //   ⛔ **ومعناه «لم تُدخَل بعد»**: ★ **و`SupplierAccountCard` في الشاشة
+      //   نفسِها كانت تُصرِّح وتصمت جارتُها.**
+      sacks.emitSacks(<SackCard>[
+        testSack(stockDate: fixedDay),
+        testSack(
+          documentNumber: 'SCK-20260826-0002',
+          dailySequence: 2,
+          stockDate: fixedDay,
+        ),
+      ]);
+      sacks.emitFinanceFor('SCK-20260826-0001', finance());
+      sacks.emitFinanceFor(
+        'SCK-20260826-0002',
+        finance(sackId: 'SCK-20260826-0002', tax: null, net: null),
+      );
+
+      await pumpScreen(
+        tester: tester,
+        sacks: sacks,
+        valuation: valuation,
+        masterData: masterData,
+      );
+
+      expect(find.text('إجماليات اليوم في هذا المصدر'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(SackDayTotals),
+          matching: find.byType(SackPendingTotalsPill),
+        ),
+        findsOneWidget,
+      );
+      // ★ **وتقول العددَ والسبب** — ⛔ **لا وسمٌ مبهم.**
+      expect(
+        find.text('غير نهائي — 1 جونية بضريبةٍ معلّقة'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('⛔ ويومٌ كلُّه نهائيٌّ بلا شارةٍ إطلاقاً',
+        (WidgetTester tester) async {
+      sacks.emitSacks(<SackCard>[testSack(stockDate: fixedDay)]);
+      sacks.emitFinanceFor('SCK-20260826-0001', finance());
+
+      await pumpScreen(
+        tester: tester,
+        sacks: sacks,
+        valuation: valuation,
+        masterData: masterData,
+      );
+
+      expect(find.text('إجماليات اليوم في هذا المصدر'), findsOneWidget);
+      expect(find.byType(SackPendingTotalsPill), findsNothing);
+    });
+
+    testWidgets('★★★ ③ وإجمالياتُ اليوم هيكلٌ أثناء التحميل ⛔ لا فراغ',
+        (WidgetTester tester) async {
+      sacks.emitSacks(<SackCard>[testSack(stockDate: fixedDay)]);
+      sacks.holdFinance('SCK-20260826-0001');
+
+      await pumpScreen(
+        tester: tester,
+        sacks: sacks,
+        valuation: valuation,
+        masterData: masterData,
+      );
+
+      expect(find.byType(SackFinanceCardSkeleton), findsWidgets);
+      expect(find.text('إجماليات اليوم في هذا المصدر'), findsNothing);
+    });
+
+    testWidgets('★★★ ③ وبطاقةُ حساب الرعوي هيكلٌ أثناء التحميل',
+        (WidgetTester tester) async {
+      sacks.emitSacks(<SackCard>[testSack(stockDate: fixedDay)]);
+      sacks.emitFinanceFor('SCK-20260826-0001', finance());
+      valuation.holdBalance();
+
+      await pumpScreen(
+        tester: tester,
+        sacks: sacks,
+        valuation: valuation,
+        masterData: masterData,
+      );
+      await openFilters(tester);
+      await tester.tap(find.text('عبدالفتاح').first);
+      // ⛔⛔ **ولا `pumpAndSettle` هنا** — ★ **وميضُ الهيكل حركةٌ متكرّرةٌ لا
+      //   تستقرّ أبداً** (`SkeletonBox`): ⟵ **فالانتظارُ حتى السكون يَعلَق.**
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(find.byType(SackFinanceCardSkeleton), findsWidgets);
+      expect(find.text('حساب الرعوي في هذا المصدر'), findsNothing);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ ④ وبلا صلاحيةٍ يبقى الإخفاءُ صامتاً — ⛔ ولا هيكلَ أبديّ',
+        (WidgetTester tester) async {
+      // ★ **الهيكلُ لحالة `isLoading` وحدَها** — ⟵ **وتمييزُ «لا صلاحية»
+      //   عن «لا بيانات» تسريبُ وجودٍ يمنعه `ADR-0011` نصّاً.**
+      sacks.emitSacks(<SackCard>[testSack(stockDate: fixedDay)]);
+      sacks.emitFinanceFor('SCK-20260826-0001', null);
+
+      await pumpScreen(
+        tester: tester,
+        sacks: sacks,
+        valuation: valuation,
+        masterData: masterData,
+        actorPermissions: const <Permission>{Permission.sackView},
+      );
+
+      expect(find.byType(SackFinanceCardSkeleton), findsNothing);
+      expect(find.text('إجماليات اليوم في هذا المصدر'), findsNothing);
     });
   });
 

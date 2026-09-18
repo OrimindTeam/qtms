@@ -90,6 +90,12 @@ List<PendingDeletion> pendingEntryDeletions(PendingEntrySet set) =>
 ///
 /// ⚠️ **و[SackWeightState] يُشتقّ بـ`sackWeightStateOf` وحدها** — ⛔ **ولا
 /// نسخةَ ثانية من شرط الهامش** (`coding-standards.md` §2.2).
+///
+/// ⏳★★★ **و[platformToday] هو محفِّزُ بند «الوزن الضائع لم يُؤكَّد» وحدَه**
+/// — `OQ-002` (الخيار ب · 2026-09-17) · `CR-013`: ★ **يُمرَّر كما قاسته
+/// المعاملةُ من المنصّة** (`platformDayOf`) ⛔ **ولا يُستعاض عنه بساعة
+/// الحاوية ولا بـ[stockDate] نفسِه**: ⟵ **وتمريرُ [stockDate] مكانه يُلغي
+/// الشرطَ بصمت** ⛔ **فيعود السلوكُ القديم بلا أن يكشفه فحص.**
 /// ═══════════════════════════════════════════════════════════════════════
 PendingEntrySet pendingFromSackState({
   required Iterable<InventoryWrite> writes,
@@ -101,6 +107,7 @@ PendingEntrySet pendingFromSackState({
   required double storedRemainingKilograms,
   required bool storedLostWeightConfirmed,
   required bool hasTax,
+  required CalendarDay? platformToday,
   bool isCancelled = false,
 }) {
   final Map<String, Object?> after = _sackDocumentFields(writes);
@@ -128,6 +135,7 @@ PendingEntrySet pendingFromSackState({
     documentNumber: sackId,
     hasTax: hasTax,
     hasLines: hasLines,
+    today: platformToday,
     weightState: sackWeightStateOf(
       remainingKilograms: remaining,
       lostWeightConfirmed: confirmed,

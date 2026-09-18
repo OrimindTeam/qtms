@@ -12,8 +12,9 @@
 /// يختفي حين تختفي كلُّ مداخله.**
 ///
 /// ⛔⛔★★★ **وبـ`AM-017` صار القسمُ شبكةً لا عموداً** — `design-system.md`
-/// §6.و «بلاطة مدخل الصدَفة» و§7 «شبكة عمليات اليوم»: ★ **عمودان دون
-/// `expanded` وثلاثةٌ فوقه**، ★ **والمدخلُ الأساسي يمتدّ بعرض عمودين.**
+/// §6.و «بلاطة مدخل الصدَفة» و§7 «شبكة عمليات اليوم»: ★★★ **وثلاثةُ أعمدةٍ
+/// في كل العروض منذ `AM-027`** (⛔ **بعد أن كانت عمودين دون `expanded`**)،
+/// ★ **والمدخلُ الأساسي يمتدّ بعرض عمودين.**
 /// ⟵ **والسببُ مقيس:** ★ **إحدى وعشرون وجهةً في عمودٍ واحدٍ من أزرارٍ
 /// بعرضٍ كامل تفرض تمريراً يعادل أضعافَ ارتفاع الشاشة** ⛔ **بلا سياقٍ نصّيٍّ
 /// يبرّر العمود**: ⟵ **والوجهةُ التصنيفيةُ بلاطةٌ لا سطر.**
@@ -113,7 +114,9 @@ class QtmsHubSection extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   for (int r = 0; r < rows.length; r++) ...<Widget>[
-                    if (r > 0) const SizedBox(height: Spacing.space12),
+                    // ★★ **وفاصلٌ واحدٌ أفقياً ورأسياً** — `AM-027`: ⟵ **فالشبكةُ
+                    //    تُقرأ شبكةً** ⛔ **لا صفوفاً متباعدةً بأعمدةٍ ملتصقة.**
+                    if (r > 0) const SizedBox(height: Spacing.space8),
                     _HubRow(entries: rows[r], columns: columns),
                   ],
                 ],
@@ -163,7 +166,9 @@ class _HubRow extends StatelessWidget {
     final List<Widget> cells = <Widget>[];
     for (final QtmsHubEntry entry in entries) {
       if (cells.isNotEmpty) {
-        cells.add(const SizedBox(width: Spacing.space12));
+        // ★★ **فاصلٌ `space8` لا `space12` منذ `AM-027`** — ⟵ **فالعمودُ
+        //    الثالثُ يكسب من الفاصل ما يحتاجه للتسمية.**
+        cells.add(const SizedBox(width: Spacing.space8));
       }
       final int span = hubEntrySpan(entry, columns);
       used += span;
@@ -173,7 +178,7 @@ class _HubRow extends StatelessWidget {
     //    يساوي عرضَ نظيراتها في الصفوف الكاملة** ⛔ **ولا تتمدّد وحدها.**
     if (used < columns) {
       cells
-        ..add(const SizedBox(width: Spacing.space12))
+        ..add(const SizedBox(width: Spacing.space8))
         ..add(Expanded(flex: columns - used, child: const SizedBox.shrink()));
     }
     return SizedBox(
@@ -247,7 +252,10 @@ class QtmsHubTile extends StatelessWidget {
                     entry.label,
                     style: labelStyle,
                     textAlign: TextAlign.center,
-                    maxLines: 2,
+                    // ★★★ **ثلاثةُ أسطرٍ منذ `AM-027`** — ⛔ **لا سطران**:
+                    //    ⟵ **فالعمودُ الثالثُ يُضيّق البلاطةَ إلى ≈104 على 360**
+                    //    ⟹ ⛔ **و«كشف حساب المقوت» تُقصّ في سطرين.**
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],

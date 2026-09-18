@@ -93,6 +93,77 @@ void main() {
     });
   });
 
+  group('✅★★★ AM-018 — سطورُ التواصل قابلةٌ للنقر', () {
+    testWidgets('★★ كلُّ سطرٍ يفتح مخطَّطَه الصحيح — https · mailto · tel',
+        (WidgetTester tester) async {
+      final List<Uri> opened = <Uri>[];
+      await tester.pumpWidget(host(
+        Scaffold(
+          body: DeveloperAttribution(
+            identity: fakeIdentity,
+            launch: (Uri uri) async {
+              opened.add(uri);
+              return true;
+            },
+          ),
+        ),
+      ));
+      await settle(tester);
+
+      await tester.tap(find.text(fakeIdentity.website));
+      await tester.tap(find.text(fakeIdentity.email));
+      await settle(tester);
+
+      expect(opened, hasLength(2));
+      // ★ **والموقعُ يُكمَّل بـ`https`** — ⛔ **ولا يُفترَض `http`.**
+      expect(opened[0].scheme, 'https');
+      expect(opened[0].host, fakeIdentity.website);
+      expect(opened[1].scheme, 'mailto');
+      expect(opened[1].path, fakeIdentity.email);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ وبلونٍ ثانويٍّ مسطَّر — ⛔ لا لونَ المنتج الأساسي (§4)',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(host(
+        const Scaffold(body: DeveloperAttribution(identity: fakeIdentity)),
+      ));
+      await settle(tester);
+
+      final Text line = tester.widget<Text>(find.text(fakeIdentity.email));
+      expect(line.style?.color, SemanticColors.textSecondary);
+      expect(line.style?.decoration, TextDecoration.underline);
+      // ⛔⛔★★★ **ولا لونَ المنتج الأساسي** — ⟵ **وتلوينُ ثلاثةِ سطورٍ به
+      //    يجعل أبرزَ ما في القسم السفليِّ بصمةَ المطوّر لا هويةَ المنتج.**
+      expect(line.style?.color, isNot(SemanticTriads.primary.ink));
+      // ★ **والاتجاهُ `ltr` باقٍ كما كان** (`rtl-ltr-guidelines`).
+      expect(line.textDirection, TextDirection.ltr);
+      // ★ **والدرجةُ أصغرُ المتاح كما هي.**
+      expect(line.style?.fontSize, TypeScale.caption.fontSize);
+    });
+
+    testWidgets('⚠️★ وتعذُّرُ الفتح لا يُسقِط الشاشة ولا يعترض',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(host(
+        Scaffold(
+          body: DeveloperAttribution(
+            identity: fakeIdentity,
+            launch: (Uri uri) async => throw StateError('no handler'),
+          ),
+        ),
+      ));
+      await settle(tester);
+
+      await tester.tap(find.text(fakeIdentity.email));
+      await settle(tester);
+
+      // ★ **النصُّ باقٍ مقروءاً** — ⛔ **ولا نافذةَ تعترض** (§5 البند 8).
+      expect(find.text(fakeIdentity.email), findsOneWidget);
+      expect(find.byType(Dialog), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('★★ تذييلُ الإصدار — الموضع 2', () {
     testWidgets('★ يعرض الإصدارَ والإسنادَ معاً', (WidgetTester tester) async {
       await tester.pumpWidget(host(

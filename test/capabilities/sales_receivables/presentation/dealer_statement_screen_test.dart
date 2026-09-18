@@ -21,6 +21,8 @@ import 'package:qtms/capabilities/master_data/application/master_data_providers.
 import 'package:qtms/capabilities/oversight/application/report_providers.dart';
 import 'package:qtms/capabilities/sales_receivables/application/receipt_providers.dart';
 import 'package:qtms/capabilities/sales_receivables/presentation/dealer_statement_screen.dart';
+import 'package:qtms/core/design/design_tokens.dart';
+import 'package:qtms/core/ui/key_value_row.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
@@ -354,5 +356,85 @@ void main() {
       expect(find.text('أعمار الدين — أكثر من 30 يوماً'), findsOneWidget);
       expect(find.text('المبلغ الفائض المتاح'), findsOneWidget);
     });
+  });
+  // ═══════════ ★★★ AM-022 — إبرازُ أخطرِ شريحةٍ في الأعمار ═══════════
+
+  group('★★★ AM-022 — شريحةُ «أكثر من 30 يوماً»', () {
+    /// ★ ضمارٌ قديمٌ فعلاً — **46 يوماً قبل [fixedDay]**.
+    DealerLedgerRowCard agedRow() => DealerLedgerRowCard(
+          entryId: 'E-OLD',
+          dealerId: 'MQT-0001',
+          sourceId: 'SRC-001',
+          direction: DealerLedgerDirection.debit,
+          entryType: DealerLedgerEntryType.debt,
+          amount: const Money(1000),
+          isCancelled: false,
+          entryDate: DateTime.utc(2026, 7, 20),
+          debtLotId: distributionId(
+            dealerId: 'MQT-0001',
+            sourceId: 'SRC-001',
+            stockDate: CalendarDay(2026, 7, 20),
+          ),
+          sourceDocNumber: 'DST-20260720-0001',
+        );
+
+    /// ★ يقرأ لونَ قيمة صفٍّ في التذييل بتسميته.
+    Color? valueColorOf(WidgetTester tester, String label) => tester
+        .widget<QtmsKeyValueRow>(find.widgetWithText(QtmsKeyValueRow, label))
+        .valueColor;
+
+    testWidgets(
+      '⛔⛔★★★ قيمتُها بثلاثية danger حين تتجاوز صفراً',
+      (WidgetTester tester) async {
+        reports.statementBySource = <String, List<DealerLedgerRowCard>>{
+          'SRC-001': <DealerLedgerRowCard>[agedRow()],
+        };
+        await pumpStatement(tester);
+        await selectDealer(tester);
+        await tester.pumpAndSettle();
+        await revealBody(
+          tester,
+          find.text('أعمار الدين — أكثر من 30 يوماً'),
+        );
+
+        expect(
+          valueColorOf(tester, 'أعمار الدين — أكثر من 30 يوماً'),
+          SemanticTriads.danger.ink,
+        );
+        // ⛔⛔ **وشريحةٌ أخرى لا تُصبَغ** — ★ **فالإبرازُ ليس زينةً عامة.**
+        expect(valueColorOf(tester, 'أعمار الدين — 0 – 7 أيام'), isNull);
+        // ⛔⛔ **واللونُ لا يحمل المعنى وحدَه** — ★ **التسميةُ تقولها كاملةً.**
+        expect(find.text('أعمار الدين — أكثر من 30 يوماً'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '⛔⛔★★★ وصفرُها يبقى على اللون الافتراضي ⛔ فلا يُصبَغ ما لا خطرَ فيه',
+      (WidgetTester tester) async {
+        reports.statementBySource = <String, List<DealerLedgerRowCard>>{
+          'SRC-001': <DealerLedgerRowCard>[
+            row(
+              entryId: 'E1',
+              direction: DealerLedgerDirection.debit,
+              amount: 1000,
+              type: DealerLedgerEntryType.debt,
+              stockDay: 1,
+            ),
+          ],
+        };
+        await pumpStatement(tester);
+        await selectDealer(tester);
+        await tester.pumpAndSettle();
+        await revealBody(
+          tester,
+          find.text('أعمار الدين — أكثر من 30 يوماً'),
+        );
+
+        expect(
+          valueColorOf(tester, 'أعمار الدين — أكثر من 30 يوماً'),
+          isNull,
+        );
+      },
+    );
   });
 }

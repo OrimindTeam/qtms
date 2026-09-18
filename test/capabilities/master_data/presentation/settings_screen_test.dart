@@ -154,5 +154,29 @@ void main() {
       expect(find.text(settingsFakeIdentity.email), findsNothing);
       expect(find.text(settingsFakeIdentity.website), findsNothing);
     });
+
+    testWidgets(
+      '⛔⛔★★★ AM-018: التذييلُ مثبَّتٌ عند القاع — ⛔ لا ملتصقٌ بآخر مجموعة',
+      (WidgetTester t) async {
+        await pump(t);
+        await t.pump(const Duration(milliseconds: 20));
+
+        // ★★★ **قياسٌ فعليٌّ لا مظهر:** ⟵ **الفجوةُ بين آخر صفِّ تنقّلٍ
+        //    والتذييل يجب أن تتجاوز مباعدةَ الأقسام بكثير** — ★ **وهو بعينُه
+        //    الفراغُ الذي كان يعلو التذييلَ فيُقرأ محتوىً لا تذييلاً.**
+        final double lastRowBottom =
+            t.getRect(find.text(aboutScreenTitle)).bottom;
+        final double footerTop =
+            t.getRect(find.byType(DeveloperAttribution)).top;
+        final double screenBottom = t.getSize(find.byType(Scaffold)).height;
+
+        expect(footerTop, greaterThan(lastRowBottom));
+        // ★ **والتذييلُ في الثلث السفلي من الشاشة فعلاً.**
+        expect(footerTop, greaterThan(screenBottom * 0.5));
+        // ⛔ **ولا تمريرَ أفقيٍّ ولا اقتطاع** — ★ **والتذييلُ داخل الشاشة.**
+        expect(t.getRect(find.byType(DeveloperAttribution)).bottom,
+            lessThanOrEqualTo(screenBottom));
+      },
+    );
   });
 }

@@ -14,6 +14,7 @@ import 'package:qtms/capabilities/identity_access/application/admin_providers.da
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/identity_access/presentation/roles_screen.dart';
 import 'package:qtms/core/messages/error_messages.dart';
+import 'package:qtms/core/ui/entity_tile.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../support/fake_identity.dart';
@@ -381,5 +382,60 @@ void main() {
       roles.dispose();
       directory.dispose();
     });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★ AM-018 — بنيةُ البطاقة والاحتياطُ البشري
+  // ══════════════════════════════════════════════════════════════════════
+
+  group('★★★ AM-018 — بطاقةُ الدور', () {
+    test('★ الوصفُ الفارغ يُعامَل غياباً — §8 المحظور 13', () {
+      expect(roleSubtitle('قالبُ محاسب'), 'قالبُ محاسب');
+      expect(roleSubtitle(''), noRoleDescriptionLabel);
+      expect(roleSubtitle('  '), noRoleDescriptionLabel);
+      expect(roleSubtitle(null), noRoleDescriptionLabel);
+    });
+
+    testWidgets(
+      '⛔⛔★★★ AM-019: وبوضع `subtitleRow` — ★ مطابقةً لبطاقة المستخدم فعلاً',
+      (WidgetTester tester) async {
+        final FakeRoleAdmin roles = FakeRoleAdmin()
+          ..emit(<RoleCard>[testRole(roleId: 'ROLE-1', name: 'محاسب')]);
+        final FakeUserDirectory directory = FakeUserDirectory()
+          ..emit(<UserCard>[testCard(userId: 'U-001')]);
+
+        await pumpRoles(tester, roles: roles, directory: directory);
+
+        final EntityTile tile = tester.widget<EntityTile>(
+          find.byType(EntityTile),
+        );
+        // ⛔⛔★★★ **والقيمةُ نفسُها التي تستعملها بطاقةُ المستخدم** —
+        //    ⟵ **فالمطابقةُ مقيسةٌ بالوسم**، ⛔ **لا موصوفةٌ في تعليق.**
+        expect(tile.actionsPlacement, EntityActionsPlacement.subtitleRow);
+        expect(tile.actionsPlacement, isNot(EntityActionsPlacement.inline));
+
+        // ★★★ **وقياسٌ فعليٌّ لا وسمٌ وحده:** ⟵ **الإجراءُ على سطر الوصف
+        //    عند طرفه الآخر** — ⛔ **لا في صفّ العنوان ولا في صفٍّ مستقلٍّ
+        //    بفاصلٍ شعري.**
+        final double titleY = tester.getCenter(find.text('محاسب')).dy;
+        final double subtitleY =
+            tester.getCenter(find.text(noRoleDescriptionLabel)).dy;
+        final double actionY =
+            tester.getCenter(find.byIcon(Icons.edit_outlined)).dy;
+        expect(actionY, greaterThan(titleY));
+        expect((actionY - subtitleY).abs(), lessThan(24));
+        // ⛔ **ولا فاصلَ شعريٍّ داخل البطاقة** — ★ **علامةُ الوضع `stacked`.**
+        expect(
+          find.descendant(
+            of: find.byType(EntityTile),
+            matching: find.byType(Divider),
+          ),
+          findsNothing,
+        );
+
+        roles.dispose();
+        directory.dispose();
+      },
+    );
   });
 }

@@ -43,13 +43,46 @@ import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/item_line_editor.dart';
 import '../../../core/ui/date_labels.dart';
 import '../../../core/ui/live_summary.dart';
+import '../../../core/ui/optional_reason.dart';
 import '../../../core/ui/skeleton.dart';
+import '../../../core/ui/destructive_sheet.dart';
 import '../../../core/ui/sticky_action_bar.dart';
 import '../../identity_access/application/session_providers.dart';
 import '../../master_data/application/master_data_providers.dart';
 import '../application/inventory_providers.dart';
 import '../application/stocktake_providers.dart';
 import 'inventory_widgets.dart' show itemOptionLabel, quantityLabel;
+
+/// ★★ **تلميحُ الحقل الناقص** — `AM-021` ⑥.
+const String stocktakeMissingCountHint = 'مطلوب — أدخل العدّ الفعلي';
+
+/// ★★★ **رسالةُ رفضِ الاعتماد تُسمّي السطرَ الناقص** — `AM-021` ⑥.
+///
+/// ⛔⛔★★★ **ولا «أدخل العدّ لكل نوع» مجرَّدة** (`ui-guidelines.md` §6:
+/// **رسالة خطأ مفيدة** = «**ما الشرط المخالَف وكيف يُصلَح**»): ⟵ **جردٌ
+/// بعشرين سطراً كان يترك المستخدمَ يمسح القائمةَ يدوياً بحثاً عمّا نسي.**
+///
+/// ★★ **والاسمُ المعروض `ledgerItemDisplayName`** ([`DEBT-86`] ③) — ⛔ **لا
+/// `itemKey` خاماً** (`design-system.md` §8 المحظور 13): ⟵ **فسطرُ الجونية
+/// يُسمّى «عتود - جونية رقم 1»** ⛔ **لا بمفتاحٍ داخلي.**
+///
+/// ⛔ **ويُسمّى الأولُ وحدَه ويُعَدّ الباقي** — ⟵ **فرسالةٌ تسرد عشرين اسماً
+/// لا تُقرأ**، ★ **والحدُّ اللوني على الحقول يدلّ على البقية في القائمة.**
+///
+/// ⚠️ **و[missing] لا تكون فارغةً عند الاستدعاء** — ★ **الحارسُ لا يُنادى
+/// إلا بعد قياسها.**
+String stocktakeMissingCountMessage(List<StocktakeCardLine> missing) {
+  final String first = ledgerItemDisplayName(
+    itemKey: missing.first.itemKey,
+    itemName: missing.first.itemName,
+  );
+  if (missing.length == 1) {
+    return 'أدخل العدّ الفعلي لـ«$first».';
+  }
+  final int others = missing.length - 1;
+  return 'أدخل العدّ الفعلي لـ«$first» '
+      'و$others ${others == 1 ? "سطرٍ آخر" : "سطراً آخر"} بلا عدّ.';
+}
 
 /// شاشة الجرد.
 class StocktakeScreen extends ConsumerStatefulWidget {
@@ -164,13 +197,17 @@ class _StocktakeBody extends ConsumerStatefulWidget {
 
 /// ⛔⛔★★★ **ولافتةُ الحالة تعيش هنا لا في النموذجين** — ★ **عطلٌ رُصد على
 /// المحاكي 2026-09-05:** ⟵ **الاعتمادُ الناجح يُغلِق المسوّدة فيُستبدَل
-/// نموذجُ العدّ بنموذج البدء**، ⛔ **فتُتلَف حالتُه ومعها «✅ اعتُمد الجرد …»**
+/// نموذجُ العدّ بنموذج البدء**، ⛔ **فتُتلَف حالتُه ومعها «اعتُمد الجرد …»**
 /// — ★ **فيبدو للمستخدم أن شيئاً لم يحدث.** ⟹ **ورفعُها إلى الأب يُبقيها
 /// عبر تبدّل المرحلة** (`ui-guidelines.md` §6: **تأكيدٌ صريح يذكر المستند**).
+///
+/// ⛔⛔★★★ **وهي `_StocktakeStatus` لا `String`** (`AM-021` §تصحيح · 2026-09-15)
+/// — ★ **نظيرُ `_DisposalStatus` في شاشة الإتلاف حرفاً بحرف**: ⟵ **فالحكمُ
+/// حقلٌ يُترجَم ثلاثيةً لونية** ⛔ **لا رمزٌ إيموجي في أول النصّ.**
 class _StocktakeBodyState extends ConsumerState<_StocktakeBody> {
-  String? _status;
+  _StocktakeStatus? _status;
 
-  void _report(String? value) {
+  void _report(_StocktakeStatus? value) {
     if (!mounted) return;
     setState(() => _status = value);
   }
@@ -191,7 +228,7 @@ class _StocktakeBodyState extends ConsumerState<_StocktakeBody> {
     //    ⛔ **فتدور الدائرة أبداً ولا يرى الممنوعُ سببَ منعه** (`RISK-02`).
     if (cards.hasError) {
       return QtmsErrorState(
-        message: 'تحقق من صلاحيتك ونطاق مصادرك، ثم أعد المحاولة.',
+        message: readRejectionMessage,
         detail: cards.error?.toString(),
       );
     }
@@ -237,10 +274,10 @@ class _StartForm extends ConsumerStatefulWidget {
   final String sourceId;
 
   /// ★ لافتةُ الحالة المرفوعةُ إلى الأب — راجع [_StocktakeBodyState].
-  final String? status;
+  final _StocktakeStatus? status;
 
   /// ★ يُبلِّغ الأبَ بالنتيجة — ⛔ **ولا حالةَ محليةً تُتلَف بتبدّل المرحلة.**
-  final ValueChanged<String?> onStatus;
+  final ValueChanged<_StocktakeStatus?> onStatus;
 
   @override
   ConsumerState<_StartForm> createState() => _StartFormState();
@@ -263,7 +300,12 @@ class _StartFormState extends ConsumerState<_StartForm> {
       for (final String? id in _picked) ?id,
     ];
     if (itemIds.isEmpty) {
-      widget.onStatus('❌ اختر نوعاً واحداً على الأقل لجرده.');
+      widget.onStatus(
+        const _StocktakeStatus(
+          message: 'اختر نوعاً واحداً على الأقل لجرده.',
+          succeeded: false,
+        ),
+      );
       return;
     }
 
@@ -289,9 +331,14 @@ class _StartFormState extends ConsumerState<_StartForm> {
     });
     widget.onStatus(
       switch (result) {
-        Success<String>(:final String value) => '✅ بدأ الجرد $value',
-        Failure<String>(:final AppError error) =>
-          catalogText(appErrorMessage(error)),
+        Success<String>(:final String value) => _StocktakeStatus(
+            message: 'بدأ الجرد $value',
+            succeeded: true,
+          ),
+        Failure<String>(:final AppError error) => _StocktakeStatus(
+            message: catalogText(appErrorMessage(error)),
+            succeeded: false,
+          ),
       },
     );
   }
@@ -401,9 +448,17 @@ class _StartFormState extends ConsumerState<_StartForm> {
               'يُجمَّد الرصيد الدفتري لحظة البدء',
             ],
           ),
-          status: widget.status == null
-              ? null
-              : Text(widget.status!, style: TypeScale.bodyMd),
+          // ★★★ **لافتةُ الحالة بثلاثيةٍ كاملة** — `AM-021` ④
+          //    (`design-system.md` §6-ز): ★ **تعبئةٌ وحدٌّ ولونُ مقدّمةٍ
+          //    وأيقونةٌ متجهية** ⛔ **لا نصٌّ عارٍ برمزٍ إيموجي.**
+          //    ⟵ **ونفسُ صيغة `disposal_screen.dart` حرفاً بحرف** (§8 المحظور 11).
+          status: switch (widget.status) {
+            null => null,
+            _StocktakeStatus(succeeded: true, :final String message) =>
+              QtmsActionStatus.success(message),
+            _StocktakeStatus(:final String message) =>
+              QtmsActionStatus.rejection(message),
+          },
           primary: FilledButton(
             key: const Key('stocktake-start'),
             onPressed: _saving ? null : _start,
@@ -432,10 +487,10 @@ class _CountForm extends ConsumerStatefulWidget {
   final StocktakeCard draft;
 
   /// ★ لافتةُ الحالة المرفوعةُ إلى الأب — راجع [_StocktakeBodyState].
-  final String? status;
+  final _StocktakeStatus? status;
 
   /// ★ يُبلِّغ الأبَ بالنتيجة — ⛔ **ولا حالةَ محليةً تُتلَف بتبدّل المرحلة.**
-  final ValueChanged<String?> onStatus;
+  final ValueChanged<_StocktakeStatus?> onStatus;
 
   @override
   ConsumerState<_CountForm> createState() => _CountFormState();
@@ -453,6 +508,14 @@ class _CountFormState extends ConsumerState<_CountForm> {
   /// واحدٌ للحفظ كان يعرض «جارٍ الاعتماد…» أثناء *الإلغاء***، ⛔ **فيقرأ
   /// المستخدمُ أن مستنداً يُعتمَد وهو يُلغى.**
   _InFlight _inFlight = _InFlight.none;
+
+  /// ★★★ **مفاتيحُ السطور التي بلا عدٍّ صالح عند آخر محاولةِ اعتمادٍ فاشلة**
+  /// (`AM-021` ⑥).
+  ///
+  /// ⛔⛔★★★ **ولا تُملأ قبل المحاولة** — ★ **فنموذجٌ يفتح كلَّ سطوره بحدٍّ
+  /// أحمر يُنذِر قبل أن يُخطئ المستخدم**: ⟵ **والحدُّ حينها زينةٌ لا إشارة**
+  /// (`design-system.md` §3.4: ⛔ **«استخدامُ لونٍ دلاليٍّ كزينة»**).
+  Set<String> _missingCounts = const <String>{};
 
   bool get _saving => _inFlight != _InFlight.none;
 
@@ -503,12 +566,35 @@ class _CountFormState extends ConsumerState<_CountForm> {
           ),
     ];
 
-    if (counts.length != widget.draft.lines.length) {
-      widget.onStatus('❌ أدخل العدّ الفعلي لكل نوعٍ في هذا الجرد.');
+    // ⛔⛔★★★ **والحرسُ يُسمّي السطرَ الناقص ولا يكتفي بـ«لكل نوع»** —
+    //    `AM-021` ⑥ (`ui-guidelines.md` §6: **رسالة خطأ مفيدة**): ⟵ **جردٌ
+    //    بعشرين سطراً كان يترك المستخدمَ يمسح القائمةَ يدوياً بحثاً عمّا نسي.**
+    //    ★ **والاسمُ المعروض `ledgerItemDisplayName`** ([`DEBT-86`] ③)
+    //    ⛔ **لا `itemKey` خاماً** (`design-system.md` §8 المحظور 13).
+    final List<StocktakeCardLine> missing = <StocktakeCardLine>[
+      for (final StocktakeCardLine line in widget.draft.lines)
+        if (_countOf(line) == null) line,
+    ];
+    if (missing.isNotEmpty) {
+      setState(
+        () => _missingCounts = <String>{
+          for (final StocktakeCardLine line in missing) line.itemKey,
+        },
+      );
+      widget.onStatus(
+        _StocktakeStatus(
+          message: stocktakeMissingCountMessage(missing),
+          succeeded: false,
+        ),
+      );
       return;
     }
 
-    setState(() => _inFlight = _InFlight.approving);
+    setState(() {
+      _inFlight = _InFlight.approving;
+      // ★ **ونجاحُ الحرس يُطفئ حدودَه** — ⛔ **فلا يبقى أحمرَ بعد إصلاحه.**
+      _missingCounts = const <String>{};
+    });
     widget.onStatus(null);
 
     final Outcome<void> result =
@@ -522,31 +608,68 @@ class _CountFormState extends ConsumerState<_CountForm> {
     setState(() => _inFlight = _InFlight.none);
     widget.onStatus(
       switch (result) {
-        Success<void>() => '✅ اعتُمد الجرد ${widget.draft.documentNumber}',
-        Failure<void>(:final AppError error) =>
-          catalogText(appErrorMessage(error)),
+        Success<void>() => _StocktakeStatus(
+            message: 'اعتُمد الجرد ${widget.draft.documentNumber}',
+            succeeded: true,
+          ),
+        Failure<void>(:final AppError error) => _StocktakeStatus(
+            message: catalogText(appErrorMessage(error)),
+            succeeded: false,
+          ),
       },
     );
   }
 
+  /// ⛔⛔★★★ **وإلغاءُ الجرد يمرّ بالورقة المدمّرة الموحّدة** — `AM-021` ⑤
+  /// (`ADR-0021` `P6` · `design-system.md` §6-و).
+  ///
+  /// ⚠️⚠️ **وكان `TextButton` أحمرَ ينفّذ بضغطةٍ واحدة مباشرة** — ⛔ **بلا
+  /// تأكيدٍ ولا مخرَج**: ⟵ **بينما إلغاءُ الوارد والجونية والتوزيعة والبيع
+  /// النقدي كلُّها بالورقة** ⟹ **فمستوى الحمايةِ كان يتفاوت بين خمسِ عملياتٍ
+  /// متكافئةِ الخطر على مستنداتٍ لا تُحذَف ولا يُتراجَع عن إلغائها** (`GR-07`).
+  ///
+  /// ⛔⛔★★★ **وسببُ الإلغاء يُكتَب في الورقة نفسِها لا في حقل النموذج** —
+  /// ★ **و`_reason` صار للاعتماد وحدَه**: ⟵ **وكان الحقلُ الواحدُ يُرسَل
+  /// للعمليتين معاً**، ⛔ **فمن كتب ملاحظةً على العدّ ثم ألغى أُرسلت ملاحظتُه
+  /// سبباً للإلغاء** — ★ **وهو ما تمنعه القاعدةُ الباقية من [`ADR-0020`]:**
+  /// **«ما لم يكتبه إنسانٌ *لهذه العملية* لا يُرسَل».**
   Future<void> _cancel() async {
-    setState(() => _inFlight = _InFlight.cancelling);
     widget.onStatus(null);
+    final DestructiveConfirmation? confirmation =
+        await showQtmsDestructiveSheet(
+      context,
+      title: 'إلغاء الجرد ${widget.draft.documentNumber}',
+      impact: 'الإلغاء يَسِم مسوّدة الجرد ولا يحذفها ولا يكتب تسويةً واحدة، '
+          'ويفتح المصدر واليوم لجردٍ جديد.',
+      confirmLabel: 'تأكيد إلغاء الجرد',
+      reasonLabel: 'سبب الإلغاء (اختياري)',
+      onConfirm: _submitCancel,
+    );
+    if (!mounted || confirmation == null) return;
+    widget.onStatus(
+      _StocktakeStatus(
+        message: 'أُلغي الجرد ${widget.draft.documentNumber}',
+        succeeded: true,
+      ),
+    );
+  }
+
+  /// ★ يُرجِع نصَّ الرفض — و`null` نجاحاً (عقد [DestructiveExecutor]).
+  Future<String?> _submitCancel(DestructiveConfirmation confirmation) async {
+    setState(() => _inFlight = _InFlight.cancelling);
     final Outcome<void> result =
         await ref.read(stocktakeAdminProvider).cancelStocktake(
               documentNumber: widget.draft.documentNumber,
               sourceId: widget.sourceId,
-              cancelReason: _reason.text,
+              // ⛔ **والفراغاتُ تُقرأ غياباً لا نصّاً فارغاً** ([`ADR-0020`]).
+              cancelReason: blankToNull(confirmation.reason),
             );
-    if (!mounted) return;
-    setState(() => _inFlight = _InFlight.none);
-    widget.onStatus(
-      switch (result) {
-        Success<void>() => '✅ أُلغي الجرد ${widget.draft.documentNumber}',
-        Failure<void>(:final AppError error) =>
-          catalogText(appErrorMessage(error)),
-      },
-    );
+    if (mounted) setState(() => _inFlight = _InFlight.none);
+    return switch (result) {
+      Success<void>() => null,
+      Failure<void>(:final AppError error) =>
+        catalogText(appErrorMessage(error)),
+    };
   }
 
   @override
@@ -574,6 +697,8 @@ class _CountFormState extends ConsumerState<_CountForm> {
                   count: _counts[line.itemKey]!,
                   reason: _reasons[line.itemKey]!,
                   difference: _differenceLabel(line),
+                  // ★★ **حدٌّ لونيٌّ على الحقل الناقص وحدَه** — `AM-021` ⑥.
+                  missingCount: _missingCounts.contains(line.itemKey),
                   onChanged: () => setState(() {}),
                 ),
               const SizedBox(height: Spacing.space16),
@@ -581,7 +706,10 @@ class _CountFormState extends ConsumerState<_CountForm> {
                 key: const Key('stocktake-approve-reason'),
                 controller: _reason,
                 decoration: const InputDecoration(
-                  labelText: 'ملاحظة على الجرد',
+                  // ★★ **وتسميةٌ تقول لأيّ عمليةٍ هذا الحقل** — `AM-021` ⑤:
+                  //   ⟵ **فسببُ الإلغاء صار في ورقته**، ⛔ **ولا يُرسَل هذا
+                  //   الحقلُ لعمليتين مختلفتين.**
+                  labelText: 'ملاحظة على الاعتماد',
                   helperText: 'اختياري — ولا يُكتب نيابةً عنك',
                 ),
               ),
@@ -591,6 +719,8 @@ class _CountFormState extends ConsumerState<_CountForm> {
                 //   ⛔ **و«إلغاء» لا «حذف»** (`GR-07`).
                 TextButton(
                   key: const Key('stocktake-cancel'),
+                  // ⛔⛔★★★ **ولا تنفيذَ بضغطةٍ واحدة** — `AM-021` ⑤:
+                  //    ★ **الزرُّ يفتح ورقةَ التأكيد وحدَها** (راجع [_cancel]).
                   onPressed: _saving ? null : _cancel,
                   style: TextButton.styleFrom(
                     foregroundColor: SemanticTriads.danger.ink,
@@ -609,9 +739,17 @@ class _CountFormState extends ConsumerState<_CountForm> {
               'التسوية لا تدخل المبيعات ولا سعر الجونية ولا الرعوي',
             ],
           ),
-          status: widget.status == null
-              ? null
-              : Text(widget.status!, style: TypeScale.bodyMd),
+          // ★★★ **لافتةُ الحالة بثلاثيةٍ كاملة** — `AM-021` ④
+          //    (`design-system.md` §6-ز): ★ **تعبئةٌ وحدٌّ ولونُ مقدّمةٍ
+          //    وأيقونةٌ متجهية** ⛔ **لا نصٌّ عارٍ برمزٍ إيموجي.**
+          //    ⟵ **ونفسُ صيغة `disposal_screen.dart` حرفاً بحرف** (§8 المحظور 11).
+          status: switch (widget.status) {
+            null => null,
+            _StocktakeStatus(succeeded: true, :final String message) =>
+              QtmsActionStatus.success(message),
+            _StocktakeStatus(:final String message) =>
+              QtmsActionStatus.rejection(message),
+          },
           primary: FilledButton(
             key: const Key('stocktake-approve'),
             // ★★ **ومن لا يملك الاعتماد لا يعتمد** (`FR-M16-09`) — ⟵ **وقد
@@ -679,6 +817,7 @@ class _CountRow extends StatelessWidget {
     required this.reason,
     required this.difference,
     required this.onChanged,
+    this.missingCount = false,
     super.key,
   });
 
@@ -686,6 +825,12 @@ class _CountRow extends StatelessWidget {
   final TextEditingController count;
   final TextEditingController reason;
   final String? difference;
+
+  /// ★★ **هل سقط هذا السطر في آخر محاولةِ اعتماد؟** — `AM-021` ⑥.
+  ///
+  /// ⛔ **وافتراضُه `false`** — ★ **فالحدُّ إشارةٌ بعد الخطأ لا إنذارٌ قبله.**
+  final bool missingCount;
+
   final VoidCallback onChanged;
 
   @override
@@ -717,7 +862,25 @@ class _CountRow extends StatelessWidget {
               key: Key('stocktake-count-${line.itemKey}'),
               controller: count,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'العدّ الفعلي'),
+              // ⛔⛔★★ **والحدُّ اللوني تعزيزٌ لا بديل** — §8 المحظور 12:
+              //    ★ **الرسالةُ في الشريط تُسمّي السطرَ نصّاً**، ⟵ **والحدُّ
+              //    يدلّ عليه في القائمة** ⛔ **ولا يحمل المعنى وحدَه.**
+              decoration: InputDecoration(
+                labelText: 'العدّ الفعلي',
+                helperText: missingCount ? stocktakeMissingCountHint : null,
+                helperStyle: missingCount
+                    ? TypeScale.caption.copyWith(color: SemanticTriads.danger.ink)
+                    : null,
+                enabledBorder: missingCount
+                    ? OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(Radii.md),
+                        borderSide: BorderSide(
+                          color: SemanticTriads.danger.border,
+                          width: Sizes.borderWidth,
+                        ),
+                      )
+                    : null,
+              ),
               onChanged: (String _) => onChanged(),
             ),
             if (difference != null) ...<Widget>[
@@ -843,4 +1006,26 @@ class _PriorDayRow extends StatelessWidget {
           ),
         ],
       );
+}
+
+/// ★★★ **نتيجةُ نداءِ الجرد — نصُّها وحُكمُها** (`AM-021` ④ · **تصحيحٌ باعتمادك
+/// 2026-09-15**).
+///
+/// ⛔⛔★★★ **والحكمُ حقلٌ لا رمزٌ في النصّ** — `design-system.md` §6-ز:
+/// ⟵ **فالشاشةُ تترجمه ثلاثيةً لونيةً كاملة** (`QtmsActionStatus`)،
+/// ⛔ **ولا تُفتّش عن `✅` في أول النصّ لتعرف أنجح الفعلُ أم فشل.**
+///
+/// ⚠️⚠️ **وكانت هذه الشاشةُ وحدَها باقيةً على النصّ العاري بعد `AM-021`** —
+/// ★ **لأن نطاقَ الطلب حصر البند ④ في «الإتلاف»**: ⟹ **فرُفع البندُ للمالك
+/// ولم يُنفَّذ صامتاً**، ✅ **ثم اعتمده صراحةً فنُفِّذ بالنمط المرجعي نفسِه**
+/// (`_DisposalStatus`) ⛔ **بلا مكوّنٍ ولا نمطٍ موازٍ جديد** (§8 المحظور 11).
+@immutable
+class _StocktakeStatus {
+  const _StocktakeStatus({required this.message, required this.succeeded});
+
+  /// النصّ — ★ **من الكتالوج عند الفشل** ⛔ **ولا صياغةَ خطأٍ هنا.**
+  final String message;
+
+  /// ★ هل نجح النداء؟ — ⛔ **ولا حالةَ ثالثة: الغيابُ `null` في الحقل نفسِه.**
+  final bool succeeded;
 }

@@ -77,6 +77,12 @@ class _ItemTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => MasterDataTile(
+        // ⛔⛔★★★ **الإجراء في صفّ الاسم نفسِه** — `AM-020` (**يُتِمّ `AM-008` ⑥**):
+        //    ★ **بطاقةُ النوع أخفُّ الأربعة حِملاً** (**زرٌّ واحدٌ يغيب للسكرب**)،
+        //    ⟵ **و`stacked` كانت تُنفِق عليها صفّاً كاملاً وفاصلاً شعرياً**
+        //    ⛔ **بينما بطاقةُ المصدر الأثقلُ منها `inline`**: ★ **فصارت
+        //    العائلةُ الرباعيةُ ببنيةٍ واحدة** (`design-system.md` §6-د).
+        actionsPlacement: EntityActionsPlacement.inline,
         // ★★★ **واسمُ النوع بوزن حبته عند تفعيل الخيار** — `AM-012` §4.4:
         //    ⛔ **عرضٌ محضٌ** ⟵ **والطبيعةُ والوحدةُ في السطر الثاني كما هما.**
         title: itemCardDisplayName(
@@ -104,12 +110,22 @@ class _ItemTile extends ConsumerWidget {
           if (!item.isSystemDefault)
             PermissionGate(
               permission: Permission.itemWrite,
-              // ★★ **وإجراءٌ بأيقونةٍ ونصّ لا برمزٍ صامت** — `design-system.md` §6.ج:
-              //    ⟵ **وقلمٌ عارٍ في صفٍّ خاصٍّ به يترك القارئ يخمّن ما يُعدَّل.**
-              child: TextButton.icon(
+              // ⛔⛔★★★ **وزرٌّ أيقونيٌّ بنفس حجم الشاشات الشقيقة وموضعِها**
+              //    (`AM-020`): ★ **والنصُّ سقط من الزرّ لا من الواجهة** —
+              //    ⟵ **يبقى في `tooltip` لقارئ الشاشة وللضغط المطوّل**،
+              //    ⛔ **وزرٌّ نصّيٌّ مُدمَجٌ ينمو بمقياس الخط فيعصر اسمَ
+              //    الكيان** ★ **وهو عطلُ `DEBT-48` بعينه** (§6-د نصّاً:
+              //    «⛔⛔ **ولا زرَّ نصّياً مُدمَجاً**»).
+              //    ⛔ **وقاعدةُ «لا أيقونة صامتة» في §6-ج على الزرّ العائم**
+              //    ⟵ **وهو هنا بأيقونةٍ ونصٍّ كما هي.**
+              child: IconButton(
                 onPressed: () => showItemForm(context, existing: item),
                 icon: const Icon(Icons.edit_outlined, size: Sizes.iconMd),
-                label: const Text('تعديل'),
+                tooltip: 'تعديل',
+                constraints: const BoxConstraints(
+                  minWidth: Sizes.minTouch,
+                  minHeight: Sizes.minTouch,
+                ),
               ),
             ),
         ],
@@ -130,11 +146,21 @@ String unitLabel(ItemUnit unit) => switch (unit) {
     };
 
 /// يفتح نموذج النوع — و[existing] `null` تعني **إنشاءً**.
-Future<void> showItemForm(
+///
+/// ★★★ **ويُرجِع معرّفَ النوع** — `AM-027` ②: ⟵ **فمن فتحه من نموذج وارد
+/// يُسنِده إلى صفِّه فوراً** ⛔ **ولا يبحث عنه في المنسدل بعد إنشائه**،
+/// ★ **و`null` تعني إغلاقاً بلا إنشاء.**
+///
+/// ★★ **و[initialName] و[initialSourceIds] تهيئةُ إنشاءٍ لا أكثر** —
+/// ⛔ **ولا أثرَ لهما في التعديل إطلاقاً**: ⟵ **فسجلٌّ قائمٌ يُقرأ من نفسِه**
+/// ⛔ **لا من سياق مُنادٍ.**
+Future<String?> showItemForm(
   BuildContext context, {
   ItemCard? existing,
+  String initialName = '',
+  Set<String> initialSourceIds = const <String>{},
 }) =>
-    showModalBottomSheet<void>(
+    showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: SemanticColors.surface,
@@ -142,17 +168,33 @@ Future<void> showItemForm(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: ItemFormSheet(existing: existing),
+        child: ItemFormSheet(
+          existing: existing,
+          initialName: initialName,
+          initialSourceIds: initialSourceIds,
+        ),
       ),
     );
 
 /// ورقة نموذج النوع.
 class ItemFormSheet extends ConsumerStatefulWidget {
   /// ينشئ الورقة.
-  const ItemFormSheet({this.existing, super.key});
+  const ItemFormSheet({
+    this.existing,
+    this.initialName = '',
+    this.initialSourceIds = const <String>{},
+    super.key,
+  });
 
   /// النوع المُعدَّل.
   final ItemCard? existing;
+
+  /// ★ اسمٌ مُهيَّأ عند الإنشاء — `AM-027` ②: **ما كتبه المستخدم في المنسدل.**
+  final String initialName;
+
+  /// ★ مصادرُ مُعلَّمةٌ سلفاً عند الإنشاء — ⟵ **مصدرُ المستند الذي فُتح منه**:
+  /// ⛔ **وإلا وُلد النوعُ خارجَ القائمة التي أُنشئ من أجلها** (`FR-M5-10`).
+  final Set<String> initialSourceIds;
 
   @override
   ConsumerState<ItemFormSheet> createState() => _ItemFormSheetState();
@@ -160,14 +202,17 @@ class ItemFormSheet extends ConsumerStatefulWidget {
 
 class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
   late final TextEditingController _name =
-      TextEditingController(text: widget.existing?.name ?? '');
+      TextEditingController(text: widget.existing?.name ?? widget.initialName);
   late final TextEditingController _pieceWeight = TextEditingController(
     text: widget.existing?.pieceWeightGrams?.toString() ?? '',
   );
   final TextEditingController _amendReason = TextEditingController();
   final TextEditingController _disableReason = TextEditingController();
 
-  late Set<String> _sources = <String>{...?widget.existing?.sourceIds};
+  late Set<String> _sources = <String>{
+    ...?widget.existing?.sourceIds,
+    if (widget.existing == null) ...widget.initialSourceIds,
+  };
   late ItemNature _nature = widget.existing?.nature ?? ItemNature.countBased;
   late bool _isActive = widget.existing?.isActive ?? true;
 
@@ -275,9 +320,16 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
                 RejectionBanner(message: _rejection!),
               ],
               const SizedBox(height: Spacing.space16),
-              FilledButton(
-                onPressed: _submitting ? null : _submit,
-                child: Text(_isEdit ? 'حفظ التعديل' : 'إنشاء'),
+              // ⛔⛔★★★ **والزرُّ يُعطَّل لغياب سبب التعطيل** (`AM-020`) —
+              //    ★ **شرطُ اكتمالٍ قبل الضغط لا رفضٌ بعده**: ⟵ **وزرٌّ
+              //    يقبل الضغطَ ثم يُرفَض من السحابة يُعلِّم المستخدمَ أن
+              //    الحقلَ الظاهرَ زخرفة** (`design-system.md` §6-ط ④).
+              MasterDataSubmitButton(
+                label: _isEdit ? 'حفظ التعديل' : 'إنشاء',
+                submitting: _submitting,
+                requiresDisableReason: _isEdit && !_isActive,
+                disableReason: _disableReason,
+                onSubmit: _submit,
               ),
             ],
           ),
@@ -285,6 +337,16 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
       );
 
   Future<void> _submit() async {
+    // ⛔⛔★★★ **حارسُ الاسم المكرَّر قبل النداء** — `AM-027` ② (`FR-M5-01`):
+    //    ★ **يُطبَّع الاسمُ ويُقارَن بكلِّ الأنواع القائمة** ⟵ **المعطَّلِ
+    //    والافتراضيِّ معاً**: ⟹ **فالتفرّدُ على مستوى النظام لا على مستوى
+    //    المعروض.** ⚠️⚠️ **وهو راحةُ عرضٍ لا حماية** (`RISK-02`) — ⛅ **والدالةُ
+    //    السحابية تُعيد الفحصَ كما هي** (`ERR_SETUP_003`) ⛔ **ولم تُمَسّ.**
+    if (!_isEdit && _isDuplicateName()) {
+      setState(() => _rejection = CatalogMessage.itemNameExists);
+      return;
+    }
+
     final Outcome<ValidatedItem> validated = validateItem(
       ItemInput(
         sourceIds: _sources.toList(),
@@ -311,26 +373,42 @@ class _ItemFormSheetState extends ConsumerState<ItemFormSheet> {
     });
 
     final MasterDataAdminRepository admin = ref.read(masterDataAdminProvider);
-    final Outcome<void> result = _isEdit
-        ? await admin.updateItem(
+    // ★★ **والنتيجةُ تحمل المعرّفَ في المسارين** — `AM-027` ②: ⟵ **فالمُنادي
+    //    يُسنِد النوعَ المُنشأ إلى صفِّه**، ★ **والتعديلُ يردّ معرّفَه هو.**
+    final Outcome<String> result = _isEdit
+        ? switch (await admin.updateItem(
             itemId: widget.existing!.itemId,
             item: item,
             amendReason: blankToNull(_amendReason.text),
-          )
-        : switch (await admin.createItem(item)) {
-            Failure<String>(:final AppError error) => Failure<void>(error),
-            Success<String>() => const Success<void>(null),
-          };
+          )) {
+            Failure<void>(:final AppError error) => Failure<String>(error),
+            Success<void>() => Success<String>(widget.existing!.itemId),
+          }
+        : await admin.createItem(item);
 
     if (!mounted) return;
     switch (result) {
-      case Failure<void>(:final AppError error):
+      case Failure<String>(:final AppError error):
         setState(() {
           _submitting = false;
           _rejection = appErrorMessage(error);
         });
-      case Success<void>():
-        Navigator.of(context).pop();
+      case Success<String>(:final String value):
+        Navigator.of(context).pop(value);
     }
+  }
+
+  /// ★★ هل الاسمُ مسجَّلٌ مسبقاً؟ — **بعد التطبيع** (`normalizeName`).
+  ///
+  /// ⛔ **والاسمُ الفارغ ليس مكرَّراً** — ★ **يُرفَض بقاعدته هو** (`FR-M5-01`
+  /// في `validateItem`): ⟵ **فلا تُخلَط رسالةُ «مسجَّل مسبقاً» بغياب الاسم.**
+  bool _isDuplicateName() {
+    final String normalized = normalizeName(_name.text.trim());
+    if (normalized.isEmpty) return false;
+    final List<ItemCard> all =
+        ref.read(itemsProvider).value ?? const <ItemCard>[];
+    return all.any(
+      (ItemCard item) => normalizeName(item.name) == normalized,
+    );
   }
 }

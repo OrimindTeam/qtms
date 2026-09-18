@@ -12,6 +12,24 @@ library;
 
 import 'package:qtms_domain/qtms_domain.dart';
 
+/// ★★★ **نصُّ رفضِ القراءة الموحَّد** — ⛔ **ولا نسخةَ ثانيةٌ منه في أي شاشة.**
+///
+/// ⚠️⚠️ **وليس مدخلاً في `error-codes-catalog.md` ولا يدّعي أنه كذلك:**
+/// ★ **الكتالوج يصف *رفضَ عملية* برمزها** (`ERR_*`) — ⟵ **وهذا وصفُ *حالةِ
+/// عرضٍ* لتدفّقِ قراءةٍ أخفق**، ★ **ونصُّه قائمٌ في التطبيق حرفاً بحرف منذ
+/// `WU-003`** ⛔ **ولم تُصَغ منه كلمةٌ في `AM-023`.**
+///
+/// ⛔⛔★★ **وما فعله `AM-023` جمعُه في موضعٍ واحد لا اختراعُه:** ★ **كان
+/// منسوخاً في خمس شاشات** — ⟵ **وهو عينُ ما يمنعه `design-system.md` §8
+/// المحظور الحادي عشر**، ★ **وما تقوله ترويسةُ هذا الملف نصّاً: «فلا `String`
+/// عربي معروض في أي شاشة خارج هذا الملف».**
+///
+/// ★ **ولماذا هذا النصُّ بعينه:** ⟵ **أشيعُ سببين لإخفاق القراءة هنا نقصُ
+/// مفتاحٍ أو مصدرٌ خارج النطاق** (`RISK-02` · `IQ-024`)، ★ **وكلاهما يُصلَح
+/// بفعلٍ يملكه المستخدم** ⛔ **لا بإعادةِ محاولةٍ عمياء.**
+const String readRejectionMessage =
+    'تحقق من صلاحيتك ونطاق مصادرك، ثم أعد المحاولة.';
+
 /// الرسائل المعتمدة التي يستهلكها هذا الإصدار.
 ///
 /// ⚠️ **ولا تُضاف رسالة هنا بلا سطر في الكتالوج** — والإضافة الصامتة هي
@@ -174,6 +192,19 @@ enum CatalogMessageId {
 
   /// ★★ `ERR_DIST_008` — **ملاحظة الإيداع مفقودة** (`FR-M12-15` · `AT-36`).
   depositNoteMissing,
+
+  /// ⛔⛔★★★ `ERR_DIST_010` — **توزيعةٌ بلا سطرٍ صالح** (`IQ-043` · `FR-M10` §2 ②).
+  ///
+  /// ✅★★★ **ونصُّه اعتمده صاحب المشروع حرفياً** (2026-09-16 · الخيار أ) —
+  /// ⛔ **لا بصياغة اجتهادية** (`error-codes-catalog.md` §3 القاعدة 5):
+  /// ⟵ **وكانت هذه الحالةُ تُعرَض بـ`ERR_CALL_500` العامة** («أعد المحاولة»)
+  /// ⛔⛔ **وهي تضليلٌ إيجابيٌّ على رفضٍ محلي** — ★ **فالمدخلاتُ نفسُها
+  /// ستُرفَض ثانيةً.**
+  ///
+  /// ⚠️⚠️ **وهو الوحيدُ هنا بلا بادئة «❌» — بقرار المالك ومُعلَناً:**
+  /// ★ **و`design-system.md` §6-ز يجعل `QtmsActionStatus` يرسم الأيقونةَ
+  /// المتجهية بلون الثلاثية** ⟹ ⛔ **فالإيموجي تكرارٌ لمعنىً مرسومٍ سلفاً.**
+  distributionNeedsLine,
 
   // ── البيع النقدي المباشر (`WU-012`) — الكتالوج §`PRICE` ──
   //
@@ -368,6 +399,9 @@ sealed class CatalogMessage {
   static const CatalogMessage depositNoteMissing = CatalogEntry(
     CatalogMessageId.depositNoteMissing,
   );
+  static const CatalogMessage distributionNeedsLine = CatalogEntry(
+    CatalogMessageId.distributionNeedsLine,
+  );
   static const CatalogMessage operationFailed = CatalogEntry(
     CatalogMessageId.operationFailed,
   );
@@ -501,6 +535,10 @@ String _entryText(CatalogMessageId message) => switch (message) {
       CatalogMessageId.stocktakeStateBlocked =>
         '❌ حالة مستند الجرد لا تسمح بهذه العملية — حدّث الشاشة وأعد المحاولة.',
       // ★ **منقولٌ حرفاً بحرف من `error-codes-catalog.md` §`MONEY`.**
+      // ⛔⛔★★★ **بلا «❌» عمداً** — راجع تعليق [CatalogMessageId.distributionNeedsLine].
+      CatalogMessageId.distributionNeedsLine =>
+        'لا يمكن حفظ توزيعة بلا سطر واحد صالح على الأقل — اختر نوعاً واكتب '
+            'كميته.',
       CatalogMessageId.fractionalMoney =>
         '❌ المبلغ يجب أن يكون رقماً صحيحاً بالريال — بلا كسور عشرية.',
       // ★ **منقولةٌ حرفاً بحرف من `error-codes-catalog.md` §2.6.**
@@ -598,6 +636,7 @@ CatalogMessage callableErrorMessage(String code) => switch (code) {
       'ERR_DIST_006' => CatalogMessage.futureDateRejected,
       'ERR_DIST_007' => CatalogMessage.backdateDenied,
       'ERR_DIST_008' => CatalogMessage.depositNoteMissing,
+      'ERR_DIST_010' => CatalogMessage.distributionNeedsLine,
       // ── البيع النقدي المباشر (`WU-012`) ──
       'ERR_PRICE_002' => CatalogMessage.belowMinimumCashPrice,
       'ERR_PRICE_004' => CatalogMessage.cashPriceMissing,

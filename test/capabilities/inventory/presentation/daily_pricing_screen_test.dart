@@ -7,6 +7,8 @@
 /// ولها اختباراتها هناك (`functions/test/daily_pricing_test.dart`).
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -355,6 +357,87 @@ void main() {
       // ⛔⛔★★ **وبعد الاختيار يُعلن الزرُّ أن ثمّة مرشِّحاً نشطاً** —
       //    ⟵ **فلا تُقرأ قائمةٌ مفلترة على أنها كاملة.**
       expect(find.byTooltip('مرشِّحات (1)'), findsOneWidget);
+    });
+  });
+
+  group('⛔⛔★★★ AM-021 — زرٌّ ثنائي الحالة وفراغُ مرشِّحٍ يُسمّى باسمه', () {
+    Future<void> openFilters(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('مرشِّحات'));
+      await tester.pump();
+    }
+
+    testWidgets('★★★ ② زرُّ الحفظ يقول «جارٍ الحفظ…» ويُعطَّل أثناء النداء',
+        (WidgetTester tester) async {
+      // ⛔⛔ **وكان التعطيلُ وحدَه** — `design-system.md` §6-ي البند ②:
+      //   ★ **«وزرٌّ معطَّلٌ بلا بديلٍ يُقرأ ممنوعاً لا مشغولاً».**
+      final Completer<Outcome<void>> pending = Completer<Outcome<void>>();
+      repository.nextResult = pending.future;
+      inventory.emitStock(<ItemDailyBalanceCard>[testBalance()]);
+      await pumpPricing(tester);
+
+      await tester.enterText(find.byType(TextField).at(0), '1500');
+      await tester.enterText(find.byType(TextField).at(1), '1300');
+      await tester.tap(find.text(dailyPricingSaveLabel));
+      await tester.pump();
+
+      expect(find.text(dailyPricingSavingLabel), findsOneWidget);
+      expect(find.text(dailyPricingSaveLabel), findsNothing);
+      final FilledButton button =
+          tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(button.onPressed, isNull);
+
+      pending.complete(const Success<void>(null));
+      await tester.pumpAndSettle();
+      expect(find.text(dailyPricingSaveLabel), findsOneWidget);
+    });
+
+    testWidgets('★★★ ③ فراغُ «لم يتم» على يومٍ مكتمل يُسمّى باسمه',
+        (WidgetTester tester) async {
+      // ⛔⛔★★★ **ورسالةُ «لا شيء يُسعَّر بعد» فوق يومٍ سُعِّر بالكامل تقول
+      //   عكسَ الحقيقة تماماً** — `design-system.md` §هـ.
+      inventory.emitStock(<ItemDailyBalanceCard>[testBalance()]);
+      pricing.emitPrices(fixedDay, <DailyPriceCard>[testPrice()]);
+      await pumpPricing(tester);
+
+      await openFilters(tester);
+      await tester.tap(find.text('لم يتم'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(pricingFilteredEmptyTitle), findsOneWidget);
+      expect(find.text('لا شيء يُسعَّر بعد'), findsNothing);
+      expect(find.text(pricingFilteredEmptyAction), findsOneWidget);
+    });
+
+    testWidgets('★★★ و«اعرض الكل» يرفع المرشِّح فعلاً فتعود الصفوف',
+        (WidgetTester tester) async {
+      inventory.emitStock(<ItemDailyBalanceCard>[testBalance()]);
+      pricing.emitPrices(fixedDay, <DailyPriceCard>[testPrice()]);
+      await pumpPricing(tester);
+
+      await openFilters(tester);
+      await tester.tap(find.text('لم يتم'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(pricingFilteredEmptyAction));
+      await tester.pumpAndSettle();
+
+      expect(find.text('عود'), findsOneWidget);
+      expect(find.text(pricingFilteredEmptyTitle), findsNothing);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ ويومٌ بلا مخزونٍ أصلاً يبقى على رسالة الفراغ العامة',
+        (WidgetTester tester) async {
+      // ★★ **فالشرطُ مقيسٌ لا مُفترَض** — ⟵ **«المرشِّحُ ليس الكل» وحدَه لا
+      //   يكفي**: ⛔ **ويومٌ بلا مخزونٍ فراغُه فراغُ بيانات لا فراغُ مرشِّح.**
+      inventory.emitStock(const <ItemDailyBalanceCard>[]);
+      await pumpPricing(tester);
+
+      await openFilters(tester);
+      await tester.tap(find.text('لم يتم'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('لا شيء يُسعَّر بعد'), findsOneWidget);
+      expect(find.text(pricingFilteredEmptyTitle), findsNothing);
     });
   });
 

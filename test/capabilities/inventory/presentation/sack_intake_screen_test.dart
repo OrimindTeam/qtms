@@ -676,6 +676,38 @@ void main() {
       expect(find.textContaining('المطالب به 37.300'), findsOneWidget);
     });
 
+    testWidgets(
+        '⛔⛔★★★ AM-021 ②: الملخّصُ التشغيلي يسبق رقمَ المستند في السطر الثاني',
+        (WidgetTester tester) async {
+      // ★★ **والعنوانُ `displayName` ولا يُقلَب** — `design-system.md` §6-د:
+      //   ⟵ **فالجونيةُ تحمل اسماً بشرياً قابلاً للتسمية**
+      //   (`sackRenameDisplay`)، ⛔ **بخلاف «الوارد عدداً».**
+      sacks.emitSacks(<SackCard>[testSack(stockDate: fixedDay)]);
+      await pumpScreen(
+        tester,
+        screen: const SupplyIntakeScreen(initialTab: supplyIntakeSackTab),
+        sacks: sacks,
+        admin: admin,
+        masterData: masterData,
+      );
+      await tester.pump();
+
+      final String subtitle = tester
+          .widgetList<Text>(find.textContaining('المطالب به 37.300'))
+          .first
+          .data!;
+      // ⛔⛔ **ورقمُ المستند لم يسقط** — ★ **أُزيح إلى آخر السطر.**
+      expect(subtitle.contains('SCK-20260826-0001'), isTrue);
+      expect(
+        subtitle.indexOf('المطالب به'),
+        lessThan(subtitle.indexOf('SCK-20260826-0001')),
+      );
+      expect(
+        subtitle.indexOf('نوع'),
+        lessThan(subtitle.indexOf('SCK-20260826-0001')),
+      );
+    });
+
     testWidgets('⛔★★ ولا زر حذف إطلاقاً — GR-07', (
       WidgetTester tester,
     ) async {

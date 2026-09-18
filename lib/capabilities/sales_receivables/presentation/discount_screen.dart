@@ -205,7 +205,14 @@ class _DiscountFormState extends ConsumerState<_DiscountForm> {
   CalendarDay? _date;
   bool _usedAutoAllocation = false;
   bool _saving = false;
-  String? _status;
+
+  /// ★★ نتيجةُ آخر فعل — **نصٌّ ودرجةُ شدّة ثلاثية** (`AM-022`).
+  ///
+  /// ⛔⛔★★★ **وثلاثُ درجاتٍ لا اثنتان** — `design-system.md` §6-ز:
+  /// ★ **هذه الشاشةُ وحدَها تحمل «نجح لكن انتبه» درجةً قائمةً بذاتها**
+  /// (**مبلغٌ «لم يُوزَّع»**) — ⟵ **وكانت الثلاثةُ تُسطَّح في `Text` عارٍ
+  /// يحمل «✅»/«⚠️»/«❌»** ⛔ **فيخسر المستخدمُ التمييزَ كلَّه.**
+  _DiscountStatus? _status;
 
   @override
   void dispose() {
@@ -258,10 +265,15 @@ class _DiscountFormState extends ConsumerState<_DiscountForm> {
         _controllerFor(line.debtLotId).text = '${line.amount.riyals}';
       }
       _usedAutoAllocation = true;
+      // ★★★ **درجةٌ وسيطة: نجح الفعلُ ونتيجتُه ناقصة** — `AM-022`:
+      //    ⛔ **فليس فشلاً يُصبَغ `danger`**، ⛔ **ولا نجاحاً تامّاً.**
       _status = proposal.unallocated.isZero
           ? null
-          : '⚠️ ${formatRiyals(proposal.unallocated)} ريال لم تُوزَّع — '
-              'المبلغ يتجاوز ما على المقوت في هذا النطاق.';
+          : _DiscountStatus(
+              message: '${formatRiyals(proposal.unallocated)} ريال لم تُوزَّع '
+                  '— المبلغ يتجاوز ما على المقوت في هذا النطاق.',
+              tone: _StatusTone.warning,
+            );
     });
   }
 
@@ -277,7 +289,12 @@ class _DiscountFormState extends ConsumerState<_DiscountForm> {
     // ⛔⛔★★ **وسندٌ بلا سطرٍ يُرفَض هنا وفي السحابة معاً** — ★ **وهنا
     //    يفترق عن سند القبض**: ⟵ **لا فائضَ يُنقِذه** (`FR-M13-05`).
     if (lines.isEmpty) {
-      setState(() => _status = '❌ أدخل مبلغ خصمٍ على ضمارٍ واحد على الأقل.');
+      setState(
+        () => _status = const _DiscountStatus(
+          message: 'أدخل مبلغ خصمٍ على ضمارٍ واحد على الأقل.',
+          tone: _StatusTone.rejection,
+        ),
+      );
       return;
     }
 
@@ -298,9 +315,14 @@ class _DiscountFormState extends ConsumerState<_DiscountForm> {
     setState(() {
       _saving = false;
       _status = switch (result) {
-        Success<String>(:final String value) => '✅ حُفِظ سند الخصم $value',
-        Failure<String>(:final AppError error) =>
-          catalogText(appErrorMessage(error)),
+        Success<String>(:final String value) => _DiscountStatus(
+            message: 'حُفِظ سند الخصم $value',
+            tone: _StatusTone.success,
+          ),
+        Failure<String>(:final AppError error) => _DiscountStatus(
+            message: catalogText(appErrorMessage(error)),
+            tone: _StatusTone.rejection,
+          ),
       };
       if (result is Success<String>) {
         for (final TextEditingController controller in _amounts.values) {
@@ -421,8 +443,17 @@ class _DiscountFormState extends ConsumerState<_DiscountForm> {
             ],
             emphasis: 'الديون المفتوحة: ${formatRiyals(totalDebt)} ريال',
           ),
+          // ★★★ **لافتةُ الحالة بثلاثِ درجاتٍ كاملة** — `AM-022`
+          //    (`design-system.md` §6-ز): ⛔ **لا نصٌّ عارٍ برمزٍ إيموجي.**
           status: switch ((_status, exceeds)) {
-            (final String message, _) => Text(message, style: TypeScale.bodyMd),
+            (_DiscountStatus(tone: _StatusTone.success, :final String message),
+              _) =>
+              QtmsActionStatus.success(message),
+            (_DiscountStatus(tone: _StatusTone.warning, :final String message),
+              _) =>
+              QtmsActionStatus.warning(message),
+            (_DiscountStatus(:final String message), _) =>
+              QtmsActionStatus.rejection(message),
             (null, true) => QtmsActionStatus.rejection(
                 'سطرٌ يتجاوز متبقّي ضماره — صحّحه ليُفتَح الحفظ.',
               ),
@@ -528,7 +559,7 @@ class _DateRow extends StatelessWidget {
 }
 
 /// صفّ ضمارٍ مفتوح — **المتبقي ومبلغ الخصم والمتبقي بعده** (`FR-M13-02`).
-class _LotRow extends StatelessWidget {
+class _LotRow extends ConsumerWidget {
   const _LotRow({
     required this.lot,
     required this.controller,
@@ -540,7 +571,7 @@ class _LotRow extends StatelessWidget {
   final VoidCallback onChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final Money amount = Money.tryParseInput(controller.text) ?? Money.zero;
     final Money after = lot.remaining - amount;
     // ★★ **والتجاوز يُعرَض لحظياً** — ⛔ **والرفض الحقيقي في السحابة**
@@ -553,7 +584,11 @@ class _LotRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Text(
-            'ضمار ${dayLabel(lot.stockDate)} — مصدر ${lot.sourceId}',
+            // ⛔⛔★★★ **والمصدرُ باسمه لا بمعرّفه** — `AM-022`
+            //    (`ui-guidelines.md` §6): ⟵ **وكان «مصدر SRC-001» نصّاً
+            //    تقنياً لا يعرفه من يُسجِّل الخصم.**
+            'ضمار ${dayLabel(lot.stockDate)} — '
+            'مصدر ${ref.watch(sourceDisplayNameProvider(lot.sourceId))}',
             style: TypeScale.bodyMd,
           ),
           const SizedBox(height: Spacing.space4),
@@ -639,4 +674,31 @@ class _AutoAllocateField extends StatelessWidget {
           ),
         ],
       );
+}
+
+/// ★★ درجةُ شدّة سطرِ الحالة — **ثلاثٌ لا اثنتان** (`AM-022`).
+enum _StatusTone {
+  /// ★ نجاحٌ تامّ — **ثلاثية `success`**.
+  success,
+
+  /// ★★ **نجح الفعلُ ونتيجتُه ناقصة** — **ثلاثية `warning`**.
+  ///
+  /// ⛔⛔ **وهي حالةُ «لم تُوزَّع» وحدَها** — ★ **الاقتراحُ وُضع في الحقول
+  /// فعلاً**، ⟵ **وما زاد عن ديون المقوت في النطاق لم يجد ضماراً يقع عليه**:
+  /// ⛔ **ولا يُرسَل ولا يُخزَّن** (`FR-M13-05`).
+  warning,
+
+  /// ★ رفضٌ — **ثلاثية `danger`**.
+  rejection,
+}
+
+/// ★★ نتيجةُ فعلٍ في شاشة الخصومات — **نصٌّ ودرجة** (`AM-022`).
+class _DiscountStatus {
+  const _DiscountStatus({required this.message, required this.tone});
+
+  /// النصّ — ★ **من الكتالوج عند الفشل** ⛔ **ولا صياغةَ خطأٍ هنا.**
+  final String message;
+
+  /// الدرجة — ⛔ **حقلٌ يُترجَم ثلاثيةً** ★ **لا رمزٌ في أول النصّ.**
+  final _StatusTone tone;
 }

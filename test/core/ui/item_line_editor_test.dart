@@ -115,6 +115,78 @@ void main() {
     //   المستخدمَ ما يكتبه.**
     expect(_fieldText(tester), 'سلة (30 حبة)');
   });
+
+  group('★★★ متحكّمُ البحث وزرُّ النوع الجديد — `AM-027` ②', () {
+    testWidgets('★★ ما يُكتَب في المنسدل يصل المُنادي عبر [onSearchChanged]', (
+      WidgetTester tester,
+    ) async {
+      String typed = '';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ar'),
+          home: Scaffold(
+            body: QtmsItemLineRow(
+              options: const <QtmsItemOption>[sella, atoud],
+              selectedId: null,
+              onSelected: (_) {},
+              onRemove: () {},
+              onSearchChanged: (String text) => typed = text,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).first, 'عوارض');
+      await tester.pump();
+
+      // ⟹ ★ **وهو ما يُهيَّأ به نموذجُ «إضافة نوع جديد»** — ⛔ **فلا يُعيد
+      //    المستخدمُ كتابةَ الاسم مرتين.**
+      expect(typed, 'عوارض');
+    });
+
+    testWidgets(
+        '⛔⛔★★★ وتبدُّلُ الخيارات لا يُشعِر نسخةً مُبطَلة — العطلُ المقيس',
+        (WidgetTester tester) async {
+      // ★★ **هذا هو الانهيارُ الذي أسقط اختبارين فعلاً**: ⟵ **متحكّمٌ واحدٌ
+      //    يعبر نسختين** ⟹ **`Cannot get renderObject of inactive element`.**
+      await tester.pumpWidget(
+        const _Harness(
+          initialOptions: <QtmsItemOption>[sella],
+          lateOptions: <QtmsItemOption>[sella, atoud],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // ★ **تركيزٌ حقيقيٌّ على الحقل** — ⟵ **فمؤشّرُ الكتابة يعمل.**
+      await tester.tap(find.byType(TextField).first);
+      await tester.pumpAndSettle();
+
+      tester.state<_HarnessState>(find.byType(_Harness)).deliverLate();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('⛔⛔ وزرُّ «إضافة نوع جديد» لا يُعطَّل أبداً', (
+      WidgetTester tester,
+    ) async {
+      int taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ar'),
+          home: Scaffold(
+            body: QtmsCreateItemButton(onPressed: () => taps++),
+          ),
+        ),
+      );
+
+      expect(find.text('إضافة نوع جديد'), findsOneWidget);
+      await tester.tap(find.byType(OutlinedButton));
+      expect(taps, 1, reason: '⛔ الزرُّ لا يستجيب — والكتالوجُ لا يُستنفَد');
+    });
+  });
 }
 
 /// ★ نصُّ حقلِ المنسدل المعروض — ⛔ **لا نصُّ عناصر القائمة.**

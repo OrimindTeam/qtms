@@ -42,6 +42,7 @@ import '../../../core/design/design_tokens.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/date_labels.dart';
+import '../../../core/ui/inline_banner.dart';
 import '../../../core/ui/item_line_editor.dart';
 import '../../../core/ui/live_summary.dart';
 import '../../../core/ui/sticky_action_bar.dart';
@@ -434,7 +435,25 @@ class _OutflowFormState extends ConsumerState<_OutflowForm> {
                       TextField(
                         key: Key('outflow-qty-${_qat.indexOf(draft)}'),
                         controller: draft.quantity,
-                        keyboardType: TextInputType.number,
+                        keyboardType: TextInputType.numberWithOptions(
+                          decimal: itemsById[draft.itemId]?.unit ==
+                              ItemUnit.kilogram,
+                        ),
+                        // ⛔⛔★★★ **والكسرُ مرفوضٌ في المعدود من المُدخِل
+                        //    نفسِه** — `BR-M6-06` · `ERR_STOCK_002`
+                        //    (`outflow-design.md` §10-أ ①):
+                        //    ⟵ **ومنعٌ فوريٌّ خيرٌ من رفضٍ بعد رحلةٍ سحابية**،
+                        //    ★ **وهو المُنسِّقُ نفسُه في «التوزيع» و«البيع
+                        //    النقدي»** ⛔ **لا صيغةٌ ثانيةٌ منه.**
+                        inputFormatters: <TextInputFormatter>[
+                          if (itemsById[draft.itemId]?.unit ==
+                              ItemUnit.kilogram)
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[0-9.]'),
+                            )
+                          else
+                            FilteringTextInputFormatter.digitsOnly,
+                        ],
                         decoration: InputDecoration(
                           labelText: 'الكمية',
                           suffixText: draft.itemId == null
@@ -471,6 +490,14 @@ class _OutflowFormState extends ConsumerState<_OutflowForm> {
               const SizedBox(height: Spacing.space16),
               Text('بنود المبالغ', style: TypeScale.titleSm),
               const SizedBox(height: Spacing.space8),
+              // ★ **ونصُّ فراغٍ صريح بنفس نمط «بنود القات» فوقه** —
+              //   `outflow-design.md` §10-أ ②: ⟵ **وعنوانٌ ثم زرُّ إضافةٍ بلا
+              //   شيءٍ بينهما يُقرأ عطلَ تحميلٍ لا قسماً فارغاً.**
+              if (_cash.isEmpty)
+                Text(
+                  'لا بند مبلغٍ بعد — أضف سحبية أو مصروفاً نقدياً.',
+                  style: TypeScale.caption,
+                ),
               for (final _CashDraft draft in _cash)
                 _CashRow(
                   key: ValueKey<_CashDraft>(draft),
@@ -497,12 +524,17 @@ class _OutflowFormState extends ConsumerState<_OutflowForm> {
                 decoration: const InputDecoration(labelText: 'البيان'),
               ),
               // ⏳★★ **وتنبيهٌ صريح عند بندٍ بلا سعر** — `FR-M22-07` · `E-27`.
+              // ⛔⛔★★ **وشريطٌ بثلاثية `warning` لا نصٌّ عارٍ** —
+              //    `outflow-design.md` §10-أ ③: ⟵ **حالةٌ قائمةٌ تستوجب عملاً
+              //    لاحقاً** (`design-system.md` §6-ز)، ★ **والنصُّ يحمل العددَ
+              //    والأثرَ صراحةً** ⛔ **فلا يحمل اللونُ المعنى وحدَه**
+              //    (§8 المحظور 12).
               if (unpriced > 0) ...<Widget>[
                 const SizedBox(height: Spacing.space12),
-                Text(
-                  '⏳ $unpriced من بنود القات بلا سعر — تُحفَظ ويخرج القات، '
-                  'وتدخل مركز الإدخالات المعلّقة حتى تُسعَّر.',
-                  style: TypeScale.bodyMd,
+                QtmsInlineBanner(
+                  text: '⏳ $unpriced من بنود القات بلا سعر — تُحفَظ ويخرج '
+                      'القات، وتدخل مركز الإدخالات المعلّقة حتى تُسعَّر.',
+                  triad: SemanticTriads.warning,
                 ),
               ],
             ],

@@ -16,6 +16,8 @@ import 'package:qtms/capabilities/identity_access/application/session_providers.
 import 'package:qtms/capabilities/inventory/application/inventory_providers.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
 import 'package:qtms/capabilities/sales_receivables/application/receipt_providers.dart';
+import 'package:qtms/core/design/design_tokens.dart';
+import 'package:qtms/core/ui/sticky_action_bar.dart';
 import 'package:qtms/capabilities/sales_receivables/presentation/receipt_screen.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
@@ -424,6 +426,65 @@ void main() {
 
       // ★ **الفشلُ لا يُغيِّر رصيداً** — ⟵ **فإبطالُه قراءةٌ بلا موجب.**
       expect(receipts.requestedSources.length, before);
+    });
+  });
+
+
+  // ═══════════ ★★★ AM-022 — اسمُ المصدر وثلاثيةُ سطر الحالة ═══════════
+
+  group('★★★ AM-022 — عرضُ المقبوضات', () {
+    testWidgets(
+        '⛔⛔★★★ ترويسةُ الضمار تحمل اسمَ المصدر ⛔ لا معرّفَه الخام',
+        (WidgetTester tester) async {
+      await pumpReceipts(tester);
+      await selectDealer(tester);
+      // ★ **الاسمُ من `sourceDisplayNameProvider`** — `ui-guidelines.md` §6.
+      expect(find.textContaining('مصدر مصدر رداع'), findsOneWidget);
+      // ⛔⛔ **والمعرّفُ الخام لا يُعرَض** — ★ **وهو عينُ ما رصدته المراجعة.**
+      expect(find.textContaining('مصدر SRC-001'), findsNothing);
+    });
+
+    testWidgets(
+        '★★ ومصدرٌ لا سجلَّ له ⟵ يقع على معرّفه ⛔ فلا سطرَ يفرغ',
+        (WidgetTester tester) async {
+      // ★ **الضمارُ على مصدرٍ خارج القائمة المبثوثة** — `CR-004`.
+      receipts.emitLots(<OpenDebtLot>[lot(sourceId: 'SRC-404')]);
+      await pumpReceipts(tester);
+      await selectDealer(tester);
+      expect(find.textContaining('مصدر SRC-404'), findsOneWidget);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ سطرُ النجاح `QtmsActionStatus` بثلاثية success ⛔ لا نصٌّ برمزٍ إيموجي',
+        (WidgetTester tester) async {
+      receipts.emitLots(<OpenDebtLot>[lot(remaining: 5000)]);
+      await pumpReceipts(tester);
+      await selectDealer(tester);
+      await tester.enterText(find.byType(TextField).first, '3000');
+      await tester.pumpAndSettle();
+      await tapVisible(tester, find.byKey(const Key('receipt-save')));
+
+      final QtmsActionStatus status =
+          tester.widget<QtmsActionStatus>(find.byType(QtmsActionStatus));
+      expect(status.triad, SemanticTriads.success);
+      expect(status.icon, Icons.check_circle_outline);
+      expect(status.message, startsWith('حُفِظ السند'));
+      // ⛔⛔ **ولا «✅» في النصّ** — `design-system.md` §6-ز.
+      expect(find.textContaining('✅'), findsNothing);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ ورفضُ «بلا مبلغ» بثلاثية danger ⛔ لا «❌» في أول النصّ',
+        (WidgetTester tester) async {
+      await pumpReceipts(tester);
+      await selectDealer(tester);
+      await tapVisible(tester, find.byKey(const Key('receipt-save')));
+
+      final QtmsActionStatus status =
+          tester.widget<QtmsActionStatus>(find.byType(QtmsActionStatus));
+      expect(status.triad, SemanticTriads.danger);
+      expect(status.message, 'أدخل مبلغاً على ضمارٍ واحد على الأقل.');
+      expect(find.textContaining('❌'), findsNothing);
     });
   });
 }

@@ -833,7 +833,15 @@ class _DistributionFormSheetState
                         : () => _submit(existing, itemsById, suggested,
                             canSeePrices),
                     icon: const Icon(Icons.save_outlined),
-                    label: Text(isAmend ? 'حفظ التعديل' : 'حفظ التوزيعة'),
+                    // ⛔⛔★★★ **وبديلٌ مرئيٌّ داخل الزرّ أثناء النداء** —
+                    //    `design-system.md` §6-ي البند ② (`AM-022`):
+                    //    ⟵ **والتعطيلُ وحدَه يُقرأ ممنوعاً لا مشغولاً**،
+                    //    ★ **وهذه أكثرُ العمليات استخداماً في التطبيق.**
+                    label: Text(
+                      _submitting
+                          ? 'جارٍ الحفظ…'
+                          : (isAmend ? 'حفظ التعديل' : 'حفظ التوزيعة'),
+                    ),
                   ),
                 ),
               ),
@@ -1037,6 +1045,44 @@ class _DistributionFormSheetState
     }
   }
 
+  /// ★★★ يترجم رفضَ طبقة النطاق إلى رسالته — ⛔ **ولا تُصاغ في الشاشة.**
+  ///
+  /// ⛔⛔★★★ **والنمطُ المرجعي `counted_intake_screen.dart`** (`AM-022` ·
+  /// `design-system.md` §6-ز): ⟵ **وكان كلُّ رفضٍ محليٍّ يُعرَض
+  /// بـ`operationFailed` العامة** («تعذّر إتمام العملية. أعد المحاولة.»)
+  /// ⛔⛔ **وهي تضليلٌ إيجابيٌّ على رفضٍ محلي:** ★ **«أعد المحاولة» فعلٌ لا
+  /// يمكن أن ينجح** ⟵ **فالمدخلاتُ نفسُها ستُرفَض ثانيةً.**
+  ///
+  /// ✅★★★ **والأربعةُ كلُّها مغطّاةٌ الآن** — ★ **بعد أن اعتمد المالكُ نصَّ
+  /// `ERR_DIST_010` صراحةً** (`IQ-043` · 2026-09-16): ⟵ **ولم يبقَ رفضٌ
+  /// محليٌّ واحدٌ يُعرَض بالرسالة العامة في هذه الشاشة.**
+  ///
+  /// ⛔⛔★★ **ولا نصَّ يُخترَع لرمزٍ بلا سطرٍ في الكتالوج**
+  /// (`error-codes-catalog.md` §3 القاعدة 5) — ★ **والفرعُ الافتراضي يبقى
+  /// شبكةَ أمانٍ لرمزٍ يُضيفه غداً مَن يُعدِّل طبقةَ النطاق.**
+  static CatalogMessage _messageOf(AppError error) {
+    if (error case ValidationError(:final String ruleCode)) {
+      return switch (ruleCode) {
+        // ★ **المطابقةُ نفسُها التي يستعملها «الوارد عدداً» لـ`BR-M6-05`** —
+        //   ⟵ **الحالةُ واحدةٌ والفعلُ المُرشَد إليه واحد.**
+        'BR-M10-15' => CatalogMessage.itemAlreadyInDocument,
+        // ★ **سابقةُ `BR-M6-06` المنصوصة** — ⟵ **`ERR_STOCK_002` تُعرَض
+        //   للكسر وللكمية غير الموجبة معاً.**
+        'BR-M10-10' => CatalogMessage.fractionalCount,
+        // ★ **منصوصٌ حرفياً في تعليق [CatalogMessageId.fractionalMoney]** —
+        //   ⟵ **«ويُعرَض كذلك للسعر غير الموجب».**
+        'BR-M10-08' => CatalogMessage.fractionalMoney,
+        // ✅★★★ **والرابعُ حُسم بـ`IQ-043`** (2026-09-16 · الخيار أ):
+        //   ⟵ **وهو أشيعُ رفضٍ محليٍّ في هذه الشاشة** ⛔ **وكان يُعرَض
+        //   بـ«تعذّر إتمام العملية. أعد المحاولة.»**، ★ **وهي فعلٌ لا
+        //   يمكن أن ينجح بالمدخلات نفسِها.**
+        distributionNeedsLineCode => CatalogMessage.distributionNeedsLine,
+        _ => CatalogMessage.operationFailed,
+      };
+    }
+    return appErrorMessage(error);
+  }
+
   Future<void> _submit(
     DistributionCard? card,
     Map<String, StockOption> itemsById,
@@ -1054,7 +1100,7 @@ class _DistributionFormSheetState
       ),
     );
     if (validated is Failure<ValidatedDistribution>) {
-      setState(() => _rejection = CatalogMessage.operationFailed);
+      setState(() => _rejection = _messageOf(validated.error));
       return;
     }
     final ValidatedDistribution distribution =

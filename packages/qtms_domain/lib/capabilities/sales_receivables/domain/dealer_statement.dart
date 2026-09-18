@@ -93,6 +93,15 @@ String debtAgeBucketLabel(DebtAgeBucket bucket) => switch (bucket) {
       DebtAgeBucket.overThirty => 'أكثر من 30 يوماً',
     };
 
+/// ★★ اسمُ صفِّ الشريحة في تذييل الكشف — **مصدرٌ واحدٌ للنصّ** (`AM-022`).
+///
+/// ⛔⛔★★ **ويُقرأ من موضعين اثنين لا نسختين:** ★ **بانيةُ جدول الكشف**
+/// ([buildDealerStatementTable]) **والشاشةُ التي تُبرِز أخطرَ شريحة** —
+/// ⟵ **ومقارنةُ تسميةٍ محفورةٍ في الشاشة كانت ستفترق عن هذه عند أول تعديل**،
+/// ⛔ **فيسقط الإبرازُ بصمتٍ بلا اختبارٍ يفشل.**
+String debtAgingFieldLabel(DebtAgeBucket bucket) =>
+    'أعمار الدين — ${debtAgeBucketLabel(bucket)}';
+
 /// ★ الشريحةُ التي يقع فيها عمرٌ بالأيام — ⛔ **والسالبُ يقع في الأولى**:
 /// ⟵ **ضمارٌ بيومٍ لاحق للمرجع عمرُه صفر** ⛔ **لا شريحةٌ خامسة.**
 DebtAgeBucket debtAgeBucketOf(int ageInDays) {
@@ -614,7 +623,7 @@ ReportTable buildDealerStatementTable({
     ExportField('المبلغ الفائض المتاح', money(statement.availableSurplus)),
     for (final DebtAgeBucket bucket in DebtAgeBucket.values)
       ExportField(
-        'أعمار الدين — ${debtAgeBucketLabel(bucket)}',
+        debtAgingFieldLabel(bucket),
         money(statement.aging[bucket] ?? Money.zero),
       ),
     if (statement.lotsWithoutAge.isNotEmpty)

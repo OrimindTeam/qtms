@@ -114,6 +114,19 @@ final class FakeDistributionAdmin implements DistributionAdminRepository {
   /// رفضٌ مُبرمَج — ★ **لاختبار عرض رسالة الكتالوج**.
   AppError? rejection;
 
+  /// ★★ مهلةٌ مُبرمَجة قبل ردّ النداء — ⛔ **و`Duration.zero` تعني ردّاً فورياً.**
+  ///
+  /// ★ **تُستعمَل لقياس الحالة الوسيطة للزرّ** (`AM-022` ·
+  /// `design-system.md` §6-ي البند ②) — ⟵ **فالبديلُ المرئيُّ داخل الزرّ لا
+  /// يُقاس على نداءٍ يعود في الإطار نفسِه.**
+  Duration callDelay = Duration.zero;
+
+  Future<void> _settle() async {
+    if (callDelay > Duration.zero) {
+      await Future<void>.delayed(callDelay);
+    }
+  }
+
   /// ★★ تاريخُ المخزون المُرسَل في آخر إنشاء — و`null` **لم يُرسَل** (`WU-019`).
   CalendarDay? lastCreateStockDate;
 
@@ -125,6 +138,7 @@ final class FakeDistributionAdmin implements DistributionAdminRepository {
     createCalls++;
     lastDistribution = distribution;
     lastCreateStockDate = stockDate;
+    await _settle();
     final AppError? error = rejection;
     return error == null
         ? const Success<String>('MQT-0001_SRC-001_20260827')
@@ -138,6 +152,7 @@ final class FakeDistributionAdmin implements DistributionAdminRepository {
     String? amendReason,
   }) async {
     amendCalls++;
+    await _settle();
     lastDistribution = distribution;
     lastAmendReason = amendReason;
     final AppError? error = rejection;

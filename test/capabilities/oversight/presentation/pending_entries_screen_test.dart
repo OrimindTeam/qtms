@@ -327,4 +327,148 @@ void main() {
       expect(container.read(pendingEntriesCountProvider).hasError, isTrue);
     });
   });
+
+  group('★★★ AM-025 ① — بطاقةٌ واحدةٌ لكلِّ مستند (§13)', () {
+    /// ★ بندان لِجونيةٍ واحدة — **وهو ما رصدته المراجعة بلقطةٍ فعلية.**
+    List<PendingEntryCard> twoOnOneSack() => <PendingEntryCard>[
+          testPendingEntry(),
+          testPendingEntry(
+            id: 'sack_SCK-20260830-0001_sackLostWeight',
+            missingField: 'الوزن الضائع لم يُؤكَّد',
+            field: PendingMissingField.sackLostWeight,
+          ),
+        ];
+
+    testWidgets(
+        '⛔⛔★★★ بندان لنفس المستند ⟵ بطاقةٌ واحدة بعنوانٍ واحد وشارتين', (
+      WidgetTester tester,
+    ) async {
+      pending.emit('SRC-001', twoOnOneSack());
+      await pumpScreen(tester);
+
+      // ① ★ **العنوانُ ورقمُ المستند مرةً واحدة** — ⛔ لا بطاقتان متطابقتان.
+      expect(
+        find.text('عبد الفتاح - جونية رقم ١'),
+        findsOneWidget,
+        reason: '★ بطاقةٌ واحدةٌ للمستند لا بطاقةٌ لكلِّ قيمةٍ ناقصة',
+      );
+      // ② ★★ **وشارةٌ لكلِّ قيمةٍ ناقصة** — ⛔ ولا تسقط واحدةٌ منها.
+      expect(find.text('ضريبة الكيلو'), findsOneWidget);
+      expect(find.text('الوزن الضائع لم يُؤكَّد'), findsOneWidget);
+      // ③ ★ **وزرُّ [ إدخال ] واحد** — ⛔ لا زرٌّ لكلِّ شارة.
+      expect(find.text('إدخال'), findsOneWidget);
+    });
+
+    testWidgets('★★ ومستندان مختلفان يبقيان بطاقتين — ⛔ ولا يُجمَعان', (
+      WidgetTester tester,
+    ) async {
+      pending.emit('SRC-001', <PendingEntryCard>[
+        testPendingEntry(),
+        testPendingEntry(
+          id: 'sack_SCK-20260830-0002_sackTax',
+          documentId: 'SCK-20260830-0002',
+          documentNumber: 'SCK-20260830-0002',
+          readableTitle: 'سالم - جونية رقم ٢',
+        ),
+      ]);
+      await pumpScreen(tester);
+
+      expect(find.text('عبد الفتاح - جونية رقم ١'), findsOneWidget);
+      expect(find.text('سالم - جونية رقم ٢'), findsOneWidget);
+      expect(find.text('إدخال'), findsNWidgets(2));
+    });
+
+    testWidgets(
+        '⛔⛔★★ ومعرّفان متطابقان من نوعين مختلفين لا يُجمَعان — بطاقتان', (
+      WidgetTester tester,
+    ) async {
+      pending.emit('SRC-001', <PendingEntryCard>[
+        testPendingEntry(documentId: 'X-1', documentNumber: null),
+        testPendingEntry(
+          id: 'distribution_X-1_unitPrice',
+          kind: PendingDocumentKind.distribution,
+          documentId: 'X-1',
+          documentNumber: null,
+          readableTitle: 'توزيعة سالم',
+          missingField: 'سعر وحدة السطر',
+          field: PendingMissingField.distributionLinePricing,
+        ),
+      ]);
+      await pumpScreen(tester);
+
+      expect(find.text('عبد الفتاح - جونية رقم ١'), findsOneWidget);
+      expect(find.text('توزيعة سالم'), findsOneWidget);
+    });
+
+    testWidgets('★★ وزرُّ المجموعة يفتح وجهةَ أوّلِ بندٍ يملك وجهةً صالحة', (
+      WidgetTester tester,
+    ) async {
+      pending.emit('SRC-001', <PendingEntryCard>[
+        // ⛔ **حقلٌ لا يعرفه هذا الإصدار أولاً** — ★ **من نوعٍ معروف**،
+        //    ⟵ **فهو في المجموعة نفسِها** ⛔ **ولا وجهةَ له وحدَه.**
+        testPendingEntry(
+          id: 'sack_SCK-20260830-0001_unknown',
+          field: null,
+          missingField: 'قيمة جديدة',
+        ),
+        testPendingEntry(),
+      ]);
+      await pumpScreen(tester);
+
+      // ★ **بطاقةٌ واحدة بشارتين ولا يختفي المجهول** (`GR-50`).
+      expect(find.text('عبد الفتاح - جونية رقم ١'), findsOneWidget);
+      expect(find.text('قيمة جديدة'), findsOneWidget);
+      expect(find.text('ضريبة الكيلو'), findsOneWidget);
+      expect(find.text('إدخال'), findsOneWidget);
+
+      await tester.tap(find.text('إدخال'));
+      await tester.pumpAndSettle();
+      expect(find.text('وجهة: $supplyIntakeRoute'), findsOneWidget);
+    });
+
+    testWidgets('⛔★★ ومجموعةٌ بلا وجهةٍ إطلاقاً تُعرَض ولا تُفتَح', (
+      WidgetTester tester,
+    ) async {
+      pending.emit('SRC-001', <PendingEntryCard>[
+        testPendingEntry(
+          id: 'sack_SCK-20260830-0001_a',
+          kind: null,
+          field: null,
+          missingField: 'قيمة جديدة أ',
+        ),
+        testPendingEntry(
+          id: 'sack_SCK-20260830-0001_b',
+          kind: null,
+          field: null,
+          missingField: 'قيمة جديدة ب',
+        ),
+      ]);
+      await pumpScreen(tester);
+
+      expect(find.text('قيمة جديدة أ'), findsOneWidget);
+      expect(find.text('قيمة جديدة ب'), findsOneWidget);
+      expect(find.text('إدخال'), findsNothing);
+      expect(find.textContaining('حدِّث التطبيق'), findsOneWidget);
+    });
+
+    testWidgets('⛔⛔★★★ والعدّادُ يبقى عددَ القيم لا عددَ المستندات', (
+      WidgetTester tester,
+    ) async {
+      pending.emit('SRC-001', twoOnOneSack());
+      pending.emit('SRC-002', const <PendingEntryCard>[]);
+      await pumpScreen(tester);
+      container.listen<AsyncValue<int>>(
+        pendingEntriesCountProvider,
+        (AsyncValue<int>? previous, AsyncValue<int> next) {},
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(
+        container.read(pendingEntriesCountProvider).value,
+        2,
+        reason: '★ التجميعُ عرضٌ في الشاشة ⛔ لا تغييرٌ في السجلّ ولا العدّاد',
+      );
+    });
+  });
 }

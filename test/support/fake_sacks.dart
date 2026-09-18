@@ -47,6 +47,15 @@ final class FakeSackDirectory implements SackDirectory {
     _financeBySack[sackId] = value;
   }
 
+  /// ★★★ **يُبقي ماليةَ جونيةٍ في حالة تحميلٍ أبديّة** — `AM-021` ③.
+  ///
+  /// ⛔⛔ **ولا يكفي عدمُ البثّ:** ★ **[watchSackFinance] تبثّ `_currentFinance`
+  /// فوراً** — ⟵ **فتصير الحالةُ `AsyncData(null)` لا `AsyncLoading`**،
+  /// ⛔ **وهما حالتان مختلفتان تماماً: الأولى «لا صلاحية» والثانية «انتظر».**
+  void holdFinance(String sackId) => _pendingFinance.add(sackId);
+
+  final Set<String> _pendingFinance = <String>{};
+
   final Map<String, SackFinanceCard?> _financeBySack =
       <String, SackFinanceCard?>{};
 
@@ -72,6 +81,11 @@ final class FakeSackDirectory implements SackDirectory {
 
   @override
   Stream<SackFinanceCard?> watchSackFinance({required String sackId}) async* {
+    // ★★★ **والتعليقُ يسبق كلَّ شيء** — راجع [holdFinance].
+    if (_pendingFinance.contains(sackId)) {
+      await Completer<void>().future;
+      return;
+    }
     // ★ **وماليةُ جونيةٍ بعينها تسبق العامة** — راجع [emitFinanceFor].
     if (_financeBySack.containsKey(sackId)) {
       yield _financeBySack[sackId];

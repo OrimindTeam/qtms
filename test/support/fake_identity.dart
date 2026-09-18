@@ -77,9 +77,26 @@ final class FakeAuthRepository implements AuthRepository {
     return _result;
   }
 
+  /// ★★ **هل يُخفق الخروج؟** — ★ **يُضبَط من الاختبار** (`AM-018`):
+  /// ⟵ **ليُقاس عرضُ الفشل فعلاً** ⛔ **لا أن يُفترَض.**
+  bool signOutThrows = false;
+
+  /// ★★★ **بوّابةُ تعليقِ الخروج** — ★ **يفتحها الاختبار متى شاء.**
+  ///
+  /// ⚠️⚠️ **ولماذا لزمت:** ★ **نداءٌ ينتهي في مهمةٍ دقيقة لا يُرى له حالةُ
+  /// «جارٍ» أبداً** — ⟵ **فحالةُ الانتظار تمرّ بين إطارين**، ⛔ **ولا
+  /// يُقاس الزرُّ ثنائي الحالة إلا بتعليق النداء فعلاً.**
+  Completer<void>? signOutGate;
+
   @override
   Future<void> signOut() async {
     signOutCalls++;
+    if (signOutGate case final Completer<void> gate) {
+      await gate.future;
+    }
+    if (signOutThrows) {
+      throw StateError('signOut failed');
+    }
     _identities.add(null);
   }
 
@@ -225,6 +242,8 @@ UserCard testCard({
   Set<Permission> permissions = const <Permission>{Permission.sackView},
   String? roleId,
   SourceScope? sourceScope = const AllSources(),
+  /// ★ البريد — ★ **ويُمرَّر فارغاً لقياس الاحتياط البشري** (`AM-018`).
+  String? email,
 }) =>
     UserCard(
       userId: userId,
@@ -234,6 +253,7 @@ UserCard testCard({
       permissions: permissions,
       isActive: isActive,
       sourceScope: sourceScope,
+      email: email,
     );
 
 /// دور جاهز للاختبارات.

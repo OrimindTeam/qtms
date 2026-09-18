@@ -19,6 +19,7 @@ import 'package:qtms/capabilities/master_data/application/master_data_providers.
 import 'package:qtms/capabilities/oversight/application/pending_entries_providers.dart';
 import 'package:qtms/capabilities/sales_receivables/application/distribution_providers.dart';
 import 'package:qtms/capabilities/sales_receivables/presentation/distribution_screen.dart';
+import 'package:qtms/core/messages/error_messages.dart';
 import 'package:qtms/core/ui/context_header.dart';
 import 'package:qtms/core/ui/search_field.dart';
 import 'package:qtms/core/ui/sticky_action_bar.dart';
@@ -990,6 +991,112 @@ void main() {
 
         expect(admin.createCalls, 1);
         expect(admin.lastCreateStockDate, pinnedDay);
+      },
+    );
+  });
+  // ═══════════ ★★★ AM-022 — زرٌّ ثنائي الحالة ورفضٌ مُسمّى ═══════════
+
+  group('★★★ AM-022 — الزرّ أثناء النداء ورفضُ التحقق المحلي', () {
+    testWidgets(
+      '⛔⛔★★★ «جارٍ الحفظ…» أثناء الإرسال ⛔ لا زرٌّ معطَّلٌ صامت',
+      (WidgetTester tester) async {
+        // ★ **مهلةٌ مُبرمَجة** — ⟵ **فالحالةُ الوسيطة لا تُقاس على ردٍّ فوري.**
+        admin.callDelay = const Duration(milliseconds: 300);
+        distributions.emitOne(null);
+        await pumpDistribution(tester);
+        await openNewForm(tester);
+        await pickDealer(tester);
+        await addLine(tester, quantity: '5');
+        await scrollFormTo(tester, find.text('حفظ التوزيعة'));
+        await tester.tap(find.text('حفظ التوزيعة'));
+        await tester.pump();
+
+        // ⛔⛔★★★ **البديلُ المرئيُّ داخل الزرّ** — §6-ي البند ②.
+        expect(find.text('جارٍ الحفظ…'), findsOneWidget);
+        expect(find.text('حفظ التوزيعة'), findsNothing);
+        // ★ **والتعطيلُ قائمٌ معه لا بدلاً منه** — البند ①.
+        expect(
+          tester
+              .widget<FilledButton>(
+                find.widgetWithText(FilledButton, 'جارٍ الحفظ…'),
+              )
+              .onPressed,
+          isNull,
+        );
+
+        await tester.pumpAndSettle();
+        expect(admin.createCalls, 1);
+      },
+    );
+
+    testWidgets(
+      '✅★★★ IQ-043 — حفظٌ بلا سطرٍ صالح ⟶ ERR_DIST_010 ⛔ لا الرسالةُ العامة',
+      (WidgetTester tester) async {
+        distributions.emitOne(null);
+        await pumpDistribution(tester);
+        await openNewForm(tester);
+        await pickDealer(tester);
+        // ⛔⛔★★★ **ولا سطرَ واحدٌ يُضاف** — ⟵ **وهو أشيعُ رفضٍ
+        //   محليٍّ في أهمِّ شاشةٍ في التطبيق.**
+        await scrollFormTo(tester, find.text('حفظ التوزيعة'));
+        await tester.tap(find.text('حفظ التوزيعة'));
+        await tester.pumpAndSettle();
+
+        // ⛔⛔ **ولا نداءَ وقع** — ★ **الرفضُ محليٌّ قبل الشبكة.**
+        expect(admin.createCalls, 0);
+        final QtmsActionStatus status =
+            tester.widget<QtmsActionStatus>(find.byType(QtmsActionStatus));
+        expect(
+          status.message,
+          catalogText(CatalogMessage.distributionNeedsLine),
+        );
+        // ★★ **والنصُّ المعتمَد حرفاً** — `IQ-043` الخيار أ.
+        expect(
+          status.message,
+          'لا يمكن حفظ توزيعة بلا سطر واحد صالح على الأقل — '
+          'اختر نوعاً واكتب كميته.',
+        );
+        // ⛔⛔ **ولا «❌» في النصّ** — ★ **الأيقونةُ تحملُها** (§6-ز).
+        expect(status.message.contains('❌'), isFalse);
+        expect(status.icon, Icons.error_outline);
+        // ⛔⛔ **ولا الرسالةُ العامة** — ★ **وهي ما رصدته المراجعة.**
+        expect(
+          status.message,
+          isNot(catalogText(CatalogMessage.operationFailed)),
+        );
+      },
+    );
+
+    testWidgets(
+      '⛔⛔★★★ وسعرُ صفرٍ يُرفَض برسالته هو ⛔ لا بـ«تعذّر إتمام العملية»',
+      (WidgetTester tester) async {
+        distributions.emitOne(null);
+        await pumpDistribution(tester);
+        await openNewForm(tester);
+        await pickDealer(tester);
+        await addLine(tester, quantity: '5');
+        // ⛔⛔★★★ **صفرٌ صريحٌ لا فراغ** — ⟵ **والفراغُ «تسعيرٌ لاحق» مشروع**
+        //    (`FR-M10-08`)، ★ **والصفرُ خرقُ `BR-M10-08`.**
+        await tester.enterText(
+          find.widgetWithText(TextField, 'السعر (أو اتركه لاحقاً)').last,
+          '0',
+        );
+        await tester.pump();
+        await scrollFormTo(tester, find.text('حفظ التوزيعة'));
+        await tester.tap(find.text('حفظ التوزيعة'));
+        await tester.pumpAndSettle();
+
+        // ⛔⛔★★★ **ولا نداءَ وقع** — ★ **الرفضُ محليٌّ قبل الشبكة.**
+        expect(admin.createCalls, 0);
+        final QtmsActionStatus status =
+            tester.widget<QtmsActionStatus>(find.byType(QtmsActionStatus));
+        // ★ **نصُّ `ERR_MONEY_001` نفسُه** — `BR-M10-08` ⟶ سعرٌ غير موجب.
+        expect(status.message, catalogText(CatalogMessage.fractionalMoney));
+        // ⛔⛔ **ولا الرسالةُ العامة** — ★ **وهي عينُ ما رصدته المراجعة.**
+        expect(
+          status.message,
+          isNot(catalogText(CatalogMessage.operationFailed)),
+        );
       },
     );
   });

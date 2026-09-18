@@ -651,6 +651,34 @@ void main() {
       );
     });
 
+    // ⛔⛔★★★ **بوابةُ الرقم اللاتيني — `AM-023`.**
+    //
+    // ⚠️⚠️ **والقاعدة مكتوبةٌ منذ `AM-003`** (`ui-guidelines.md` §6 ·
+    //    `localization-strategy.md` §4.1: «**لاتينية (0-9) — القيمة الوحيدة
+    //    الثابتة**») ⛔ **وبقيت بلا حارسٍ حتى رصدت مراجعةُ الاستخدام «آخر ٧
+    //    أيام» في شرائح سجل الأيام السابقة**: ⟵ **فوق تاريخٍ لاتينيٍّ في
+    //    الشريط العلوي نفسِه.** ★ **والنصُّ يصف نية، والاختبار وحده يفرضها.**
+    //
+    // ★ **ويُفحَص النصُّ المعروض وحدَه** — ⛔ **لا التعليقات**: ⟵ **ورقمٌ
+    //    عربيٌّ-هنديٌّ في شرحِ قاعدةٍ ليس نصَّ واجهة.**
+    test('⛔⛔★★★ ولا رقمَ عربيٍّ-هنديٍّ في نصٍّ معروض — AM-003', () {
+      final RegExp arabicIndic = RegExp('[\u0660-\u0669\u06F0-\u06F9]');
+      final List<String> hits = <String>[];
+      for (final _Source source in lib.where(
+        (_Source s) => _isUserFacing(s.path),
+      )) {
+        for (final _Literal literal in source.literals) {
+          if (literal.onDirective) {
+            continue;
+          }
+          if (arabicIndic.hasMatch(literal.value)) {
+            hits.add('${source.path}:${literal.line} ⟵ «${literal.value}»');
+          }
+        }
+      }
+      expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
+    });
+
     test('⛔ ولا نصّ واجهة لاتيني في أي شاشة أو كتالوج رسائل', () {
       final List<String> hits = <String>[];
       for (final _Source source in lib.where(
@@ -694,18 +722,36 @@ void main() {
       // ★ **واستثناءان موثَّقان لا أكثر:**
       //   ① **شاشة البداية** (نمط 8-أ نصّاً: «شعار العميل وحده فوق مؤشّر
       //      انتظار») · ② **داخل الزر أثناء الإرسال** (§6.ج نصّاً).
-      const Set<String> allowed = <String>{
-        'app/router.dart',
-        'presentation/login_screen.dart',
-      };
+      //
+      // ⛔⛔★★★ **والاستثناء ② صار شرطاً لا قائمةَ ملفات** (`AM-018`):
+      //    ⟵ **قائمةُ الملفات كانت تُبيح للملفّ المُدرَج مؤشّراً وسط الشاشة
+      //    أيضاً**، ★ **والشرطُ يقيس التوقيعَ نفسَه: مؤشّرٌ داخل صندوقٍ
+      //    بقياسٍ ثابت** (§6.ج: «إبقاء العرض ثابتاً — منع القفز»).
+      //    ⟹ ★ **فالبوابةُ اشتدّت ولم تُوسَّع** — ⛔ **ولا ملفَّ يُضاف إليها
+      //    ليمرّ**: ★ **يُكتب الكودُ بالتوقيع الصحيح فيمرّ من تلقائه.**
+      const String splashPath = 'app/router.dart';
+      final RegExp inButton = RegExp(
+        r'SizedBox\s*\(\s*height:[^)]*?width:[^)]*?child:\s*'
+        r'CircularProgressIndicator\s*\(',
+        dotAll: true,
+      );
+      final RegExp anySpinner = RegExp(r'CircularProgressIndicator\s*\(');
       final List<String> hits = <String>[];
       for (final _Source source in lib) {
         final String path = _slash(source.path);
-        if (allowed.any(path.endsWith)) {
+        if (path.endsWith(splashPath)) {
           continue;
         }
-        if (RegExp(r'CircularProgressIndicator\s*\(').hasMatch(source.code)) {
-          hits.add('${source.path} ⟵ مؤشّر دوّار خارج الاستثناءين');
+        final int total = anySpinner.allMatches(source.code).length;
+        if (total == 0) {
+          continue;
+        }
+        final int wrapped = inButton.allMatches(source.code).length;
+        if (wrapped < total) {
+          hits.add(
+            '${source.path} ⟵ مؤشّر دوّار خارج الزر '
+            '($wrapped من $total داخل صندوقٍ ثابت)',
+          );
         }
       }
       expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n');
@@ -1122,6 +1168,40 @@ void main() {
           ).hasMatch(code),
           isFalse,
           reason: '⛔ $path يبني صفّاً لكل نوعٍ في الكتالوج',
+        );
+      }
+    });
+
+    test(
+        '★★★ وشاشتا الوارد فيهما «إضافة نوع جديد» بلا شرطِ قائمةٍ — AM-027 ②',
+        () {
+      // ⛔⛔★★★ **والعطلُ الذي تحرسه طريقٌ مسدود:** ★ **زرُّ الإضافة كان كلُّه
+      //    داخل `if (items.isNotEmpty)`** ⟹ **فمصدرٌ بلا أنواعٍ يعرض رسالةَ
+      //    الفراغ بلا أيِّ إجراء** — ⛔ **والمستخدم يخرج من النموذج ليعود.**
+      const List<String> screens = <String>[
+        'lib/capabilities/inventory/presentation/counted_intake_screen.dart',
+        'lib/capabilities/inventory/presentation/sack_intake_screen.dart',
+      ];
+      for (final String path in screens) {
+        final String code = _scan(path).code;
+        expect(
+          code.contains('QtmsCreateItemButton'),
+          isTrue,
+          reason: '⛔ $path بلا زرِّ «إضافة نوع جديد»',
+        );
+        // ★ **ويفتح النموذجَ القائم** — ⛔ **ولا يبني نموذجاً ثانياً.**
+        expect(
+          code.contains('showItemForm('),
+          isTrue,
+          reason: '⛔ $path لا يفتح نموذجَ النوع القائم',
+        );
+        // ⛔⛔ **ولا يقع داخل شرطِ امتلاء القائمة.**
+        expect(
+          RegExp(
+            r'if \(items\.isNotEmpty\)\s*QtmsCreateItemButton',
+          ).hasMatch(code),
+          isFalse,
+          reason: '⛔ $path يُخفي زرَّ النوع الجديد عند فراغ القائمة',
         );
       }
     });

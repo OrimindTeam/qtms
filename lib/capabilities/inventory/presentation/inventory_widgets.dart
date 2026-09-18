@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/design/design_tokens.dart';
+import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/item_labels.dart';
 import '../../../core/design/theme_extensions.dart';
 import '../../../core/ui/async_state_view.dart';
@@ -79,6 +80,8 @@ class InventoryAsyncView<T> extends StatelessWidget {
     required this.builder,
     this.emptyIcon = Icons.inventory_2_outlined,
     this.emptyTitle = 'لا توجد سجلات بعد',
+    this.emptyActionLabel,
+    this.onEmptyAction,
     this.onRetry,
     super.key,
   });
@@ -101,6 +104,16 @@ class InventoryAsyncView<T> extends StatelessWidget {
   /// إعادة المحاولة عند الخطأ.
   final VoidCallback? onRetry;
 
+  /// ★★ **نصُّ الإجراء الأساسي في الحالة الفارغة** — و`null` تعني لا إجراء.
+  ///
+  /// ⛔⛔★★★ **وهو ما يجعل «فراغَ المرشِّح» قابلاً للرفع من مكانه** —
+  /// `AM-021` ③ (`design-system.md` §هـ): ⟵ **فحالةٌ فارغةٌ سببُها مرشِّحٌ
+  /// نشطٌ إجراؤها الأساسيُّ رفعُ ذلك المرشِّح** ⛔ **لا وجهةٌ في شاشةٍ أخرى.**
+  final String? emptyActionLabel;
+
+  /// إجراء الحالة الفارغة.
+  final VoidCallback? onEmptyAction;
+
   @override
   Widget build(BuildContext context) => AsyncStateView<T>(
         value: value,
@@ -110,6 +123,8 @@ class InventoryAsyncView<T> extends StatelessWidget {
           icon: emptyIcon,
           title: emptyTitle,
           message: emptyLabel,
+          actionLabel: emptyActionLabel,
+          onAction: onEmptyAction,
           // ★★ **وحاويةُ أيقونة الفراغ بعائلة المجموعة** — §4 و§3.5:
           //    ⟵ **فالشاشةُ الفارغة تبقى منتميةً لمجموعتها بصرياً**،
           //    ⛔ **ولا يُستعمَل اللون التصنيفي حكماً ولا خلفيةً كبيرة.**
@@ -118,7 +133,7 @@ class InventoryAsyncView<T> extends StatelessWidget {
         // ★ **الخطأ يُعرَض ولا يُطوى في «فارغ»** — ⟵ **فيُميِّز المستخدم بين
         //   «لا مخزون» و«ممنوعٌ من الرؤية».**
         errorMessage: (Object _) =>
-            'تحقق من صلاحيتك ونطاق مصادرك، ثم أعد المحاولة.',
+            readRejectionMessage,
       );
 }
 

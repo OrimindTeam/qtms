@@ -208,7 +208,13 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
   CalendarDay? _date;
   bool _usedAutoAllocation = false;
   bool _saving = false;
-  String? _status;
+
+  /// ★★ نتيجةُ آخر نداء — **نصٌّ ودرجةُ شدّة** (`AM-022`).
+  ///
+  /// ⛔⛔★★★ **وهي [_ReceiptStatus] لا `String`** — ★ **نظيرُ `_DisposalStatus`
+  /// و`_StocktakeStatus` حرفاً بحرف** (`design-system.md` §6-ز): ⟵ **فالحكمُ
+  /// حقلٌ تُترجمه الشاشةُ ثلاثيةً لونية** ⛔ **لا رمزٌ إيموجي في أول النصّ.**
+  _ReceiptStatus? _status;
 
   /// ★★ آخر سندٍ حُفِظ في هذه الجلسة — **لإرساله أو تصديره** (`FR-M20-04`).
   ///
@@ -285,7 +291,12 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
           ),
     ];
     if (lines.isEmpty && _surplusAmount.isZero) {
-      setState(() => _status = '❌ أدخل مبلغاً على ضمارٍ واحد على الأقل.');
+      setState(
+        () => _status = const _ReceiptStatus(
+          message: 'أدخل مبلغاً على ضمارٍ واحد على الأقل.',
+          succeeded: false,
+        ),
+      );
       return;
     }
 
@@ -321,9 +332,14 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
     setState(() {
       _saving = false;
       _status = switch (result) {
-        Success<String>(:final String value) => '✅ حُفِظ السند $value',
-        Failure<String>(:final AppError error) =>
-          catalogText(appErrorMessage(error)),
+        Success<String>(:final String value) => _ReceiptStatus(
+            message: 'حُفِظ السند $value',
+            succeeded: true,
+          ),
+        Failure<String>(:final AppError error) => _ReceiptStatus(
+            message: catalogText(appErrorMessage(error)),
+            succeeded: false,
+          ),
       };
       if (result case Success<String>(:final String value)) {
         // ★★ **بياناتُ الإيصال تُبنى في طبقة النطاق** — ⛔ **ولا حسابَ هنا**
@@ -503,8 +519,14 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
             ],
             emphasis: 'الديون المفتوحة: ${formatRiyals(totalDebt)} ريال',
           ),
+          // ★★★ **لافتةُ الحالة بثلاثيةٍ كاملة** — `AM-022`
+          //    (`design-system.md` §6-ز): ★ **تعبئةٌ وحدٌّ ولونُ مقدّمةٍ
+          //    وأيقونةٌ متجهية** ⛔ **لا نصٌّ عارٍ برمزٍ إيموجي.**
           status: switch ((_status, exceeds)) {
-            (final String message, _) => Text(message, style: TypeScale.bodyMd),
+            (_ReceiptStatus(succeeded: true, :final String message), _) =>
+              QtmsActionStatus.success(message),
+            (_ReceiptStatus(:final String message), _) =>
+              QtmsActionStatus.rejection(message),
             (null, true) => QtmsActionStatus.rejection(
                 'سطرٌ يتجاوز متبقّي ضماره — صحّحه ليُفتَح الحفظ.',
               ),
@@ -599,7 +621,7 @@ class _DateRow extends StatelessWidget {
 }
 
 /// صفّ ضمارٍ مفتوح — **المتبقي والمبلغ الواصل والمتبقي بعده** (`FR-M12-05`).
-class _LotRow extends StatelessWidget {
+class _LotRow extends ConsumerWidget {
   const _LotRow({
     required this.lot,
     required this.controller,
@@ -611,7 +633,7 @@ class _LotRow extends StatelessWidget {
   final VoidCallback onChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final Money amount = Money.tryParseInput(controller.text) ?? Money.zero;
     final Money after = lot.remaining - amount;
     // ★★ **والتجاوز يُعرَض لحظياً** — ⛔ **والرفض الحقيقي في السحابة**
@@ -625,7 +647,13 @@ class _LotRow extends StatelessWidget {
         children: <Widget>[
           Text(
             // ★ **بصيغة «ضمار {التاريخ} مصدر {المصدر}»** — `FR-M12-05`.
-            'ضمار ${dayLabel(lot.stockDate)} — مصدر ${lot.sourceId}',
+            //
+            // ⛔⛔★★★ **والمصدرُ باسمه لا بمعرّفه** — `AM-022`
+            //    (`ui-guidelines.md` §6): ⟵ **وكان «مصدر SRC-001» نصّاً
+            //    تقنياً لا يعرفه موظّفُ الاستلام**، ★ **والمزوّد يقع على
+            //    المعرّف عند غياب السجل** ⛔ **فلا سطرَ يفرغ.**
+            'ضمار ${dayLabel(lot.stockDate)} — '
+            'مصدر ${ref.watch(sourceDisplayNameProvider(lot.sourceId))}',
             style: TypeScale.bodyMd,
           ),
           const SizedBox(height: Spacing.space4),
@@ -778,4 +806,15 @@ class _ReceiptSendActions extends ConsumerWidget {
       label: const Text('إرسال أو تصدير'),
     );
   }
+}
+
+/// ★★ نتيجةُ نداءٍ في شاشة المقبوضات — **نصٌّ وحكم** (`AM-022`).
+class _ReceiptStatus {
+  const _ReceiptStatus({required this.message, required this.succeeded});
+
+  /// النصّ — ★ **من الكتالوج عند الفشل** ⛔ **ولا صياغةَ خطأٍ هنا.**
+  final String message;
+
+  /// ★ هل نجح النداء؟ — ⛔ **ولا حالةَ ثالثة: الغيابُ `null` في الحقل نفسِه.**
+  final bool succeeded;
 }

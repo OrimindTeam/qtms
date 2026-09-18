@@ -42,6 +42,20 @@ abstract interface class DocumentSharer {
     required ExportableDocument document,
     required Uint8List bytes,
   });
+
+  /// ★★ يفتح ورقة المشاركة بنصٍّ جاهز — ⛔ **بلا ملفٍّ ولا قرص** (`AM-023`).
+  ///
+  /// ⛔⛔★★★ **ولماذا في هذه البوابة لا في الشاشة:** ★ **ورقةُ النظام مصدرُ
+  /// حقيقةٍ واحدٌ في التطبيق كلِّه** — ⟵ **واستدعاءُ `SharePlus` من شاشةٍ
+  /// يجعل الشاشةَ تلمس المنصّة مباشرةً**، ⛔ **فيتعذّر اختبارُها بلا جهاز**
+  /// (نفسُ علّة [sharePdf] حرفاً بحرف).
+  ///
+  /// ⛔⛔ **والنصُّ يصل جاهزاً بلا حسابٍ ولا تنسيق** — ★ **بانيه طبقةُ التنسيق**
+  /// (`design-system.md` §5.1): ⟵ **فلا رقمَ يُبنى هنا.**
+  Future<DocumentShareOutcome> shareText({
+    required String text,
+    required String subject,
+  });
 }
 
 /// خدمة مشاركة المستندات المُصدَّرة.
@@ -50,11 +64,14 @@ final class DocumentShareService implements DocumentSharer {
   DocumentShareService({
     Future<Directory> Function()? temporaryDirectory,
     Future<void> Function(String path, String subject)? shareFile,
+    Future<void> Function(String text, String subject)? shareRawText,
   })  : _temporaryDirectory = temporaryDirectory ?? getTemporaryDirectory,
-        _shareFile = shareFile ?? _shareWithSystem;
+        _shareFile = shareFile ?? _shareWithSystem,
+        _shareRaw = shareRawText ?? _shareRawText;
 
   final Future<Directory> Function() _temporaryDirectory;
   final Future<void> Function(String path, String subject) _shareFile;
+  final Future<void> Function(String text, String subject) _shareRaw;
 
   /// يكتب [bytes] ملفاً مؤقتاً ثم يفتح ورقة المشاركة.
   @override
@@ -78,6 +95,21 @@ final class DocumentShareService implements DocumentSharer {
     }
   }
 
+  /// يفتح ورقة المشاركة بنصٍّ جاهز — ⛔ **ولا يكتب ملفاً.**
+  @override
+  Future<DocumentShareOutcome> shareText({
+    required String text,
+    required String subject,
+  }) async {
+    try {
+      await _shareRaw(text, subject);
+      return DocumentShareOutcome.shared;
+    } on Object {
+      // ⛔ **ولا يُرمى إلى الشاشة** — `error-handling-strategy.md` §3 القاعدة 3.
+      return DocumentShareOutcome.failed;
+    }
+  }
+
   /// ★ اسم الملف — **نوعُ المستند ومعرّفه وحدهما** ⛔ **بلا اسم عميل.**
   static String _fileNameOf(ExportableDocument document) {
     final String id = (document.documentNumber ?? document.entityId)
@@ -92,4 +124,7 @@ final class DocumentShareService implements DocumentSharer {
           subject: subject,
         ),
       );
+
+  static Future<void> _shareRawText(String text, String subject) =>
+      SharePlus.instance.share(ShareParams(text: text, subject: subject));
 }

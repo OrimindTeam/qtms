@@ -16,6 +16,10 @@ import 'package:test/test.dart';
 final CalendarDay day = CalendarDay(2026, 8, 30);
 final CalendarDay yesterday = CalendarDay(2026, 8, 29);
 
+/// ★ اليومُ التالي ليوم المخزون — ⏳ **وبه وحدَه يستحقّ بندُ «الوزن الضائع»
+/// أن يُكتب** (`OQ-002` الخيار ب · `CR-013`).
+final CalendarDay tomorrow = CalendarDay(2026, 8, 31);
+
 InventoryWrite balanceWrite({
   required String itemKey,
   required Object? balance,
@@ -257,6 +261,13 @@ void main() {
       bool storedConfirmed = false,
       bool hasTax = false,
       bool isCancelled = false,
+      // ⏳ **والافتراضُ «اليومُ التالي»** — ⟵ **فحالاتُ هذه المجموعة كلُّها
+      //    مكتوبةٌ لجونيةٍ تغيّر تاريخُ مخزونها**، ★ **وتوقيتُ اليوم نفسِه
+      //    له حالاتُه المستقلة أدناه.**
+      CalendarDay? platformToday,
+      // ⚠️ **و«لم يصل يومُ المنصّة» حالةٌ ثالثة لا غيابُ وسيط** — ⟵ **فلا
+      //    تُخلَط بالافتراض أعلاه.**
+      bool unknownToday = false,
     }) =>
         pendingFromSackState(
           writes: writes,
@@ -268,6 +279,7 @@ void main() {
           storedRemainingKilograms: storedRemaining,
           storedLostWeightConfirmed: storedConfirmed,
           hasTax: hasTax,
+          platformToday: unknownToday ? null : (platformToday ?? tomorrow),
           isCancelled: isCancelled,
         );
 
@@ -363,5 +375,71 @@ void main() {
       );
       expect(set.drafts.single.field, PendingMissingField.sackLostWeight);
     });
+
+    // ═════════════════════════════════════════════════════════════════════
+    // ⏳★★★ توقيتُ «الوزن الضائع لم يُؤكَّد» — `OQ-002` (الخيار ب) · `CR-013`
+    // ═════════════════════════════════════════════════════════════════════
+
+    /// ★ جونيةٌ لها متبقٍّ غيرُ مؤكَّد وقد اكتملت ضريبتُها وأنواعُها —
+    /// ⟵ **فالحقلُ الوحيد المرشَّح هو «الوزن الضائع»**، ★ **ولا يُخلط الحكمُ
+    /// بحقلٍ آخر.**
+    PendingEntrySet unexplained({
+      CalendarDay? platformToday,
+      bool unknownToday = false,
+    }) =>
+        build(
+          storedHasLines: true,
+          hasTax: true,
+          storedRemaining: 3.5,
+          storedConfirmed: false,
+          platformToday: platformToday,
+          unknownToday: unknownToday,
+        );
+
+    final String lostWeightId = pendingEntryId(
+      kind: PendingDocumentKind.sack,
+      documentId: 'SCK-20260830-0001',
+      field: PendingMissingField.sackLostWeight,
+    );
+
+    test(
+      '⏳★★★ في يوم المخزون نفسِه ⛔ لا يُكتب بندُ الوزن الضائع — OQ-002 (ب)',
+      () {
+        final PendingEntrySet set = unexplained(platformToday: day);
+        expect(set.drafts, isEmpty);
+        // ★★ **ويدخل قائمةَ المحو لا قائمةَ الكتابة** — ⟵ **فبندٌ كُتب
+        //    بالسلوك القديم يُمحى عند أوّلِ عمليةٍ بعد هذا التغيير.**
+        expect(set.clearedIds, contains(lostWeightId));
+      },
+    );
+
+    test('⏳★★★ وبعد تغيّر تاريخ المخزون يظهر البند — OQ-002 (ب)', () {
+      final PendingEntrySet set = unexplained(platformToday: tomorrow);
+      expect(set.drafts.single.field, PendingMissingField.sackLostWeight);
+      expect(set.clearedIds, isNot(contains(lostWeightId)));
+    });
+
+    test('⏳★★ ويومُ منصّةٍ لم يصل ⟵ تأجيلٌ لا ظهورٌ بالشكّ — GR-54', () {
+      final PendingEntrySet set = unexplained(unknownToday: true);
+      expect(set.drafts, isEmpty);
+      expect(set.clearedIds, contains(lostWeightId));
+    });
+
+    test(
+      '⛔⛔★★ وشرطُ التوقيت لبند الوزن وحدَه — الضريبةُ والأنواعُ بلا تأجيل',
+      () {
+        final PendingEntrySet set = build(
+          storedRemaining: 3.5,
+          platformToday: day,
+        );
+        expect(
+          set.drafts.map((PendingEntryDraft d) => d.field).toSet(),
+          <PendingMissingField>{
+            PendingMissingField.sackTax,
+            PendingMissingField.sackLines,
+          },
+        );
+      },
+    );
   });
 }

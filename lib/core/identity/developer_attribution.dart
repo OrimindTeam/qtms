@@ -24,6 +24,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../design/brand.dart';
 import '../design/design_tokens.dart';
@@ -58,6 +59,7 @@ class DeveloperAttribution extends StatelessWidget {
     required this.identity,
     this.variant = DeveloperAttributionVariant.section,
     this.versionLabel,
+    this.launch,
     super.key,
   });
 
@@ -71,16 +73,22 @@ class DeveloperAttribution extends StatelessWidget {
   /// («**تذييلُ الإعدادات بجوار رقم الإصدار**» — `FR-SYS-28`).
   final String? versionLabel;
 
+  /// ★★ **دالةُ الفتح — تُحقَن فيُختبَر السطرُ بلا جهاز.**
+  ///
+  /// ★ **نفسُ نمط `MessageChannelLauncher`** (`FR-M20-01`) — ⛔ **ولا آليةٌ
+  /// موازية**: ⟵ **و`null` تعني المنصّةَ الحقيقية.**
+  final Future<bool> Function(Uri)? launch;
+
   @override
   Widget build(BuildContext context) {
     return switch (variant) {
-      DeveloperAttributionVariant.section => _buildSection(),
+      DeveloperAttributionVariant.section => _buildSection(context),
       DeveloperAttributionVariant.footer => _buildFooter(),
     };
   }
 
   /// ★ **قسمٌ سفليٌّ بعنوان** — الموضع 1.
-  Widget _buildSection() {
+  Widget _buildSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -131,9 +139,17 @@ class DeveloperAttribution extends StatelessWidget {
         ),
         const SizedBox(height: Spacing.space8),
         // ⛔⛔★★ **والقيمُ تصل من الملف** — ⛔ **ولا حرفَ تواصلٍ مكتوبٌ هنا.**
-        _contactLine(identity.website),
-        _contactLine(identity.email),
-        if (identity.phone != null) _contactLine(identity.phone!),
+        //
+        // ✅★★ **وقابلةٌ للنقر منذ `AM-018`** (`developer-identity.md` §4):
+        //    ⟵ **كانت نصّاً ساكناً في شاشةٍ لا تسمح بالتحديد**، ★ **فمن أراد
+        //    مراسلةَ جهة التطوير كان عليه نسخُها بيده.**
+        _contactLine(context, identity.website, _websiteUri(identity.website)),
+        _contactLine(context, identity.email, Uri(
+          scheme: 'mailto',
+          path: identity.email,
+        )),
+        if (identity.phone case final String phone)
+          _contactLine(context, phone, Uri(scheme: 'tel', path: phone)),
       ],
     );
   }
@@ -162,19 +178,60 @@ class DeveloperAttribution extends StatelessWidget {
     );
   }
 
-  Widget _contactLine(String value) => Padding(
+  /// ★ يبني عنوان الموقع — **يُكمِل المخطَّط إن غاب** ⛔ **ولا يفترض `http`.**
+  static Uri _websiteUri(String value) => value.startsWith('http')
+      ? Uri.parse(value)
+      : Uri.parse('https://$value');
+
+  /// ★★ **سطرُ تواصلٍ قابلٌ للنقر** — `developer-identity.md` §4.
+  ///
+  /// ⛔⛔★★★ **وبلون `textSecondary` مسطَّراً** — ⛔ **لا `primary700`:**
+  /// ★ **§4 تنصّ حرفياً على «لون نص الإسناد `textSecondary` — لا اللون
+  /// الأساسي للمنتج»**، ⟵ **و`primary700` هو `SemanticTriads.primary.ink`
+  /// بعينِه**: ⛔ **فتلوينُ ثلاثةِ سطورٍ به يجعل أبرزَ ما في القسم السفليِّ
+  /// بصمةَ المطوّر لا هويةَ المنتج.** ✅ **والتسطيرُ إشارةُ تفاعلٍ قياسيةٌ
+  /// لا تستعير لوناً.**
+  Widget _contactLine(BuildContext context, String value, Uri target) =>
+      Padding(
         padding: const EdgeInsetsDirectional.only(top: Spacing.space2),
-        child: Text(
-          value,
-          textAlign: TextAlign.center,
-          // ★ **قيمةُ تواصلٍ لاتينيةُ المحارف داخل واجهةٍ عربية** — ★ **تُضبَط
-          //   اتجاهياً صراحةً** (`rtl-ltr-guidelines`) ⛔ **وإلا انقلب ترتيبُ
-          //   نقاطِ النطاق عند نهاية السطر.**
-          textDirection: TextDirection.ltr,
-          style: TypeScale.caption.copyWith(color: SemanticColors.textTertiary),
+        child: InkWell(
+          onTap: () => _open(context, target),
+          child: Text(
+            value,
+            textAlign: TextAlign.center,
+            // ★ **قيمةُ تواصلٍ لاتينيةُ المحارف داخل واجهةٍ عربية** — ★ **تُضبَط
+            //   اتجاهياً صراحةً** (`rtl-ltr-guidelines`) ⛔ **وإلا انقلب ترتيبُ
+            //   نقاطِ النطاق عند نهاية السطر.**
+            textDirection: TextDirection.ltr,
+            style: TypeScale.caption.copyWith(
+              color: SemanticColors.textSecondary,
+              decoration: TextDecoration.underline,
+              decorationColor: SemanticColors.textTertiary,
+            ),
+          ),
         ),
       );
+
+  /// ★ يفتح القناة — ⛔ **وتعذُّرُها لا يُسقِط الشاشة ولا يعترض** (§5 البند 8):
+  /// ⟵ **والنصُّ يبقى مقروءاً كما كان.**
+  Future<void> _open(BuildContext context, Uri target) async {
+    final Future<bool> Function(Uri) open = launch ?? launchUrl;
+    bool opened = false;
+    try {
+      opened = await open(target);
+    } on Object {
+      opened = false;
+    }
+    if (opened || !context.mounted) return;
+    // ★ **وإعلامٌ عابرٌ وحده** — ⛔ **لا نافذةٌ ولا شريطٌ دائم** (§5 البند 8).
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(content: Text(contactLaunchFailureMessage)),
+    );
+  }
 }
 
 /// ★ عنوانُ القسم السفلي — ⛔ **ولا نصٌّ محفورٌ في موضعين.**
 const String developerSectionTitle = 'جهة التطوير';
+
+/// ★ نصُّ تعذُّر فتح قناة التواصل — ⛔ **ولا «حدث خطأ» عارية.**
+const String contactLaunchFailureMessage = 'تعذّر فتح هذه القناة على جهازك.';

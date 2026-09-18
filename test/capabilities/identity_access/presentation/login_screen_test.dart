@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/identity_access/presentation/login_screen.dart';
 import 'package:qtms/core/design/brand.dart';
+import 'package:qtms/core/design/design_tokens.dart';
 import 'package:qtms/core/messages/error_messages.dart';
 import 'package:qtms/core/startup/staging_qa_credentials.dart';
 import 'package:qtms_domain/qtms_domain.dart';
@@ -249,4 +250,56 @@ void main() {
     //   الشاشة لم تتغيّر.**
     expect(auth.lastEmail, isNull);
   });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ★★★ AM-018 — سطرا التعريف واسترداد كلمة المرور
+  // ══════════════════════════════════════════════════════════════════════
+
+  testWidgets('★★ AM-018: سطرُ تعريفٍ تحت الشعار بدرجة caption/textSecondary', (
+    WidgetTester tester,
+  ) async {
+    await pumpLogin(tester);
+
+    final Text tagline = tester.widget<Text>(find.text(loginTaglineText));
+    expect(tagline.style?.fontSize, TypeScale.caption.fontSize);
+    expect(tagline.style?.color, SemanticColors.textSecondary);
+
+    // ★★★ **والترتيبُ مقيسٌ لا مفترَض** — **تحت الشعار وفوق العنوان.**
+    final double logoY = tester.getCenter(find.byType(BrandLogo)).dy;
+    final double taglineY = tester.getCenter(find.text(loginTaglineText)).dy;
+    final double titleY = tester.getCenter(find.text('تسجيل الدخول')).dy;
+    expect(taglineY, greaterThan(logoY));
+    expect(taglineY, lessThan(titleY));
+  });
+
+  testWidgets(
+    '⛔⛔★★★ AM-018: سطرُ الاسترداد نصٌّ ساكن — ⛔ ولا زرَّ ولا رابط',
+    (WidgetTester tester) async {
+      await pumpLogin(tester);
+
+      final Text hint =
+          tester.widget<Text>(find.text(passwordRecoveryHintText));
+      expect(hint.style?.fontSize, TypeScale.caption.fontSize);
+      expect(hint.style?.color, SemanticColors.textTertiary);
+
+      // ⛔⛔★★★ **ولا مسارَ يُفتَح** — `CR-005` §2.2: ⟵ **ورابطٌ يَعِد بما لا
+      //    يقع أسوأُ من غيابه.** ★ **والقياسُ على الشجرة: لا زرَّ نصّياً
+      //    ولا تفاعلَ يلفّ السطر.**
+      expect(find.byType(TextButton), findsNothing);
+      expect(
+        find.ancestor(
+          of: find.text(passwordRecoveryHintText),
+          matching: find.byType(InkWell),
+        ),
+        findsNothing,
+      );
+
+      // ★ **وموضعُه أسفلَ الزر الأساسي** — ⛔ **لا فوقه.**
+      final double buttonY =
+          tester.getCenter(find.widgetWithText(FilledButton, 'دخول')).dy;
+      final double hintY =
+          tester.getCenter(find.text(passwordRecoveryHintText)).dy;
+      expect(hintY, greaterThan(buttonY));
+    },
+  );
 }

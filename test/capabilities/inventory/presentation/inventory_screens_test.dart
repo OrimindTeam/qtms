@@ -15,6 +15,7 @@ import 'package:qtms/capabilities/inventory/application/inventory_providers.dart
 import 'package:qtms/capabilities/inventory/presentation/supply_intake_screen.dart';
 import 'package:qtms/capabilities/inventory/presentation/today_stock_screen.dart';
 import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
+import 'package:qtms/core/design/design_tokens.dart';
 import 'package:qtms/core/messages/error_messages.dart';
 import 'package:qtms/core/ui/async_state_view.dart';
 import 'package:qtms/core/ui/context_header.dart';
@@ -296,9 +297,34 @@ void main() {
         masterData: masterData,
       );
       expect(find.text('INC-20260825-0001'), findsOneWidget);
-      // ★★ **واسمُ المصدر في السطر الثاني** — `AM-009` ③: ⟵ **فالمرشِّح
+      // ★★ **واسمُ المصدر في الملخّص** — `AM-009` ③: ⟵ **فالمرشِّح
       //    يبدأ على «كل المصادر»**، ⛔ **وصفٌّ بلا مصدرٍ لا يُقرأ.**
       expect(find.text('مصدر رداع · 1 نوع · 120 حبة'), findsOneWidget);
+    });
+
+    testWidgets(
+        '⛔⛔★★★ AM-021 ②: الملخّصُ التشغيلي عنوانٌ ورقمُ المستند سطرٌ ثانوي',
+        (WidgetTester t) async {
+      // ⛔⛔★★★ **وكان الرقمُ يتصدّر البطاقة والجوابُ تحته بخطٍّ أصغر** —
+      //   `design-system.md` §6-د (**هرمُ بطاقة الكيان**) · `ui-guidelines.md`
+      //   §1: ⟵ **«ضع الجواب في الأعلى»**، ★ **والسؤالُ «كم دخل ومن أين».**
+      inventory.emitIntakes(<CountedIntakeCard>[testIntake()]);
+      await pumpScreen(
+        t,
+        screen: const SupplyIntakeScreen(),
+        inventory: inventory,
+        admin: admin,
+        masterData: masterData,
+      );
+
+      final Text title = t.widget<Text>(find.text('مصدر رداع · 1 نوع · 120 حبة'));
+      expect(title.style, TypeScale.titleSm);
+
+      final Text document = t.widget<Text>(find.text('INC-20260825-0001'));
+      expect(document.style?.fontSize, TypeScale.bodyMd.fontSize);
+      expect(document.style?.color, SemanticColors.textSecondary);
+      // ⛔⛔ **ورقمُ المستند لم يسقط من البطاقة** — ★ **أُزيح رتبةً واحدة.**
+      expect(find.text('INC-20260825-0001'), findsOneWidget);
     });
 
     testWidgets('★★★ FR-M6-14 · GR-07: ⛔ ولا زر حذف إطلاقاً',

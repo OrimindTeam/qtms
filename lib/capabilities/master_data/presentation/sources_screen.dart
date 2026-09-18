@@ -236,9 +236,16 @@ class _SourceFormSheetState extends ConsumerState<SourceFormSheet> {
                 RejectionBanner(message: _rejection!),
               ],
               const SizedBox(height: Spacing.space16),
-              FilledButton(
-                onPressed: _submitting ? null : _submit,
-                child: Text(_isEdit ? 'حفظ التعديل' : 'إنشاء'),
+              // ⛔⛔★★★ **والزرُّ يُعطَّل لغياب سبب التعطيل** (`AM-020`) —
+              //    ★ **شرطُ اكتمالٍ قبل الضغط لا رفضٌ بعده**: ⟵ **وزرٌّ
+              //    يقبل الضغطَ ثم يُرفَض من السحابة يُعلِّم المستخدمَ أن
+              //    الحقلَ الظاهرَ زخرفة** (`design-system.md` §6-ط ④).
+              MasterDataSubmitButton(
+                label: _isEdit ? 'حفظ التعديل' : 'إنشاء',
+                submitting: _submitting,
+                requiresDisableReason: _isEdit && !_isActive,
+                disableReason: _disableReason,
+                onSubmit: _submit,
               ),
               if (!_isEdit) ...<Widget>[
                 const SizedBox(height: Spacing.space12),

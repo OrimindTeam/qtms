@@ -4,14 +4,19 @@
 /// الشاشة، وأن حالة الجلسة **تُقرِّر الوجهة**، وأن الاتجاه RTL فعلاً.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
+import 'package:qtms/capabilities/identity_access/application/session_state.dart';
 import 'package:qtms/capabilities/identity_access/presentation/home_shell.dart';
 import 'package:qtms/capabilities/identity_access/presentation/login_screen.dart';
 import 'package:qtms/capabilities/identity_access/presentation/session_blocked_screen.dart';
+import 'package:qtms/app/router.dart';
 import 'package:qtms/core/design/brand.dart';
+import 'package:qtms/core/design/design_tokens.dart';
 import 'package:qtms/core/messages/error_messages.dart';
 import 'package:qtms/core/startup/app_startup.dart';
 import 'package:qtms/main.dart';
@@ -100,7 +105,66 @@ void main() {
     // ⛔ وبلا نصّ مضاف مع الشعار — القاعدة قائمة كما هي
     //    (`ui-guidelines.md` نمط 8-أ)، والاسم مرسومٌ داخل الشعار نفسه.
     expect(find.text(appDisplayName), findsNothing);
+
+    // ★★ **ولونُ المؤشّر مُصرَّحٌ به** — `AM-018`: ⛔ **ولا افتراضُ الإطار**
+    //    على خلفيةٍ فاتحةٍ دافئة.
+    expect(
+      tester
+          .widget<CircularProgressIndicator>(
+            find.byType(CircularProgressIndicator),
+          )
+          .color,
+      SemanticColors.textSecondary,
+    );
+    // ⛔ **ولا نصَّ تعثُّرٍ قبل انقضاء المهلة.**
+    expect(find.text(splashTimeoutMessage), findsNothing);
   });
+
+  testWidgets(
+    '⛔⛔★★★ AM-018: مهلةُ شاشة البداية تُظهر نصَّ التعثُّر وزرَّ إعادة المحاولة',
+    (WidgetTester tester) async {
+      // ⛔⛔★★★ **وجلسةٌ لا تُحسَم أبداً** — ★ **وهي الحالةُ التي تحرسها
+      //    المهلة بعينِها** (تعذُّرُ قراءة الجلسة): ⟵ **ولو تُركت المزوّداتُ
+      //    على حالها لحسمت الجلسةَ «بلا هوية» فخرج الموجّه إلى شاشة الدخول
+      //    قبل المهلة**، ⛔ **فلا تُقاس المهلة أصلاً.**
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(auth),
+            userCardRepositoryProvider.overrideWithValue(cards),
+            sessionProvider.overrideWith(
+              (Ref ref) => Completer<SessionState>().future.asStream(),
+            ),
+          ],
+          child: const QtmsApp(outcome: StartupReady()),
+        ),
+      );
+      await tester.pump();
+
+      // ★ **قبل المهلة: لا شيء** — ⟵ **فالانتظارُ الطبيعي بلا نصّ.**
+      await tester.pump(splashTimeout - const Duration(seconds: 1));
+      expect(find.text(splashTimeoutMessage), findsNothing);
+
+      // ★★ **وبعدها: نصٌّ وزرّ** — ⛔ **ولا شاشةٌ جامدةٌ بلا مخرج.**
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text(splashTimeoutMessage), findsOneWidget);
+      expect(find.widgetWithText(TextButton, splashRetryLabel), findsOneWidget);
+
+      // ⛔⛔ **ولا يُقال «فشل»** — ★ **المهلةُ تعثُّرٌ لا خطأ.**
+      expect(find.textContaining('فشل'), findsNothing);
+
+      // ★★★ **وإعادةُ المحاولة تُعيد الانتظارَ ولا تُلاحِق** — ⟵ **والشعارُ
+      //    والمؤشّرُ باقيان**، ⛔ **ولا شاشةَ دخولٍ تُفتَح يدوياً.**
+      await tester.tap(find.widgetWithText(TextButton, splashRetryLabel));
+      await tester.pump();
+      expect(find.text(splashTimeoutMessage), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(LoginScreen), findsNothing);
+
+      // ⛔ **ولا مؤقّتٌ معلّقٌ عند نهاية الاختبار.**
+      await tester.pump(splashTimeout);
+    },
+  );
 
   testWidgets('بلا جلسة ⟵ شاشة الدخول', (WidgetTester tester) async {
     await tester.pumpWidget(app(const StartupReady()));

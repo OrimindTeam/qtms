@@ -15,6 +15,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/design/design_tokens.dart';
 import '../../../core/ui/key_value_row.dart';
+import '../../../core/ui/skeleton.dart';
 import '../../../core/ui/status_pill.dart';
 import '../../identity_access/presentation/permission_gate.dart';
 import '../application/inventory_providers.dart';
@@ -48,9 +49,20 @@ class SupplierAccountCard extends ConsumerWidget {
         SupplierAccountQuery(supplierId: supplierId, sourceId: sourceId),
       ),
     );
+    // ★★★ **وحالةُ التحميل هيكلٌ لا فراغ** — `AM-021` ③
+    //    (`design-system.md` §هـ): ⟵ **وكانت البطاقةُ تُخفى حتى تصل بياناتُها
+    //    فتقفز الشاشةُ كلُّها عند وصولها**، ★ **وهو عينُ ما وُجد الهيكلُ ليمنعه.**
+    if (balance.isLoading && !balance.hasValue) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: Spacing.space16),
+        child: SackFinanceCardSkeleton(),
+      );
+    }
     final SupplierBalanceCard? card = balance.value;
     // ⛔★★ **وغيابُها إخفاءٌ لا رسالةُ فشل** — ★ **من لا يملك
     //   `supplierFinanceView` لا يُفترَض به أن يرى شيئاً** (`ADR-0011`).
+    // ⛔⛔★★★ **ولا هيكلَ أبديٌّ هنا** — ★ **الهيكلُ لحالة `isLoading` وحدَها**:
+    //   ⟵ **وتمييزُ «لا صلاحية» عن «لا بيانات» تسريبُ وجودٍ يمنعه `ADR-0011`.**
     if (card == null) return const SizedBox.shrink();
 
     final SupplierSourceTotals totals = card.totals;
@@ -82,28 +94,47 @@ class SupplierAccountCard extends ConsumerWidget {
           if (!totals.isFinal)
             Padding(
               padding: const EdgeInsets.only(top: Spacing.space8),
-              child: StatusPill(
-                label: _pendingLabel(totals),
-                triad: SemanticTriads.warning,
-                icon: Icons.hourglass_bottom_outlined,
-              ),
+              child: SackPendingTotalsPill(totals: totals),
             ),
         ],
       ),
     );
   }
+}
 
-  /// ★ **يقول لماذا الرقم غير نهائي** — ⛔ **لا وسمٌ مبهم**.
-  static String _pendingLabel(SupplierSourceTotals totals) {
-    if (totals.pendingTaxCount > 0 && totals.unfinalRevenueCount > 0) {
-      return 'غير نهائي — ${totals.pendingTaxCount} بضريبةٍ معلّقة '
-          'و${totals.unfinalRevenueCount} بسعرٍ غير نهائي';
-    }
-    if (totals.pendingTaxCount > 0) {
-      return 'غير نهائي — ${totals.pendingTaxCount} جونية بضريبةٍ معلّقة';
-    }
-    return 'غير نهائي — ${totals.unfinalRevenueCount} جونية بسعرٍ غير نهائي';
+/// ★★★ **شارةُ «غير نهائي» — مصدرٌ واحدٌ تقرؤه البطاقتان** (`AM-021` ②).
+///
+/// ⛔⛔★★★ **ولا نسختان في بطاقتين متجاورتين** — `design-system.md` §8
+/// المحظور الحادي عشر: ⟵ **وكان النصُّ دالةً خاصةً داخل [SupplierAccountCard]
+/// وحدَها**، ⛔ **ونسخُه كان يجعل البطاقتين تفترقان عند أول تعديل.**
+///
+/// ★★ **وثلاثيةُ `warning` بأيقونةٍ ونصّ** — ⛔ **ولا لونَ وحده ينقل المعنى**
+/// (§8 المحظور الثاني عشر).
+class SackPendingTotalsPill extends StatelessWidget {
+  /// ينشئ الشارة.
+  const SackPendingTotalsPill({required this.totals, super.key});
+
+  /// الإجماليات — ★ **ولا تُرسَم لـ`totals.isFinal`** (يفحصه المُستدعي).
+  final SupplierSourceTotals totals;
+
+  @override
+  Widget build(BuildContext context) => StatusPill(
+        label: sackPendingTotalsLabel(totals),
+        triad: SemanticTriads.warning,
+        icon: Icons.hourglass_bottom_outlined,
+      );
+}
+
+/// ★ **يقول لماذا الرقم غير نهائي** — ⛔ **لا وسمٌ مبهم**.
+String sackPendingTotalsLabel(SupplierSourceTotals totals) {
+  if (totals.pendingTaxCount > 0 && totals.unfinalRevenueCount > 0) {
+    return 'غير نهائي — ${totals.pendingTaxCount} بضريبةٍ معلّقة '
+        'و${totals.unfinalRevenueCount} بسعرٍ غير نهائي';
   }
+  if (totals.pendingTaxCount > 0) {
+    return 'غير نهائي — ${totals.pendingTaxCount} جونية بضريبةٍ معلّقة';
+  }
+  return 'غير نهائي — ${totals.unfinalRevenueCount} جونية بسعرٍ غير نهائي';
 }
 
 /// ★★ **إجماليات اليوم والمصدر** — `FR-M14-12`.
@@ -119,18 +150,31 @@ class SackDayTotals extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final List<SupplierSackRow> rows = <SupplierSackRow>[
-      for (final SackCard sack in sacks)
-        if (!sack.isCancelled)
-          if (ref.watch(sackFinanceProvider(sack.documentNumber)).value
-              case final SackFinanceCard finance)
-            SupplierSackRow(
-              sackId: sack.documentNumber,
-              sackRevenue: finance.sackRevenue ?? Money.zero,
-              sackTax: finance.sackTax,
-              isRevenueFinal: finance.sackRevenue != null,
-            ),
-    ];
+    final List<SupplierSackRow> rows = <SupplierSackRow>[];
+    // ★★★ **وحالةُ التحميل هيكلٌ لا فراغ** — `AM-021` ③ (`design-system.md`
+    //    §هـ): ⟵ **والمالياتُ تدفّقٌ لكل جونية**، ⛔ **فإخفاءُ البطاقة حتى
+    //    تصل كلُّها كان يُقفِز الشاشة.**
+    bool loading = false;
+    for (final SackCard sack in sacks) {
+      if (sack.isCancelled) continue;
+      final AsyncValue<SackFinanceCard?> finance =
+          ref.watch(sackFinanceProvider(sack.documentNumber));
+      if (finance.isLoading && !finance.hasValue) {
+        loading = true;
+        continue;
+      }
+      if (finance.value case final SackFinanceCard card) {
+        rows.add(
+          SupplierSackRow(
+            sackId: sack.documentNumber,
+            sackRevenue: card.sackRevenue ?? Money.zero,
+            sackTax: card.sackTax,
+            isRevenueFinal: card.sackRevenue != null,
+          ),
+        );
+      }
+    }
+    if (loading) return const SackFinanceCardSkeleton();
     // ⛔★★ **وبلا ماليةٍ مقروءة لا إجمالي** — ★ **من لا يملك `sackFinanceView`
     //   لا يرى المبالغ أصلاً** (`ADR-0011`)، ⟵ **وصفرٌ هنا كان يُقرأ رقماً.**
     if (rows.isEmpty) return const SizedBox.shrink();
@@ -149,6 +193,17 @@ class SackDayTotals extends ConsumerWidget {
           value: '${formatRiyals(totals.totalRevenue)} ريال',
           numeric: true,
         ),
+        // ⛔⛔★★★ **والشارةُ فوق صفّ الضريبة حين يكون بينها معلَّق** —
+        //    `AM-021` ① (`design-system.md` §6-د · حبّة الحالة): ⟵ **«إجمالي
+        //    الضريبة: 0 ريال» فوق جونيةٍ ضريبتُها معلّقة *حكمٌ* لا تقرير**،
+        //    ⛔ **والصفرُ يُقرأ «لا ضريبةَ على اليوم» ومعناه «لم تُدخَل بعد».**
+        //    ★ **و`SupplierAccountCard` في الشاشة نفسِها كانت تُصرِّح وتصمت
+        //    جارتُها** — ⟹ **فالتناقضُ يُقرأ نفياً للتعليق لا سهواً.**
+        if (!totals.isFinal)
+          Padding(
+            padding: const EdgeInsets.only(bottom: Spacing.space8),
+            child: SackPendingTotalsPill(totals: totals),
+          ),
         QtmsKeyValueRow(
           label: 'إجمالي الضريبة',
           value: '${formatRiyals(totals.totalTax)} ريال',
@@ -258,6 +313,67 @@ class SackFinanceTile extends ConsumerWidget {
     );
     return text.toString();
   }
+}
+
+/// ★★★ **هيكلُ لوحة المالية** — `AM-021` ③ (`design-system.md` §هـ).
+///
+/// ⛔⛔★★★ **ويحاكي [SackFinancePanel] شكلاً وارتفاعاً** — §هـ نصّاً:
+/// «⛔ **ولا يُستعار هيكل شكل لشكل آخر**»: ⟵ **سطحُه `surfaceSunken` وحدُّه
+/// وحشوُه ونصفُ قطره من اللوحة نفسِها**، ★ **وسطورُه بعددِ صفوفها الأربعة
+/// زائدَ عنوانها** ⛔ **بلا رقمِ ارتفاعٍ حرٍّ واحد** (§8 المحظور الثاني).
+class SackFinanceCardSkeleton extends StatelessWidget {
+  /// ينشئ الهيكل.
+  const SackFinanceCardSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(Spacing.space16),
+        decoration: BoxDecoration(
+          color: SemanticColors.surfaceSunken,
+          border: Border.all(color: SemanticColors.border),
+          borderRadius: BorderRadius.circular(Radii.card),
+        ),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // ★ سطرُ العنوان — **بعرضٍ نسبي كعناوين اللوحة الحقيقية.**
+            FractionallySizedBox(
+              alignment: AlignmentDirectional.centerStart,
+              widthFactor: 0.55,
+              child: SkeletonBox(height: Sizes.iconMd),
+            ),
+            SizedBox(height: Spacing.space12),
+            _SkeletonValueRow(),
+            _SkeletonValueRow(),
+            _SkeletonValueRow(),
+            _SkeletonValueRow(),
+          ],
+        ),
+      );
+}
+
+/// ★ صفُّ مفتاح-قيمةٍ هيكلي — **مفتاحٌ عند البداية وقيمةٌ عند النهاية.**
+class _SkeletonValueRow extends StatelessWidget {
+  const _SkeletonValueRow();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(vertical: Spacing.space8),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              flex: 3,
+              child: SkeletonBox(height: Sizes.iconSm),
+            ),
+            SizedBox(width: Spacing.space16),
+            Expanded(
+              flex: 2,
+              child: SkeletonBox(height: Sizes.iconSm),
+            ),
+          ],
+        ),
+      );
 }
 
 /// ★ لوحةٌ بسيطة — **بالطبقة الدلالية وحدها** (`design-system.md` §3.3).

@@ -23,6 +23,19 @@
 /// والوقتُ والسببُ**: ⟵ **ولم يسقط عنصرٌ واحدٌ من العقد.**
 /// ═══════════════════════════════════════════════════════════════════════
 ///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ★★★ **و`AM-025` §2 غيّر ثلاثةً أخرى هنا** (2026-09-17) — ⛔ **في هذا
+/// المكوّن وحدَه كذلك** (`audit-log-design.md` §5-ب):
+///
+/// ① ⛔⛔ **سطرُ البريد يُسقَط متى طابق اسمَ الفاعل حرفياً** — ⟵ **حسابٌ لا
+///    اسمَ عرضٍ له منفصلاً عن بريده كان يُنتج السلسلةَ نفسَها مرتين في كلِّ
+///    بطاقة**: ★ **والتمييزُ الذي بُني له السطرُ غائبٌ أصلاً حينئذ.**
+/// ② ★★★ **ومرجعُ الهدف يُقرأ مقروءاً** — ⛔ **لا معرّفاً مركّباً خاماً**:
+///    ★ **والترتيب في [_targetReference]** (§5-ب-1).
+/// ③ ⛔⛔★★★ **والخريطةُ تُفرَد صفّاً لكلِّ مفتاحٍ فرعيّ** — ⛔ **لا
+///    «حقول (N)»**: ★ **راجع [_expandChanges]** (§5-ب-2).
+/// ═══════════════════════════════════════════════════════════════════════
+///
 /// ⚠️⚠️ **وكل ما هنا عرضٌ لا حماية** — ★ **والقراءة محكومةٌ في
 /// `firestore.rules` بـ`auditLogViewCentral || auditLogViewContextual`
 /// والنطاق**، ⛔ **وبوابةُ الأيقونة إخفاءٌ لا منع** (`RISK-02`).
@@ -35,10 +48,12 @@ import 'package:qtms_domain/qtms_domain.dart';
 import '../../../core/design/design_tokens.dart';
 import '../../../core/design/theme_extensions.dart';
 import '../../../core/messages/audit_labels.dart';
+import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/date_labels.dart';
 import '../../../core/ui/entity_tile.dart';
 import '../../../core/ui/status_pill.dart';
+import '../../master_data/application/master_data_providers.dart';
 import '../application/audit_log_providers.dart';
 
 /// ★ أيقونة الإجراء — §5: «**أيقونة الإجراء** · المستخدم · الوقت…».
@@ -234,7 +249,7 @@ class AuditTrailList extends StatelessWidget {
         // ★ **الخطأ يُعرَض ولا يُطوى في «فارغ»** — ⟵ **فيُميِّز المستخدم بين
         //   «لا نشاط» و«ممنوعٌ من الرؤية»** (`FR-M18-12`).
         errorMessage: (Object _) =>
-            'تحقق من صلاحيتك ونطاق مصادرك، ثم أعد المحاولة.',
+            readRejectionMessage,
         builder: (List<AuditLogEntryCard> items) => ListView.separated(
           shrinkWrap: shrinkWrap,
           physics: shrinkWrap ? const ClampingScrollPhysics() : null,
@@ -247,8 +262,13 @@ class AuditTrailList extends StatelessWidget {
       );
 }
 
-/// ★★★ **بطاقة القيد الواحد** — الصيغة الموحّدة حرفياً (§5).
-class AuditEntryCardView extends StatelessWidget {
+/// ★★★ **بطاقة القيد الواحد** — الصيغة الموحّدة حرفياً (§5 · §5-أ · §5-ب).
+///
+/// ⛔⛔★★★ **وصارت [ConsumerWidget] منذ `AM-025` §2** — ★ **لأن سطرَ الهدف
+/// يقرأ مرجعاً مقروءاً من البيانات المرجعية** (§5-ب-1): ⟵ **والمزوّداتُ
+/// تُقرأ بحسب نوع الكيان وحدَه** ⛔ **لا كلُّها في كل بطاقة**، ★ **فقيدُ
+/// مستخدمٍ لا يفتح تدفّقَ المقاوته ولا الأنواع.**
+class AuditEntryCardView extends ConsumerWidget {
   /// ينشئ البطاقة.
   const AuditEntryCardView({required this.entry, super.key});
 
@@ -256,8 +276,12 @@ class AuditEntryCardView extends StatelessWidget {
   final AuditLogEntryCard entry;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final List<AuditFieldChange> changes = describeAuditChanges(entry);
+    final List<_ResolvedChange> rows = _expandChanges(
+      changes,
+      _outerFieldLabel(ref, entry),
+    );
 
     return Container(
       padding: const EdgeInsets.all(Spacing.cardPadding),
@@ -296,33 +320,38 @@ class AuditEntryCardView extends StatelessWidget {
           //    الظاهر ليس فريداً في النظام** (`FR-M1-01` **يفرض التفرّد على
           //    البريد لا على الاسم**) ⟹ ⛔ **فمستخدمان باسم «محمد» يُنتجان
           //    قيدين لا يميّزهما المدقّق**، ★ **والبريدُ هو المميِّز.**
-          //    ⟵ **وسطرٌ ثانٍ بخطٍّ أصغر يُبقي الاسمَ هو المقروءَ أولاً**
-          //    ⛔ **ولا يُزاحمه.**
           //
           // ⛔⛔★★ **وغيابُه يُسقِط السطر بلا أثر** — ★ **ولا يُكتب «لا قيمة»**:
           //    ⟵ **كلُّ قيدٍ كُتب قبل 2026-09-02 يحمل الحقلَ غائباً**،
-          //    ⛔ **و«لا قيمة» في موضع هوية تُقرأ «مستخدمٌ بلا بريد»** —
-          //    ★ **وهو ادّعاءٌ لا يملكه هذا القيد** (بخلاف صفوف «قبل/بعد»
-          //    حيث الغيابُ نفسُه معلومة).
-          if (entry.userEmail case final String email) ...<Widget>[
-            const SizedBox(height: Spacing.space2),
-            Text(
-              email,
-              // ★ **أصغرُ درجةٍ في السلّم** — ⛔ **ولا حجمَ محفور** (`AM-007`).
-              style: TypeScale.caption
-                  .copyWith(color: SemanticColors.textTertiary),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+          //    ⛔ **و«لا قيمة» في موضع هوية تُقرأ «مستخدمٌ بلا بريد»**.
+          //
+          // ⛔⛔★★★ **وتطابقُه مع الاسم يُسقِطه كذلك** — `AM-025` §2 ①:
+          //    ⚠️ **عطلٌ مقيسٌ بلقطتين:** ★ **حسابٌ لا اسمَ عرضٍ له منفصلاً
+          //    عن بريده يُنتج «orimind@qtms.test» مرتين متتاليتين في كلِّ
+          //    بطاقة** — ⟵ **سطرٌ بلا معلومةٍ واحدة يتكرّر في خمسَ عشرةَ
+          //    شاشة**، ⛔ **والتمييزُ الذي بُني له السطرُ غائبٌ أصلاً حين
+          //    تكون السلسلتان واحدة.** ★ **والتشذيبُ قبل المقارنة** ⟵ **فلا
+          //    يُبقيه فراغٌ طرفيٌّ لا يراه أحد.**
+          if (entry.userEmail case final String email)
+            if (email.trim() != entry.userName.trim()) ...<Widget>[
+              const SizedBox(height: Spacing.space2),
+              Text(
+                email,
+                // ★ **أصغرُ درجةٍ في السلّم** — ⛔ **ولا حجمَ محفور** (`AM-007`).
+                style: TypeScale.caption
+                    .copyWith(color: SemanticColors.textTertiary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           const SizedBox(height: Spacing.space4),
           Text(
-            _targetLine(entry),
+            _targetLine(ref, entry),
             style: TypeScale.bodyMd
                 .copyWith(color: SemanticColors.textSecondary),
           ),
           // ④ ★ **الحقل وقبل/بعد** — ⛔ **ولا يُخفى حقلٌ تغيّر فعلاً.**
-          if (changes.isNotEmpty) ...<Widget>[
+          if (rows.isNotEmpty) ...<Widget>[
             const Padding(
               padding: EdgeInsetsDirectional.only(
                 top: Spacing.space12,
@@ -330,8 +359,7 @@ class AuditEntryCardView extends StatelessWidget {
               ),
               child: Divider(height: Sizes.borderWidth),
             ),
-            for (final AuditFieldChange change in changes)
-              _ChangeRow(change: change),
+            for (final _ResolvedChange row in rows) _ChangeRow(change: row),
           ],
           // ⑤ ★★ **السبب** — `FR-M18-07`: **نصّي إلزامي للتعديل والإلغاء
           //    والإتلاف** ⟵ **وغيابُه على فعلٍ يفرضه علامةُ خللٍ يراها
@@ -348,10 +376,10 @@ class AuditEntryCardView extends StatelessWidget {
     );
   }
 
-  /// ★ سطر الهدف — **«اسم النوع: الرقم» وتاريخُ مخزونه إن وُجد**.
+  /// ★ سطر الهدف — **«اسم النوع: المرجع» وتاريخُ مخزونه إن وُجد**.
   ///
   /// ═══════════════════════════════════════════════════════════════════════
-  /// ★★★ **والنوعُ يسبق الرقم منذ `AM-012` §3.3** (2026-09-02) — ⛔ **وكان
+  /// ★★★ **والنوعُ يسبق المرجع منذ `AM-012` §3.3** (2026-09-02) — ⛔ **وكان
   /// رقماً مجرَّداً:**
   ///
   /// ```text
@@ -363,19 +391,24 @@ class AuditEntryCardView extends StatelessWidget {
   /// عشرَ نوعَ كيانٍ مختلطةً في قائمةٍ واحدة** (`FR-M18-09`) ⟵ **ومعرّفاتُها
   /// غيرُ متجانسة أصلاً**: **رقمُ مستندٍ ببادئة** (`RCP-` · `DSC-`) ·
   /// **ومعرّفٌ مركّب** (`{dealerId}_{sourceId}_{stockDate}` للتوزيعة) ·
-  /// **ومعرّفُ حسابٍ خام** للمستخدم — ⛔ **فسطرٌ برقمٍ وحدَه لا يقول
-  /// للمدقّق على أيِّ شيءٍ وقع الفعل.**
+  /// **ومعرّفُ حسابٍ خام** للمستخدم.
   ///
-  /// ⛔ **والرقمُ لا يُمَسّ** — ★ **يُعرَض كما هو حرفياً** (`AM-012` §3.3).
+  /// ★★★ **والمرجعُ صار مقروءاً منذ `AM-025` §2 ②** (2026-09-17) —
+  /// ⚠️ **وعطلٌ مقيسٌ بلقطةٍ فعلية:** ⛔ **«التوزيع: `MQT-0002_SRC-001_20260905`»**
+  /// ⟵ **معرّفٌ تقنيٌّ مركّبٌ في موضعٍ يقرؤه المدقّق**، ★ **بينما شاشةُ التوزيع
+  /// تعرض لنفس السجل «`DST-20260905-0002`»** — ⛔ **وهو «مصطلحٌ تقني في واجهة
+  /// المستخدم» حرفياً** (`ui-guidelines.md` §6). ★ **والترتيبُ في [_targetReference].**
+  ///
+  /// ⛔ **والرقمُ الذي يكتبه القيدُ لا يُمَسّ** — ★ **يُعرَض كما هو حرفياً**
+  /// (`AM-012` §3.3).
   /// ═══════════════════════════════════════════════════════════════════════
   ///
   /// ⚠️ **وتاريخ المخزون يُذكَر متى وُجد** — `FR-M18-08` (`AT-52`): ⟵ **وهو
   /// ما يُميِّز التصريف المتأخر** عن حركةٍ وقعت اليوم.
-  static String _targetLine(AuditLogEntryCard entry) {
-    // ★ **ورقمُ المستند إن وُجد، وإلا فمعرّفُ الكيان** — ⛔ **ولا يُخترَع رقم.**
-    final String reference = entry.documentNumber ?? entry.entityId;
+  static String _targetLine(WidgetRef ref, AuditLogEntryCard entry) {
     final StringBuffer buffer = StringBuffer(
-      '${auditEntityTypeLabel(entry.entityType)}: $reference',
+      '${auditEntityTypeLabel(entry.entityType)}: '
+      '${_targetReference(ref, entry)}',
     );
     if (entry.stockDate case final CalendarDay stockDate) {
       buffer.write(' · مخزون ${dayLabel(stockDate)}');
@@ -384,11 +417,205 @@ class AuditEntryCardView extends StatelessWidget {
   }
 }
 
+/// ★★★ **مرجعُ الهدف مقروءاً** — `audit-log-design.md` §5-ب-1 (`AM-025` §2 ②).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ★★ **والترتيبُ مُلزِمٌ ولا يُعكَس:**
+/// ① **رقمُ المستند إن كتبه القيدُ نفسُه** — ⛔ **ولا يُخترَع رقم.**
+/// ② **وإلا فمرجعٌ مقروءٌ يُبنى من المعرّف ومن البيانات المرجعية المحمَّلة.**
+/// ③ **وإلا فالمعرّفُ نفسُه** — ★ **معرّفٌ صادقٌ خيرٌ من فراغٍ ومن اسمٍ مُلفَّق.**
+///
+/// ⛔⛔★★ **ولا استعلامَ إضافيٌّ لكلِّ بطاقة** — ★ **كلُّ مزوّدٍ هنا يقرأ
+/// قائمةً مرجعيةً محمَّلةً أصلاً في التطبيق**، ⟵ **ويُقرأ بحسب نوع الكيان
+/// وحدَه** ⛔ **فلا تفتح بطاقةُ مستخدمٍ تدفّقَ المقاوته.**
+///
+/// ⚠️⚠️ **ورفضُ القراءة لا يُسقِط شيئاً** — ★ **المزوّداتُ تقع على المعرّف عند
+/// غياب القائمة** (`.value ?? const []`): ⟵ **فمدقّقٌ لا يملك مفتاحَ عرضِ
+/// المقاوته يرى المعرّف** ⛔ **لا شاشةَ خطأ.**
+/// ═══════════════════════════════════════════════════════════════════════
+String _targetReference(WidgetRef ref, AuditLogEntryCard entry) {
+  if (entry.documentNumber case final String number) return number;
+  final String id = entry.entityId;
+  return switch (entry.entityType) {
+    itemEntityType => ref.watch(itemDisplayNameProvider(id)),
+    sourceEntityType => ref.watch(sourceDisplayNameProvider(id)),
+    dealerEntityType => ref.watch(dealerDisplayNameProvider(id)),
+    supplierEntityType => ref.watch(supplierDisplayNameProvider(id)),
+    dailyPriceEntityType => _dailyPriceReference(ref, id),
+    distributionEntityType => _distributionReference(ref, id),
+    _ => id,
+  };
+}
+
+/// ★★ مرجعُ دفعةِ تسعيرِ يوم — **`{sourceId}_{YYYYMMDD}`** (`daily_pricing.dart`).
+///
+/// ⛔ **والتاريخُ يُفكَّك بـ[CalendarDay.tryParseCompact]** — ★ **نظيرُ كاتبه
+/// حرفياً** ⛔ **لا بصيغةٍ ثانية** (`coding-standards.md` §2.2): ⟵ **ومعرّفٌ
+/// لا يوافق الصيغة يقع على نفسه** ⛔ **ولا يُفكَّك تخميناً.**
+String _dailyPriceReference(WidgetRef ref, String entityId) {
+  final int cut = entityId.lastIndexOf('_');
+  if (cut <= 0) return entityId;
+  final CalendarDay? day =
+      CalendarDay.tryParseCompact(entityId.substring(cut + 1));
+  if (day == null) return entityId;
+  final String source =
+      ref.watch(sourceDisplayNameProvider(entityId.substring(0, cut)));
+  return '$source · ${dayLabel(day)}';
+}
+
+/// ★★ مرجعُ توزيعةٍ — **`{dealerId}_{sourceId}_{YYYYMMDD}`** (`distribution.dart`).
+///
+/// ⚠️⚠️ **ولا يصل هذا المسارَ قيدٌ كتبه إصدارٌ يحمل `documentNumber`** —
+/// ★ **`AM-025` §2 ② جعل الكاتبَ يُمرِّره** ⟹ **فالبند ① في [_targetReference]
+/// يلتقطه**: ⟵ **وهذا المسارُ للقيود السابقة وحدَها** (**السجلُّ للإضافة فقط
+/// ولا يُهاجَر** — `schema/audit-log.md`) ⛔ **ولا يُملأ حقلٌ بأثرٍ رجعي.**
+///
+/// ⛔ **والتاريخُ لا يُكرَّر هنا** — ★ **لاحقةُ «· مخزون …» تحمله أصلاً.**
+String _distributionReference(WidgetRef ref, String entityId) {
+  final List<String> parts = entityId.split('_');
+  if (parts.length != 3) return entityId;
+  final String dealer = ref.watch(dealerDisplayNameProvider(parts[0]));
+  final String source = ref.watch(sourceDisplayNameProvider(parts[1]));
+  return '$dealer · $source';
+}
+
+/// ★★★ **اسمُ الحقل الخارجي في صفوف «قبل/بعد»** — `audit-log-design.md` §5-ب-2.
+///
+/// ⛔⛔★★ **وقيودُ التسعير اليومي وحدَها تُفتِّح مفاتيحَها أسماءَ أنواع** —
+/// ★ **`daily_pricing.dart` يكتب `valuesBefore[itemKey]` خريطةَ سعرين**:
+/// ⟵ **فمفتاحُها `ITM-0001` مفتاحُ سجلِ نوعٍ لا اسمُ حقل**، ⛔ **و[auditFieldLabel]
+/// كانت تُرجِعه خاماً** لأنها لا تعرفه — ★ **وهو عينُ ما رصدته المراجعة.**
+String Function(String) _outerFieldLabel(
+  WidgetRef ref,
+  AuditLogEntryCard entry,
+) {
+  if (entry.entityType != dailyPriceEntityType) return auditFieldLabel;
+  return (String field) => ref.watch(itemDisplayNameProvider(field));
+}
+
+/// ★★★ **صفُّ تغيّرٍ مُفكَّك** — `audit-log-design.md` §5-ب-2 (`AM-025` §2 ③).
+///
+/// ⚠️ **وهو غير [AuditFieldChange] عمداً:** ★ **ذاك حقلٌ كما كتبه القيد**،
+/// ⟵ **وهذا صفٌّ كما يُعرَض** — ★ **وقد يكون مفتاحاً فرعياً داخل خريطة.**
+final class _ResolvedChange {
+  const _ResolvedChange({
+    required this.label,
+    required this.before,
+    required this.after,
+  });
+
+  /// الاسمُ المعروض — **مركَّبٌ بـ` · ` عند التفكيك**.
+  final String label;
+
+  /// القيمة قبل.
+  final Object? before;
+
+  /// القيمة بعد.
+  final Object? after;
+}
+
+/// ★★ أقصى عمقِ تفكيكٍ — **ثلاثةُ مستويات** (§5-ب-2).
+///
+/// ⛔⛔ **وحدٌّ لا زينة** — ★ **قيمةُ القيد تصل من القاعدة بلا عقدٍ على عمقها**:
+/// ⟵ **وبنيةٌ مُعشَّشةٌ بلا حدّ تُنتج حلقةً تُثقل البطاقة** ⛔ **في شاشةٍ
+/// تعرض مئةَ قيد.** ★ **وما بعده يقع على «حقول (N)» كما كان.**
+const int _maxChangeDepth = 3;
+
+/// ★★★ **يُفكِّك الخرائط صفّاً لكلِّ مفتاحٍ فرعيّ** — §5-ب-2 (`AM-025` §2 ③).
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **والعطلُ الذي يعالجه مقيسٌ بلقطةٍ فعلية:** ★ **قيدُ تعديل التسعير
+/// اليومي كان يعرض «`ITM-0001`: حقول (2) ← حقول (2)»** — ⟵ **أي «حقلان
+/// تغيّرا إلى حقلين»**: ⛔⛔ **يقول إن شيئاً تغيّر ولا يقول ماذا**، ★ **وهو
+/// يُفرِغ السجلَّ من غرضه الجوهري لهذه الفئة** (`FR-M18-03`: **«بالقيمة قبل
+/// وبعد»**).
+///
+/// ⛔★★ **والمتساوي يُستبعَد بـ[sameAuditValue] نفسِها** — ⛔ **لا بمقارنةٍ
+/// ثانية** (`coding-standards.md` §2.2): ⟵ **فمفتاحٌ يُعَدّ تغييراً هنا
+/// يُعَدّ تغييراً في `describeAuditChanges` حرفياً.**
+///
+/// ★ **والقوائم لا تُفكَّك** — ⛔ **«قائمة (N)» باقيةٌ كما هي:** ⟵ **سطورُ
+/// المستند تُقارَن بترتيبها فلا يقول صفٌّ برقمٍ فيها شيئاً للمدقّق.**
+/// ═══════════════════════════════════════════════════════════════════════
+List<_ResolvedChange> _expandChanges(
+  List<AuditFieldChange> changes,
+  String Function(String field) outerLabel,
+) {
+  final List<_ResolvedChange> rows = <_ResolvedChange>[];
+  for (final AuditFieldChange change in changes) {
+    _flattenChange(
+      label: outerLabel(change.field),
+      before: change.before,
+      after: change.after,
+      into: rows,
+      depth: 0,
+    );
+  }
+  return List<_ResolvedChange>.unmodifiable(rows);
+}
+
+/// ★ يُفكِّك قيمةً واحدة — **ويستدعي نفسَه للمستوى الأعمق**.
+void _flattenChange({
+  required String label,
+  required Object? before,
+  required Object? after,
+  required List<_ResolvedChange> into,
+  required int depth,
+}) {
+  final Map<String, Object?>? beforeMap = _asFieldMap(before);
+  final Map<String, Object?>? afterMap = _asFieldMap(after);
+  // ★★ **والخريطةُ تُفكَّك متى كان الطرفان خريطتين أو خريطةً مقابل غياب** —
+  //    ⛔ **ولا تُفكَّك خريطةٌ صارت نصّاً أو رقماً**: ⟵ **فالتغيير عندها
+  //    تغييرُ نوعٍ لا تغييرُ حقلٍ فرعيّ**، ★ **والصفُّ الواحد أصدقُ.**
+  final bool expandable = (beforeMap != null || afterMap != null) &&
+      (before == null || beforeMap != null) &&
+      (after == null || afterMap != null);
+  if (!expandable || depth >= _maxChangeDepth) {
+    into.add(_ResolvedChange(label: label, before: before, after: after));
+    return;
+  }
+  final List<String> keys = <String>{
+    ...?beforeMap?.keys,
+    ...?afterMap?.keys,
+  }.toList()
+    ..sort();
+  // ⛔ **وخريطةٌ بلا مفاتيح تُعرَض «حقول (0)»** — ★ **ولا تختفي بصمت.**
+  if (keys.isEmpty) {
+    into.add(_ResolvedChange(label: label, before: before, after: after));
+    return;
+  }
+  for (final String key in keys) {
+    final Object? innerBefore = beforeMap?[key];
+    final Object? innerAfter = afterMap?[key];
+    if (sameAuditValue(innerBefore, innerAfter)) continue;
+    _flattenChange(
+      label: '$label · ${auditFieldLabel(key)}',
+      before: innerBefore,
+      after: innerAfter,
+      into: into,
+      depth: depth + 1,
+    );
+  }
+}
+
+/// ★ خريطةُ حقولٍ بمفاتيحَ نصّية — و`null` **لِما ليس خريطة**.
+///
+/// ⚠️ **والمفاتيحُ تُطبَّع نصّاً** — ★ **القاعدة تُرجِع `Map<String, dynamic>`**،
+/// ⟵ **لكن العقدَ المحلي `Map<Object?, Object?>`**: ⛔ **فالفهرسةُ بمفتاحٍ
+/// نصّيٍّ على خريطةٍ غيرِ نصّية المفاتيح كانت تُرجِع `null` بصمت.**
+Map<String, Object?>? _asFieldMap(Object? value) {
+  if (value is! Map<Object?, Object?>) return null;
+  return <String, Object?>{
+    for (final MapEntry<Object?, Object?> entry in value.entries)
+      '${entry.key}': entry.value,
+  };
+}
+
 /// صفّ تغيّرٍ واحد — **الحقل · قبل · بعد**.
 class _ChangeRow extends StatelessWidget {
   const _ChangeRow({required this.change});
 
-  final AuditFieldChange change;
+  final _ResolvedChange change;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -398,7 +625,7 @@ class _ChangeRow extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: <Widget>[
             Text(
-              '${auditFieldLabel(change.field)}:',
+              '${change.label}:',
               style: TypeScale.label
                   .copyWith(color: SemanticColors.textSecondary),
             ),
@@ -443,6 +670,10 @@ class _ChangeRow extends StatelessWidget {
   /// ⚠️⚠️ **ولماذا نصٌّ لا خانة فارغة:** ⟵ **فراغٌ في عمود «قبل» يُقرأ
   /// «لم أستطع القراءة» بينما معناه «لم يكن للحقل قيمة»** — ★ **والفرق
   /// جوهريٌّ في سجلٍّ يُحتَجّ به.**
+  ///
+  /// ⚠️ **و«حقول (N)» لم تعد تصل الخرائطَ التي تُفكَّك** — `AM-025` §2 ③:
+  /// ★ **تبقى للمستوى الذي يتجاوز [_maxChangeDepth]** ⛔ **ولخريطةٍ صار
+  /// طرفُها الآخر نصّاً أو رقماً** (راجع [_flattenChange]).
   static String _valueLabel(Object? value) => switch (value) {
         null => 'لا قيمة',
         true => 'نعم',

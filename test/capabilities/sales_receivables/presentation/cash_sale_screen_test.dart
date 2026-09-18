@@ -584,4 +584,37 @@ void _belowMinimumGuardTests() {
       },
     );
   });
+  // ═══════════ ★★★ AM-022 — زرٌّ ثنائي الحالة ═══════════
+
+  group('★★★ AM-022 — الزرّ أثناء النداء', () {
+    testWidgets(
+      '⛔⛔★★★ «جارٍ الحفظ…» أثناء الإرسال ⛔ لا زرٌّ معطَّلٌ صامت',
+      (WidgetTester tester) async {
+        // ★ **مهلةٌ مُبرمَجة** — ⟵ **فالحالةُ الوسيطة لا تُقاس على ردٍّ فوري.**
+        admin.callDelay = const Duration(milliseconds: 300);
+        sales.emitList(const <CashSaleCard>[]);
+        await pumpCashSale(tester);
+        await openNewForm(tester);
+        await addLine(tester, quantity: '5', price: '700');
+        await tester.tap(find.text('حفظ السند'));
+        await tester.pump();
+
+        // ⛔⛔★★★ **البديلُ المرئيُّ داخل الزرّ** — §6-ي البند ②.
+        expect(find.text('جارٍ الحفظ…'), findsOneWidget);
+        expect(find.text('حفظ السند'), findsNothing);
+        // ★ **والتعطيلُ قائمٌ معه لا بدلاً منه** — البند ①.
+        expect(
+          tester
+              .widget<FilledButton>(
+                find.widgetWithText(FilledButton, 'جارٍ الحفظ…'),
+              )
+              .onPressed,
+          isNull,
+        );
+
+        await tester.pumpAndSettle();
+        expect(admin.createCalls, 1);
+      },
+    );
+  });
 }

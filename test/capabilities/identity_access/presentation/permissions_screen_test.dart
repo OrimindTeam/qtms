@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qtms/capabilities/identity_access/application/admin_providers.dart';
 import 'package:qtms/capabilities/identity_access/application/session_providers.dart';
 import 'package:qtms/capabilities/identity_access/presentation/permissions_screen.dart';
+import 'package:qtms/capabilities/master_data/application/master_data_providers.dart';
 import 'package:qtms/core/messages/error_messages.dart';
 import 'package:qtms/core/messages/permission_labels.dart';
 import 'package:qtms_domain/qtms_domain.dart';
@@ -34,6 +35,9 @@ Future<void> pumpPermissions(
   },
   SourceScope actorScope = const AllSources(),
   String openFor = targetId,
+  /// ★ كتالوجُ المصادر المعروض — ⛔ **وفارغٌ افتراضاً** (`AM-018`):
+  /// ⟵ **فالحالةُ الافتراضية هي «معرّفٌ لا مستندَ له»** ★ **وهي واقعةٌ فعلاً.**
+  List<SourceCard> sources = const <SourceCard>[],
 }) async {
   final FakeAuthRepository auth = FakeAuthRepository();
   final FakeUserCardRepository cards = FakeUserCardRepository();
@@ -53,6 +57,9 @@ Future<void> pumpPermissions(
         userDirectoryProvider.overrideWithValue(directory),
         userAdminProvider.overrideWithValue(admin),
         roleAdminProvider.overrideWithValue(roles ?? (FakeRoleAdmin()..emit(<RoleCard>[]))),
+        sourcesProvider.overrideWith(
+          (Ref ref) => Stream<List<SourceCard>>.value(sources),
+        ),
       ],
       child: MaterialApp(
         locale: const Locale('ar'),
@@ -241,8 +248,46 @@ void main() {
 
       expect(find.text('كل المصادر'), findsNothing);
       // ★ **ومصادرُ نطاقه معروضة** — ⟵ **فالغياب تضييقٌ مقصود لا شللٌ عام.**
-      expect(find.text('SRC-A'), findsOneWidget);
-      expect(find.text('SRC-B'), findsOneWidget);
+      //
+      // ⛔⛔★★★ **وبلا كتالوجٍ تُعرَض بصيغة «غير معروف»** — `AM-018` ·
+      //    `design-system.md` §8 المحظور 13: ⛔ **ولا معرّفٌ عارٍ يُقرأ اسماً**،
+      //    ★ **والمعرّفُ يبقى مذكوراً ليُتتبَّع** ⛔ **ولا يُخفى.**
+      expect(find.text('مصدر غير معروف (SRC-A)'), findsOneWidget);
+      expect(find.text('مصدر غير معروف (SRC-B)'), findsOneWidget);
+      expect(find.text('SRC-A'), findsNothing);
+      directory.dispose();
+    },
+  );
+
+  testWidgets(
+    '⛔⛔★★★ AM-018: المصدرُ باسمه المقروء لا بمعرّفه الخام',
+    (WidgetTester tester) async {
+      final FakeUserDirectory directory = FakeUserDirectory()
+        ..emit(<UserCard>[
+          testCard(userId: actorId),
+          testCard(userId: targetId, name: 'أحمد'),
+        ]);
+
+      await pumpPermissions(
+        tester,
+        directory: directory,
+        admin: FakeUserAdmin(),
+        actorScope: ScopedSources(<String>{'SRC-A', 'SRC-B'}),
+        sources: const <SourceCard>[
+          SourceCard(
+            sourceId: 'SRC-A',
+            name: 'مزرعة الحدا',
+            requiresSupplierOnIntake: false,
+            isActive: true,
+          ),
+        ],
+      );
+
+      // ★ **الموجودُ في الكتالوج باسمه.**
+      expect(find.text('مزرعة الحدا'), findsOneWidget);
+      expect(find.text('SRC-A'), findsNothing);
+      // ⛔ **والغائبُ بصيغة «غير معروف» لا عارياً.**
+      expect(find.text('مصدر غير معروف (SRC-B)'), findsOneWidget);
       directory.dispose();
     },
   );

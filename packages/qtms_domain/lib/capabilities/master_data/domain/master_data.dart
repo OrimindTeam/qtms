@@ -820,31 +820,80 @@ final class ValidatedAppSettings {
       };
 }
 
+/// ★★★ **سببُ رفضِ الإعداد التأسيسي — مُصنَّفٌ بحقلِه** (`AM-018`).
+///
+/// ⛔⛔★★★ **ولماذا مُصنَّفٌ ولا تكفي رسالةٌ عامة:** ★ **شاشةُ الإعداد
+/// التأسيسي لا رجعةَ فيها** (`FR-M21-03`: «**مرة واحدة فقط، والتعديل والحذف
+/// مرفوضان نهائياً**») — ⟵ **ومستخدمٌ رُفض إدخالُه برسالةٍ واحدةٍ أمام خمسةِ
+/// حقولٍ لا يعرف أيَّها يُصحِّح**، ★ **فيعبث بالصحيح ويترك المعيب.**
+///
+/// ★ **وهو نظيرُ `PasswordChangeRejection` حرفياً** — ⛔ **ولا آليةٌ موازية.**
+enum AppSettingsRejection {
+  /// ⛔ اسمُ المحل خارج الحدّين — `FR-M21-01`.
+  businessName,
+
+  /// ⛔ رمزُ العملة فارغٌ أو أطولُ من ثمانية محارف — `FR-M21-02`.
+  currencySymbol,
+
+  /// ⛔ فاصلُ الآلاف بأكثر من محرفٍ واحد — `FR-M21-02`.
+  ///
+  /// ⚠️ **والفراغُ خيارٌ صحيح** («بلا فاصل») — ★ **فالمرفوضُ الطولُ لا الفراغ.**
+  thousandsSeparator,
+
+  /// ⛔ العنوانُ الاختياري خارج حدّه — `FR-M21-01`.
+  address,
+
+  /// ⛔ مسارُ الشعار الاختياري خارج حدّه — `FR-M21-01`.
+  logo,
+}
+
+/// ★ يقرأ سببَ الرفض من رمز القاعدة — و`null` لما ليس من هذه العائلة.
+AppSettingsRejection? appSettingsRejectionOf(String code) => switch (code) {
+      'AppSettingsRejection.businessName' => AppSettingsRejection.businessName,
+      'AppSettingsRejection.currencySymbol' =>
+        AppSettingsRejection.currencySymbol,
+      'AppSettingsRejection.thousandsSeparator' =>
+        AppSettingsRejection.thousandsSeparator,
+      'AppSettingsRejection.address' => AppSettingsRejection.address,
+      'AppSettingsRejection.logo' => AppSettingsRejection.logo,
+      _ => null,
+    };
+
 /// يفحص الإعداد التأسيسي — `FR-M21-01` · `FR-M21-02`.
+///
+/// ★★ **ورمزُ الرفض يُسمّي حقلَه** منذ `AM-018` — راجع [AppSettingsRejection].
 Outcome<ValidatedAppSettings> validateAppSettings(AppSettingsInput input) {
   final String businessName = input.businessName.trim();
   if (businessName.length < sourceNameMinLength ||
       businessName.length > sourceNameMaxLength) {
-    return const Failure<ValidatedAppSettings>(ValidationError('FR-M21-01'));
+    return const Failure<ValidatedAppSettings>(
+      ValidationError('AppSettingsRejection.businessName'),
+    );
   }
 
   final String currency = input.currencySymbol.trim();
   if (currency.isEmpty || currency.length > 8) {
-    return const Failure<ValidatedAppSettings>(ValidationError('FR-M21-02'));
+    return const Failure<ValidatedAppSettings>(
+      ValidationError('AppSettingsRejection.currencySymbol'),
+    );
   }
 
   final String separator = input.thousandsSeparator;
   // ⛔ **فاصلٌ بأكثر من محرف واحد يكسر تنسيق كل مبلغ في النظام** — والفراغ
   //    خيارٌ صحيح («بلا فاصل»)، ★ **فالمرفوض هو الطول لا الفراغ.**
   if (separator.length > 1) {
-    return const Failure<ValidatedAppSettings>(ValidationError('FR-M21-02'));
+    return const Failure<ValidatedAppSettings>(
+      ValidationError('AppSettingsRejection.thousandsSeparator'),
+    );
   }
 
-  final Outcome<String?> address = _optionalText(input.address, 'FR-M21-01');
+  final Outcome<String?> address =
+      _optionalText(input.address, 'AppSettingsRejection.address');
   if (address case Failure<String?>(:final AppError error)) {
     return Failure<ValidatedAppSettings>(error);
   }
-  final Outcome<String?> logo = _optionalText(input.logo, 'FR-M21-01');
+  final Outcome<String?> logo =
+      _optionalText(input.logo, 'AppSettingsRejection.logo');
   if (logo case Failure<String?>(:final AppError error)) {
     return Failure<ValidatedAppSettings>(error);
   }

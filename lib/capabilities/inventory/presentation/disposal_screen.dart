@@ -197,7 +197,13 @@ class _DisposalFormState extends ConsumerState<_DisposalForm> {
   final TextEditingController _reason = TextEditingController();
   bool _saving = false;
   bool _seeded = false;
-  String? _status;
+  /// ★★★ **نتيجةُ النداء الأخيرة — نصٌّ وحُكم** (`AM-021` ④).
+  ///
+  /// ⛔⛔★★★ **ولا `String` وحدَها كما كانت** — `design-system.md` §6-ز:
+  /// ⟵ **فالنجاحُ والفشلُ كانا يُقرآن سواءً**، ★ **والمعنى كلُّه على رمزٍ
+  /// إيموجي واحد** (`✅`/`❌`) ⛔ **يتبع خطَّ الجهاز ولا يُلوَّن ولا يرث
+  /// المقاس** (§8 المحظور 12): ⟹ **والحكمُ اليومَ حقلٌ مستقلٌّ يُترجَم ثلاثيةً.**
+  _DisposalStatus? _status;
 
   @override
   void dispose() {
@@ -235,7 +241,10 @@ class _DisposalFormState extends ConsumerState<_DisposalForm> {
 
     if (lines.isEmpty) {
       setState(
-        () => _status = '❌ أضف نوعاً واحداً على الأقل بكميةٍ أكبر من صفر.',
+        () => _status = const _DisposalStatus(
+          message: 'أضف نوعاً واحداً على الأقل بكميةٍ أكبر من صفر.',
+          succeeded: false,
+        ),
       );
       return;
     }
@@ -258,9 +267,14 @@ class _DisposalFormState extends ConsumerState<_DisposalForm> {
     setState(() {
       _saving = false;
       _status = switch (result) {
-        Success<String>(:final String value) => '✅ سُجِّل الإتلاف $value',
-        Failure<String>(:final AppError error) =>
-          catalogText(appErrorMessage(error)),
+        Success<String>(:final String value) => _DisposalStatus(
+            message: 'سُجِّل الإتلاف $value',
+            succeeded: true,
+          ),
+        Failure<String>(:final AppError error) => _DisposalStatus(
+            message: catalogText(appErrorMessage(error)),
+            succeeded: false,
+          ),
       };
       if (result is Success<String>) {
         for (final _LineDraft draft in _lines) {
@@ -396,9 +410,16 @@ class _DisposalFormState extends ConsumerState<_DisposalForm> {
               'بلا قيمة مالية ولا استحقاق للرعوي',
             ],
           ),
-          status: _status == null
-              ? null
-              : Text(_status!, style: TypeScale.bodyMd),
+          // ★★★ **لافتةُ الحالة بثلاثيةٍ كاملة** — `AM-021` ④
+          //    (`design-system.md` §6-ز): ★ **تعبئةٌ وحدٌّ ولونُ مقدّمةٍ
+          //    وأيقونةٌ متجهية** ⛔ **لا نصٌّ عارٍ برمزٍ إيموجي.**
+          status: switch (_status) {
+            null => null,
+            _DisposalStatus(succeeded: true, :final String message) =>
+              QtmsActionStatus.success(message),
+            _DisposalStatus(:final String message) =>
+              QtmsActionStatus.rejection(message),
+          },
           primary: FilledButton(
             key: const Key('disposal-save'),
             onPressed: _saving ? null : () => _save(day),
@@ -508,4 +529,20 @@ class _LineDraft {
       //   ⛔ **ولا حقلَ له في هذه الشاشة.**
     );
   }
+}
+
+/// ★★★ **نتيجةُ نداءِ الإتلاف — نصُّها وحُكمُها** (`AM-021` ④).
+///
+/// ⛔⛔★★★ **والحكمُ حقلٌ لا رمزٌ في النصّ** — `design-system.md` §6-ز:
+/// ⟵ **فالشاشةُ تترجمه ثلاثيةً لونيةً كاملة** (`QtmsActionStatus`)،
+/// ⛔ **ولا تُفتّش عن `✅` في أول النصّ لتعرف أنجح الفعلُ أم فشل.**
+@immutable
+class _DisposalStatus {
+  const _DisposalStatus({required this.message, required this.succeeded});
+
+  /// النصّ — ★ **من الكتالوج عند الفشل** ⛔ **ولا صياغةَ خطأٍ هنا.**
+  final String message;
+
+  /// ★ هل نجح النداء؟ — ⛔ **ولا حالةَ ثالثة: الغيابُ `null` في الحقل نفسِه.**
+  final bool succeeded;
 }

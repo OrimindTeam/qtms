@@ -30,6 +30,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 import '../../../app/router.dart';
 import '../../../app/top_bar.dart';
 import '../../../core/design/design_tokens.dart';
+import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/date_labels.dart';
 import '../../../core/ui/filter_bar.dart';
@@ -182,7 +183,7 @@ class _AgedRemainderScreenState extends ConsumerState<AgedRemainderScreen> {
                 triad: SemanticTriads.success,
               ),
               errorMessage: (Object _) =>
-                  'تحقق من صلاحيتك ونطاق مصادرك، ثم أعد المحاولة.',
+                  readRejectionMessage,
               builder: (List<AgedRemainderDay> list) {
                 final List<AgedRemainderDay> visible = _filtered(list);
                 if (visible.isEmpty) {

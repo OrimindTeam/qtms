@@ -315,6 +315,10 @@ final class FakeDailyPricingRepository implements DailyPricingRepository {
   /// النتيجة المُعادة — ★ **يُضبَط لاختبار عرض الرفض**.
   AppError? failure;
 
+  /// ★★ **نتيجةٌ مؤجَّلة** — `AM-021` ②: ⟵ **فتُقاس حالةُ «جارٍ الحفظ…»
+  /// والزرُّ معطَّلٌ فعلاً أثناء النداء** ⛔ **لا بعد انتهائه.**
+  Future<Outcome<void>>? nextResult;
+
   @override
   Future<Outcome<void>> writeDailyPrices({
     required ValidatedDailyPriceBatch batch,
@@ -323,6 +327,7 @@ final class FakeDailyPricingRepository implements DailyPricingRepository {
     calls++;
     lastBatch = batch;
     lastReason = amendReason;
+    if (nextResult case final Future<Outcome<void>> pending) return pending;
     return failure == null
         ? const Success<void>(null)
         : Failure<void>(failure!);

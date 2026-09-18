@@ -382,6 +382,43 @@ void main() {
       );
     });
 
+    /// ★ يقرأ سببَ الرفض من نتيجةٍ فاشلة — ⛔ **ولا يفترضه.**
+    AppSettingsRejection? reasonOf(Outcome<ValidatedAppSettings> outcome) {
+      final AppError error = (outcome as Failure<ValidatedAppSettings>).error;
+      return error is ValidationError
+          ? appSettingsRejectionOf(error.ruleCode)
+          : null;
+    }
+
+    test('⛔⛔★★★ AM-018: ورمزُ الرفض يُسمّي حقلَه ⛔ لا رمزاً واحداً للجميع',
+        () {
+      // ⛔⛔★★★ **والشاشةُ لا رجعةَ فيها** (`FR-M21-03`) — ⟵ **فمن رُفض
+      //    إدخالُه برسالةٍ واحدةٍ أمام خمسةِ حقولٍ لا يعرف أيَّها يُصحِّح.**
+      expect(
+        reasonOf(validateAppSettings(input(businessName: ' '))),
+        AppSettingsRejection.businessName,
+      );
+      expect(
+        reasonOf(validateAppSettings(input(currencySymbol: ' '))),
+        AppSettingsRejection.currencySymbol,
+      );
+      expect(
+        reasonOf(validateAppSettings(input(thousandsSeparator: '__'))),
+        AppSettingsRejection.thousandsSeparator,
+      );
+      // ★★ **والرمزان متمايزان فعلاً** — ⛔ **ولا يتساويان.**
+      expect(
+        reasonOf(validateAppSettings(input(businessName: ' '))),
+        isNot(reasonOf(validateAppSettings(input(currencySymbol: ' ')))),
+      );
+    });
+
+    test('★ ورمزٌ من خارج العائلة يعود `null` ⛔ ولا يُطابَق بالخطأ', () {
+      expect(appSettingsRejectionOf('FR-M21-01'), isNull);
+      expect(appSettingsRejectionOf('ERR_SETUP_010'), isNull);
+      expect(appSettingsRejectionOf(''), isNull);
+    });
+
     test('★ الفاصل الفارغ خيارٌ صحيح لا خطأ', () {
       expect(
         validateAppSettings(input(thousandsSeparator: '')),

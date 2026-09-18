@@ -6,6 +6,8 @@
 /// منسوخ في كل شاشة** يفترق عند أول تعديل.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -280,6 +282,18 @@ String reportRoute(ReportId report) => '$reportsRoute/${report.code}';
 /// ⛔ **ولا يُدرَج تحت `/home`:** الشاشة **إلزامية لا تُتخطّى**، ⟵ **ووضعُها
 /// تحت الصدَفة كان سيُتيح الرجوع إليها منها** فتُصبح خياراً لا بوابة.
 const String setupRoute = '/setup';
+
+/// ★★★ **مهلةُ شاشة البداية** — `AM-018` · `ui-guidelines.md` نمط 8-أ.
+///
+/// ⛔ **ولا انتظارَ بلا سقف:** ★ **ثمانِ ثوانٍ مقدارٌ معتمدٌ في المستند**
+/// ⛔ **لا رقمٌ حرٌّ في الشاشة.**
+const Duration splashTimeout = Duration(seconds: 8);
+
+/// ★ نصُّ تعثُّر شاشة البداية — ⛔ **ولا «حدث خطأ» عارية.**
+const String splashTimeoutMessage = 'الاتصال يستغرق وقتاً أطول من المعتاد';
+
+/// ★ زرُّ إعادة المحاولة في شاشة البداية.
+const String splashRetryLabel = 'إعادة المحاولة';
 
 /// موجّه التطبيق.
 final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
@@ -586,19 +600,91 @@ class _SessionRefreshNotifier extends ChangeNotifier {
 /// ★ **فقاعدة «بلا نصّ» قائمة كما هي.**
 /// ⛔ **ولا بصمة لجهة التطوير هنا إطلاقاً** — شاشة البداية مساحة هوية المنتج
 /// حصراً (`developer-identity.md` §1 · §5 البند 3).
-class _SplashScreen extends StatelessWidget {
+class _SplashScreen extends ConsumerStatefulWidget {
   const _SplashScreen();
 
   @override
-  Widget build(BuildContext context) => const Scaffold(
+  ConsumerState<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends ConsumerState<_SplashScreen> {
+  /// ★ المؤقّت — ⛔ **ويُلغى في [dispose] حتماً** ⟵ **فلا `setState` بعد
+  ///   خروج الشاشة** (والموجّه يُخرجها من تلقائه فور حسم الجلسة).
+  Timer? _timer;
+
+  /// ★ هل انقضت المهلة بلا حسم؟
+  bool _timedOut = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer(splashTimeout, () {
+      if (!mounted) return;
+      setState(() => _timedOut = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  /// ⛔⛔★★★ **وإعادةُ المحاولة تُبطِل المزوّد وحدَه** — ⛔ **ولا ملاحةَ من
+  /// هنا:** ★ **الموجّه وحدَه يُخرِج هذه الشاشة** (`redirect`)، ⟵ **وملاحةٌ
+  /// يدويةٌ هنا تتسابق معه.**
+  void _retry() {
+    setState(() => _timedOut = false);
+    _startTimer();
+    ref.invalidate(sessionProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
         body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              BrandLogo(),
-              SizedBox(height: Spacing.space24),
-              CircularProgressIndicator(),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(Spacing.space24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const BrandLogo(),
+                const SizedBox(height: Spacing.space24),
+                // ★★ **ولونُ المؤشّر مُصرَّحٌ به** — `AM-018`:
+                //    ⟵ **الخلفيةُ `neutral50` فاتحةٌ دافئة**، ★ **ومؤشّرٌ
+                //    فاتحٌ عليها يُقرأ غائباً** ⛔ **فتُقرأ الشاشةُ جامدةً
+                //    وهي تعمل.**
+                const CircularProgressIndicator(
+                  color: SemanticColors.textSecondary,
+                ),
+                // ⛔⛔★★★ **ولا انتظارَ بلا سقف** — `AM-018` ·
+                //    `ui-guidelines.md` نمط 8-أ: ⟵ **هذه نقطةُ الدخول
+                //    الوحيدة للتطبيق**، ★ **فتعثُّرُ القراءة هنا يُقفل
+                //    النظامَ كلَّه بلا مخرجٍ ظاهر** ⛔ **ومستخدمٌ ميدانيٌّ
+                //    لا يعرف أن عليه إغلاقَ التطبيق وإعادةَ فتحه.**
+                //
+                // ⛔⛔ **ولا يُقال «فشل»** — ★ **المهلةُ تعثُّرٌ لا خطأ**:
+                //    ⟵ **والجلسةُ قد تصل بعدها بثانيةٍ فيخرج الموجّه.**
+                if (_timedOut) ...<Widget>[
+                  const SizedBox(height: Spacing.space24),
+                  Text(
+                    splashTimeoutMessage,
+                    textAlign: TextAlign.center,
+                    style: TypeScale.bodyMd
+                        .copyWith(color: SemanticColors.textSecondary),
+                  ),
+                  const SizedBox(height: Spacing.space8),
+                  TextButton(
+                    onPressed: _retry,
+                    child: const Text(splashRetryLabel),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       );

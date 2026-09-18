@@ -21,6 +21,7 @@ import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../app/top_bar.dart';
 import '../../../core/design/design_tokens.dart';
+import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/date_labels.dart';
 import '../../../core/ui/filter_bar.dart';
@@ -34,17 +35,17 @@ const String ownerLedgerHistoryScreenTitle = 'سجل الأيام السابقة
 /// مدى السجل المعروض — `FR-M15-14` (**الكل / من–إلى**).
 enum OwnerLedgerHistorySpan {
   /// آخر سبعة أيام.
-  week(7, 'آخر ٧ أيام'),
+  week(7, 'آخر 7 أيام'),
 
   /// آخر ثلاثين يوماً.
-  month(30, 'آخر ٣٠ يوماً'),
+  month(30, 'آخر 30 يوماً'),
 
   /// آخر تسعين يوماً — ★ **وهو «الكل» العملي**.
   ///
   /// ⛔⛔ **ولا «كل الأيام» بلا حدّ** — ★ **فالسردُ غيرُ المحدود يُنتج قراءةً
   /// تنمو بلا سقف** (`NFR-PERF-04`)، ⟵ **والحدُّ معلَنٌ في الواجهة**
   /// ⛔ **لا مخفيٌّ يُوهم بأن ما ظهر هو الكل.**
-  quarter(90, 'آخر ٩٠ يوماً');
+  quarter(90, 'آخر 90 يوماً');
 
   const OwnerLedgerHistorySpan(this.days, this.label);
 
@@ -52,6 +53,11 @@ enum OwnerLedgerHistorySpan {
   final int days;
 
   /// التسمية المعروضة.
+  ///
+  /// ⛔⛔★★★ **بأرقامٍ لاتينية (0-9) لا عربيةٍ-هندية** — `AM-003` ·
+  /// `ui-guidelines.md` §6 (`AM-023`): ⟵ **والتاريخُ في الشريط العلوي فوق
+  /// هذه الشرائح مباشرةً لاتينيٌّ**، ⛔ **فالتناقضُ يقع في الشاشة الواحدة.**
+  /// ★ **وتحرسه بوابةُ اللغة الواحدة آلياً** (`design_gates_test.dart`).
   final String label;
 }
 
@@ -148,7 +154,7 @@ class _HistoryList extends ConsumerWidget {
       // ★ **الخطأ يُعرَض ولا يُطوى في «فارغ»** — ⟵ **فيُميِّز المستخدم بين
       //   «لا أيام» و«ممنوعٌ من الرؤية»** (نفسُ صياغة بقية الشاشات).
       errorMessage: (Object _) =>
-          'تحقق من صلاحيتك ونطاق مصادرك، ثم أعد المحاولة.',
+          readRejectionMessage,
       builder: (List<OwnerLedgerSummary> items) => ListView.builder(
         padding: const EdgeInsets.all(Spacing.cardPadding),
         itemCount: items.length,
@@ -230,10 +236,14 @@ class _DayTile extends StatelessWidget {
               value: formatRiyals(amount),
               numeric: true,
             ),
+          // ★★ **والحصيلةُ تُقرأ حصيلةً** — `AM-023` (`design-system.md` §6-د):
+          //    ⟵ **بأسلوب `isTotal` نفسِه في البطاقة الأمّ**، ⛔ **لا صفّاً
+          //    كبقية الصفوف رغم كونه النتيجةَ النهائية.**
           QtmsKeyValueRow(
             label: 'الصافي النهائي',
             value: '${formatRiyals(projection.netFinal)} $riyalLabel',
             numeric: true,
+            emphasis: true,
           ),
         ],
       ),

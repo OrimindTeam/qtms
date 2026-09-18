@@ -539,6 +539,9 @@ Future<ReportTable?> _buildTable(Ref ref) async {
       return buildItemMovementsReport(
         period: request.period,
         itemName: _itemName(ref, itemKey),
+        // ★★★ **والمفتاحُ يُمرَّر مع الاسم** — `AM-025` ③: ⟵ **فالترويسةُ
+        //    تبني الاسمَ المركّب بـ`ledgerItemDisplayName`** ⛔ **لا المجرَّد.**
+        itemKey: itemKey,
         movements: movements,
       );
 

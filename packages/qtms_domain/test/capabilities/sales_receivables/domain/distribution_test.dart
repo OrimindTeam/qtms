@@ -340,11 +340,19 @@ void main() {
       expect(outcome, isA<Failure<ValidatedDistribution>>());
     });
 
-    test('⛔ مستندٌ بلا سطور يُرفض', () {
+    test('⛔⛔★★★ IQ-043 — مستندٌ بلا سطور يُرفض بـERR_DIST_010 — ⛔ لا بالجامع', () {
       final Outcome<ValidatedDistribution> outcome = validateDistribution(
         _distribution(lines: <DistributionLineInput>[]),
       );
       expect(outcome, isA<Failure<ValidatedDistribution>>());
+      // ★★ **والرمزُ مقيسٌ لا مفترَض** — ⟵ **فالشاشةُ تُطابقُه نصّاً**
+      //   (`_messageOf`)، ⛔ **وتغييرُه هنا يُسقِط الرسالة بصمت.**
+      expect(
+        ((outcome as Failure<ValidatedDistribution>).error as ValidationError)
+            .ruleCode,
+        distributionNeedsLineCode,
+      );
+      expect(distributionNeedsLineCode, 'ERR_DIST_010');
     });
 
     test('⛔ المقوت أو المصدر الفارغ يُرفض', () {

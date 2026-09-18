@@ -719,7 +719,14 @@ class _CashSaleFormSheetState extends ConsumerState<CashSaleFormSheet> {
                             ? null
                             : () => _submit(existing, itemsById),
                         icon: const Icon(Icons.save_outlined),
-                        label: Text(isAmend ? 'حفظ التعديل' : 'حفظ السند'),
+                        // ⛔⛔★★★ **وبديلٌ مرئيٌّ داخل الزرّ أثناء النداء** —
+                        //    `design-system.md` §6-ي البند ② (`AM-022`):
+                        //    ⟵ **والتعطيلُ وحدَه يُقرأ ممنوعاً لا مشغولاً.**
+                        label: Text(
+                          _submitting
+                              ? 'جارٍ الحفظ…'
+                              : (isAmend ? 'حفظ التعديل' : 'حفظ السند'),
+                        ),
                       ),
                     ),
                   );

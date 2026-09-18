@@ -18,6 +18,7 @@ import '../../../core/design/theme_extensions.dart';
 import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/entity_tile.dart';
+import '../../../core/ui/inline_banner.dart';
 import '../../../core/ui/status_pill.dart';
 
 /// ★ عارض تدفّق شاشات البيانات المرجعية — ★ **يفوّض للمبدّل المشترك.**
@@ -302,4 +303,97 @@ class SourcesSelector extends StatelessWidget {
       ],
     );
   }
+}
+
+/// ⛔⛔★★★ **شرطُ اكتمالِ نموذجِ البيانات المرجعية — حقلٌ شرطيٌّ إلزاميٌّ
+/// يَحكم الزرَّ** (`AM-020` · `design-system.md` §6-ط البند ④ منقولاً من
+/// الحدّ الرقمي إلى الحقل الشرطي، و§6-ي: «**وشرطُ التفعيل يسبق كلَّ هذا
+/// حيث كان للنموذج شرطُ اكتمال**»).
+///
+/// ★★ **والقاعدةُ المقيسة هي قاعدةُ النطاق نفسُها** — `_disableReason` في
+/// [`master_data.dart`](../../../../packages/qtms_domain/lib/capabilities/master_data/domain/master_data.dart):
+/// **سببُ التعطيل إلزاميٌّ عند التعطيل وحده** (`FR-M2-07` · `FR-M4-09`).
+///
+/// ⛔⛔ **ولا نسخةَ خامسةً منها في كل ورقة** — ★ **دالةٌ واحدة تقرؤها
+/// النماذجُ الأربعة** (`coding-standards.md` §2.2: **لا تكرار لقاعدة**).
+///
+/// ⚠️⚠️ **وهذا عرضٌ لا حماية** (`RISK-02`) — ★ **والرفضُ الحقيقيُّ في النطاق
+/// وفي الدالة السحابية كما هو**، ⛔ **ولا يُسقِط هذا الشرطُ واحداً منهما.**
+bool masterDataFormBlocked({
+  required bool requiresDisableReason,
+  required String disableReason,
+}) =>
+    requiresDisableReason && disableReason.trim().isEmpty;
+
+/// ★★★ زرُّ حفظِ نموذجِ البيانات المرجعية — **واحدٌ للنماذج الأربعة**.
+///
+/// ★ **ولماذا مكوّنٌ لا سطرٌ مكرَّر:** ⟵ **الزرُّ يجب أن يُعيد البناءَ مع كلِّ
+/// محرفٍ يُكتَب في حقل السبب**، ⛔ **و`setState` على كلِّ ضغطةِ مفتاحٍ تُعيد
+/// بناءَ الورقة كلَّها**: ★ **فالاستماعُ محصورٌ هنا** ([ValueListenableBuilder])
+/// ⟵ **ولا يتجاوز أثرُه الزرَّ نفسَه.**
+class MasterDataSubmitButton extends StatelessWidget {
+  /// ينشئ الزر.
+  const MasterDataSubmitButton({
+    required this.label,
+    required this.submitting,
+    required this.requiresDisableReason,
+    required this.disableReason,
+    required this.onSubmit,
+    super.key,
+  });
+
+  /// نصّ الزر — «إنشاء» أو «حفظ التعديل».
+  final String label;
+
+  /// ★ **تعطيلٌ أثناء الإرسال** — ⛔ **وهو شرطٌ مستقلٌّ عن شرط الاكتمال**
+  /// (`ui-guidelines.md` نمط 4 · `AM-015` ⑥: **لا يُغني أحدُهما عن الآخر**).
+  final bool submitting;
+
+  /// ★ **هل السببُ مطلوبٌ الآن؟** — **تعديلٌ + مفتاحُ النشاط مطفأ**.
+  final bool requiresDisableReason;
+
+  /// متحكّمُ حقل سبب التعطيل — ★ **يُقرأ لحظياً**.
+  final TextEditingController disableReason;
+
+  /// فعلُ الحفظ.
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<TextEditingValue>(
+        valueListenable: disableReason,
+        builder: (BuildContext context, TextEditingValue value, Widget? _) {
+          final bool blocked = masterDataFormBlocked(
+            requiresDisableReason: requiresDisableReason,
+            disableReason: value.text,
+          );
+          return FilledButton(
+            onPressed: submitting || blocked ? null : onSubmit,
+            child: Text(label),
+          );
+        },
+      );
+}
+
+/// ⛔⛔★★★ شريطُ تعذّرِ مُنتقي جهات الاتصال — **الرعيةُ والمقاوته معاً**
+/// (`AM-020` · `FR-M3-03` · `FR-M4-03`).
+///
+/// ★ **ولماذا `warning` لا `danger`:** ⟵ **لا عمليةَ فشلت ولا بيانَ ضاع** —
+/// ★ **مسارُ إثراءٍ تعذّر والإدخالُ اليدويُّ قائمٌ كما هو** (§3.4: **`danger`
+/// لِما يمنع المتابعة**).
+///
+/// ⛔ **ونصُّه واحدٌ يُكتَب مرةً** — ★ **ونسختان منه تفترقان عند أول تعديل.**
+class ContactPickerFailureBanner extends StatelessWidget {
+  /// ينشئ الشريط.
+  const ContactPickerFailureBanner({super.key});
+
+  /// نصُّ التعذّر — ★ **بشريٌّ يقول ما يُفعَل** ⛔ **لا رمزٌ تقني**
+  /// (`ui-guidelines.md` §6).
+  static const String message =
+      'تعذّر فتح جهات الاتصال — تأكد من منح التطبيق إذن الوصول إليها';
+
+  @override
+  Widget build(BuildContext context) => const QtmsInlineBanner(
+        text: message,
+        triad: SemanticTriads.warning,
+      );
 }

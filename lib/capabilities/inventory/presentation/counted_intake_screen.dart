@@ -35,7 +35,9 @@ import '../../../core/ui/destructive_sheet.dart';
 import '../../../core/ui/inline_banner.dart';
 import '../../../core/ui/item_line_editor.dart';
 import '../../identity_access/presentation/permission_gate.dart';
+import '../../identity_access/application/session_providers.dart';
 import '../../master_data/application/master_data_providers.dart';
+import '../../master_data/presentation/items_screen.dart';
 import '../../oversight/presentation/audit_trail_view.dart';
 import '../application/inventory_providers.dart';
 import 'inventory_widgets.dart';
@@ -175,7 +177,18 @@ class _IntakeTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => InventoryTile(
-        title: intake.documentNumber,
+        // ⛔⛔★★★ **والعنوان هو الملخّصُ التشغيلي لا رقمُ المستند** — `AM-021` ②
+        //    (`design-system.md` §6-د: **هرمُ بطاقة الكيان**): ⟵ **`ui-guidelines.md`
+        //    §1 «ضع الجواب في الأعلى»** — ★ **والسؤالُ في قائمة واردِ اليوم
+        //    «كم دخل ومن أين»** ⛔ **لا «ما رقمُ المستند»**: ⟵ **فالرقمُ يُعرَف
+        //    بعد إيجاد الصفّ لا قبله.** ⚠️★★ **وشرطُ `AM-009` ③ قائمٌ بحرفه**
+        //    — ★ **اسمُ المصدر ظاهرٌ في وضع «الكل»** (`A-01`)، ★ **وقد ارتفع
+        //    رتبةً بدل أن ينزل.**
+        title: <String>[
+          if (showSource) ref.watch(sourceDisplayNameProvider(intake.sourceId)),
+          '${intake.lines.length} نوع',
+          quantityLabel(PieceQuantity(intake.totalQuantity)),
+        ].join(' · '),
         // ★★ **أيقونة 🕘 في أول الصفّ** — `FR-M18-10` · `FR-M18-11`
         //   («**الوارد عدداً**» ضمن الشاشات المشمولة).
         leading: auditTrailLeading(
@@ -185,15 +198,10 @@ class _IntakeTile extends ConsumerWidget {
           title: intake.documentNumber,
           sourceId: intake.sourceId,
         ),
-        // ★★ **واسمُ المصدر في السطر الثاني في وضع «الكل»** — `AM-009` ③:
-        //    ⛔⛔ **وصفٌّ بلا مصدرٍ في قائمةٍ تجمع مصادرَ لا يُقرأ** (`A-01`).
-        //    ★ **وموضعُه السطرُ الثاني لا العنوان** — ⟵ **فالعنوانُ رقمُ
-        //    المستند وهو ما يبحث عنه المستخدم.**
-        subtitle: <String>[
-          if (showSource) ref.watch(sourceDisplayNameProvider(intake.sourceId)),
-          '${intake.lines.length} نوع',
-          quantityLabel(PieceQuantity(intake.totalQuantity)),
-        ].join(' · '),
+        // ★★ **ورقمُ المستند سطراً ثانياً** — `AM-021` ②: ⛔⛔ **ولم يسقط**
+        //    ★ **بل أُزيح رتبةً واحدة**: ⟵ **فهو مفتاحُ السجل السياقي
+        //    والمراسلة** — ★ **وما يبحث عنه المستخدم *بعد* أن يجد صفَّه.**
+        subtitle: intake.documentNumber,
         badges: <Widget>[
           if (_isCancelled) const CancelledBadge(),
           if (intake.amendCount > 0) const AmendedBadge(),
@@ -296,6 +304,10 @@ class _CountedIntakeFormSheetState
   CatalogMessage? _rejection;
   bool _submitting = false;
 
+  /// ★★★ **نوعٌ أُنشئ للتوّ وينتظر وصولَه في البثّ** — `AM-027` ②:
+  /// ⛔ **ولا يُسنَد قبل أن تصل بطاقتُه فعلاً.**
+  String? _pendingItemId;
+
   bool get _isEdit => widget.existing != null;
 
   @override
@@ -313,6 +325,12 @@ class _CountedIntakeFormSheetState
     final CalendarDay today = ref.watch(todayProvider);
     final List<SourceCard> sources = ref.watch(activeSourcesProvider);
     final List<ItemCard> items = ref.watch(intakeItemsProvider(_sourceId));
+    // ★★★ **ووصولُ النوع المُنشأ يُسنِده إلى صفِّه** — `AM-027` ②:
+    //    ⟵ **إصغاءٌ للبثّ** ⛔ **لا انتظارٌ بمهلةٍ مكتوبة.**
+    ref.listen<List<ItemCard>>(
+      intakeItemsProvider(_sourceId),
+      (List<ItemCard>? _, List<ItemCard> next) => _adoptPendingItem(next),
+    );
     final List<SupplierCard> suppliers =
         ref.watch(intakeSuppliersProvider(_sourceId));
     final bool requiresSupplier = _requiresSupplier(ref, _sourceId);
@@ -416,6 +434,7 @@ class _CountedIntakeFormSheetState
                   ownId: line.itemId,
                 ),
                 selectedId: line.itemId,
+                onSearchChanged: (String text) => line.typedName = text,
                 onSelected: (String id) => setState(() => line.itemId = id),
                 onRemove: () => setState(() {
                   _lines.removeAt(index).dispose();
@@ -437,12 +456,24 @@ class _CountedIntakeFormSheetState
                 style: TypeScale.bodyMd
                     .copyWith(color: SemanticColors.textSecondary),
               ),
-            if (items.isNotEmpty)
-              QtmsAddLineButton(
-                onPressed: _lines.length >= items.length
-                    ? null
-                    : () => setState(() => _lines.add(_IntakeLine())),
-              ),
+            // ★★★ **زرّان لا واحد** — `AM-027` ②: ★ **«إضافة نوع» يُنشئ صفّاً
+            //    لنوعٍ قائم**، ★ **و«إضافة نوع جديد» يُنشئ سجلَّ النوع نفسَه**
+            //    — ⛔⛔ **والثاني يظهر ولو كانت القائمةُ فارغة**: ⟵ **وإلا كان
+            //    الفراغُ طريقاً مسدوداً يُخرِج المستخدمَ من النموذج.**
+            Wrap(
+              spacing: Spacing.space8,
+              runSpacing: Spacing.space8,
+              children: <Widget>[
+                if (items.isNotEmpty)
+                  QtmsAddLineButton(
+                    onPressed: _lines.length >= items.length
+                        ? null
+                        : () => setState(() => _lines.add(_IntakeLine())),
+                  ),
+                if (ref.watch(hasPermissionProvider(Permission.itemWrite)))
+                  QtmsCreateItemButton(onPressed: _createItemType),
+              ],
+            ),
             const SizedBox(height: Spacing.space16),
             TextField(
               controller: _notes,
@@ -485,6 +516,49 @@ class _CountedIntakeFormSheetState
       }
       _lines.clear();
       _rejection = null;
+    });
+  }
+
+  /// ★★★ **يفتح نموذجَ النوع مُهيَّأً ثم يُسنِد المُنشأ إلى صفِّه** — `AM-027` ②.
+  ///
+  /// ★ **الاسمُ من نصِّ منسدل الصفِّ الفارغ الأخير** — ⟵ **فما كُتب لا يُكتَب
+  /// مرتين**، ★ **والمصدرُ مصدرُ المستند** ⛔ **فلا يُولَد النوعُ خارج قائمته**
+  /// (`FR-M6-05`).
+  Future<void> _createItemType() async {
+    final String? created = await showItemForm(
+      context,
+      initialName: _typedName(),
+      initialSourceIds: <String>{_sourceId},
+    );
+    if (created == null || !mounted) return;
+    setState(() => _pendingItemId = created);
+    // ★ **وقد يكون البثُّ سبق إغلاقَ النموذج** — ⟵ **فتُجرَّب الإسنادُ فوراً.**
+    _adoptPendingItem(ref.read(intakeItemsProvider(_sourceId)));
+  }
+
+  /// ★★ نصُّ الصفِّ الفارغ الأخير — و`''` إن لم يوجد صفٌّ بلا نوع.
+  String _typedName() {
+    for (final _IntakeLine line in _lines.reversed) {
+      if (line.itemId == null) return line.typedName.trim();
+    }
+    return '';
+  }
+
+  /// ★★★ يُسنِد النوعَ المُنتظَر **متى وصلت بطاقتُه** — ⛔ **ولا يُسنِد غائباً.**
+  void _adoptPendingItem(List<ItemCard> items) {
+    final String? id = _pendingItemId;
+    if (id == null || !mounted) return;
+    final bool arrived = items.any((ItemCard item) => item.itemId == id);
+    if (!arrived) return;
+    setState(() {
+      _pendingItemId = null;
+      for (final _IntakeLine line in _lines.reversed) {
+        if (line.itemId != null) continue;
+        // ★ **صفٌّ فارغٌ ينتظر** — ⟵ **يُملأ به** ⛔ **ولا يُضاف صفٌّ ثانٍ.**
+        line.itemId = id;
+        return;
+      }
+      _lines.add(_IntakeLine(itemId: id));
     });
   }
 
@@ -578,6 +652,12 @@ class _IntakeLine {
 
   /// العدد المكتوب.
   final TextEditingController quantity;
+
+  /// ★★ **آخرُ ما كُتب في منسدل النوع** — `AM-027` ②: ⟵ **يُهيَّأ به نموذجُ
+  /// «إضافة نوع جديد»** ⛔ **فلا يُعيد المستخدم كتابةَ الاسم مرتين.**
+  ///
+  /// ⛔ **وحقلٌ لا حالةُ ويدجت** — ★ **يُكتَب بلا `setState`.**
+  String typedName = '';
 
   /// مفتاحٌ ثابت للصفّ.
   final int seed;

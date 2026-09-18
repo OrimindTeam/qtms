@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qtms_domain/qtms_domain.dart';
 
 import '../../../core/design/design_tokens.dart';
+import '../../../core/messages/error_messages.dart';
 import '../../../core/ui/async_state_view.dart';
 import '../../../core/ui/inline_banner.dart';
 import '../../../core/ui/key_value_row.dart';
@@ -47,8 +48,13 @@ class CashMovementCard extends ConsumerWidget {
         ref.watch(ownerLedgerVisibilityProvider);
 
     return switch (cash) {
-      AsyncError<CashMovementSummary>(:final Object error) =>
-        QtmsErrorState(message: '$error'),
+      // ⛔⛔★★★ **ولا نصَّ استثناءٍ خامّ في `message`** — `AM-023`
+      //    (`design-system.md` §هـ): ★ **والخامُّ مطويٌّ في `detail` وحدَه.**
+      AsyncError<CashMovementSummary>(:final Object error) => QtmsErrorState(
+          message: readRejectionMessage,
+          detail: '$error',
+          onRetry: () => ref.invalidate(cashMovementProvider(date)),
+        ),
       AsyncLoading<CashMovementSummary>() => const _Skeleton(),
       AsyncValue<CashMovementSummary>(:final CashMovementSummary? value)
           when value != null =>

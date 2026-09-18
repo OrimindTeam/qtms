@@ -104,4 +104,29 @@ void main() {
     // ★ **والبنودُ مبسوطةٌ ما دام القياسُ ناقصاً** — ⛔ **ولا طيَّ على مجهول.**
     expect(find.text('الإدخالات المعلّقة'), findsOneWidget);
   });
+
+  // ═══════════════ ★★★ تطابقُ العدد عربياً — `AM-017` (رُصد على المحاكي) ═══
+  //
+  // ⛔⛔ **الترويسةُ كانت تعرض «42 بنود» على `Pixel_6_API_36`** — ⟵ **خطأٌ
+  //    نحويٌّ صريح**: ★ **و11 فأكثرُ يُميَّز بمفردٍ منصوب.**
+  test('★★★ تطابقُ العدد — مفردٌ ومثنّى وجمعُ قلّةٍ ومفردٌ منصوب', () {
+    expect(needsActionCountLabel(0), 'لا شيء');
+    expect(needsActionCountLabel(1), 'بندٌ واحد');
+    expect(needsActionCountLabel(2), 'بندان');
+    // ★ **جمعُ القلّة 3…10.**
+    expect(needsActionCountLabel(3), '3 بنود');
+    expect(needsActionCountLabel(10), '10 بنود');
+    // ⛔⛔ **ومن 11 فصاعداً مفردٌ منصوب** — ⛔ **لا «بنود».**
+    expect(needsActionCountLabel(11), '11 بنداً');
+    expect(needsActionCountLabel(42), '42 بنداً');
+    expect(needsActionCountLabel(100), '100 بنداً');
+  });
+
+  testWidgets('★★ والترويسةُ تستعمل التسميةَ نفسَها ⛔ لا جمعاً محفوراً',
+      (WidgetTester tester) async {
+    await pumpCard(tester, total: 42);
+
+    expect(find.text('42 بنداً'), findsOneWidget);
+    expect(find.text('42 بنود'), findsNothing);
+  });
 }

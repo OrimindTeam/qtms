@@ -64,6 +64,7 @@ class QtmsItemLineRow extends StatelessWidget {
     required this.onRemove,
     this.label = 'النوع',
     this.fields = const <Widget>[],
+    this.onSearchChanged,
     super.key,
   });
 
@@ -89,6 +90,21 @@ class QtmsItemLineRow extends StatelessWidget {
   /// ★ حقولُ الصفّ بعد المنسدل — **الكمية والسعر وما إليهما.**
   final List<Widget> fields;
 
+  /// ★★★ **يُبلِّغ بما يُكتَب في المنسدل** — `AM-027` ②: ⟵ **فيُهيَّأ به
+  /// نموذجُ «إضافة نوع جديد»** ⛔ **ولا يُعيد المستخدم كتابةَ الاسم مرتين.**
+  ///
+  /// ⛔⛔★★★ **ولماذا نداءٌ لا متحكّمٌ يُمرَّر — عطلٌ مقيسٌ لا احتياط:**
+  /// ★ **متحكّمٌ واحدٌ يعيش عبر إعادة بناء المنسدل يجعل `initState` للنسخة
+  /// الجديدة يكتب فيه** ⟹ ⛔⛔ **فيصل الإشعارُ إلى `EditableText` القديمةِ
+  /// المُبطَلة وهي لا تزال مُصغِيةً** ⟵ **`Cannot get renderObject of
+  /// inactive element`** (**أسقط اختبارين فعلاً قبل أن يُصحَّح**).
+  /// ★ **فصار لكل نسخةٍ متحكّمُها، والنصُّ يخرج نداءً.**
+  ///
+  /// ⛔⛔ **ولا `setState` من داخل هذا النداء** — ★ **يُستدعى أثناء البناء
+  /// أحياناً** (`initState` للمنسدل): ⟵ **والمُنادي يخزّنه حقلاً ويقرؤه عند
+  /// الحاجة** ⛔ **ولا يُعيد به بناءَ الشجرة.**
+  final ValueChanged<String>? onSearchChanged;
+
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsetsDirectional.only(bottom: Spacing.space12),
@@ -100,10 +116,17 @@ class QtmsItemLineRow extends StatelessWidget {
               children: <Widget>[
                 Expanded(
                   child: _ItemDropdown(
+                    // ⛔⛔★★★ **والمفتاحُ هنا لا على [DropdownMenu]** —
+                    //    `AM-027` ②: ⟵ **فتبدُّلُه يُنشئ متحكّمَ نصٍّ جديداً
+                    //    مع المنسدل نفسِه** ⛔ **ولا يبقى متحكّمٌ واحدٌ
+                    //    يُشعِر نسخةً مُبطَلة** — ★ **وحارسُ `DEBT-88` قائمٌ
+                    //    كما هو: تبدُّلُ الخيارات يُعيد قراءةَ المختار.**
+                    key: ValueKey<String>('$selectedId:${options.length}'),
                     options: options,
                     selectedId: selectedId,
                     onSelected: onSelected,
                     label: label,
+                    onSearchChanged: onSearchChanged,
                   ),
                 ),
                 const SizedBox(width: Spacing.space8),
@@ -138,54 +161,122 @@ class QtmsItemLineRow extends StatelessWidget {
 }
 
 /// ★★★ المنسدلُ القابل للكتابة — **يُصفّي القائمة بما يُكتَب.**
-class _ItemDropdown extends StatelessWidget {
+///
+/// ★★ **وهو ذو حالةٍ منذ `AM-027`** — ⟵ **ليملك متحكّمَ نصِّه**: ⛔ **فلا
+/// متحكّمَ يعبر نسختين** (راجع [QtmsItemLineRow.onSearchChanged]).
+class _ItemDropdown extends StatefulWidget {
   const _ItemDropdown({
     required this.options,
     required this.selectedId,
     required this.onSelected,
     required this.label,
+    this.onSearchChanged,
+    super.key,
   });
 
   final List<QtmsItemOption> options;
   final String? selectedId;
   final ValueChanged<String> onSelected;
   final String label;
+  final ValueChanged<String>? onSearchChanged;
+
+  @override
+  State<_ItemDropdown> createState() => _ItemDropdownState();
+}
+
+class _ItemDropdownState extends State<_ItemDropdown> {
+  /// ★ متحكّمُ هذه النسخة وحدَها — ⛔ **ولا يُشارَك مع نسخةٍ أخرى.**
+  final TextEditingController _search = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _search.addListener(_report);
+  }
+
+  @override
+  void dispose() {
+    _search
+      ..removeListener(_report)
+      ..dispose();
+    super.dispose();
+  }
+
+  /// ★ يُخرِج النصَّ للمُنادي — ⛔ **بلا إعادة بناءٍ من هنا.**
+  void _report() => widget.onSearchChanged?.call(_search.text);
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) =>
             DropdownMenu<String>(
-          // ⛔⛔★★★ **ومفتاحٌ يتبدّل بتبدّل الخيارات** — `DEBT-88`
-          //    (**مقيسٌ على `Pixel_6_API_36` — 2026-09-02**):
-          //    ★ **[DropdownMenu] يقرأ `initialSelection` عند إنشائه**،
-          //    ⟵ **وقائمةٌ تصل بعده لا تُحدِّث النصَّ المعروض**
-          //    ⟹ ⛔⛔ **فيُفتَح نموذجُ التعديل بحقل نوعٍ يبدو فارغاً
-          //    والنوعُ مختارٌ فعلاً** — ★ **والمستخدم يُعيد اختياره أو
-          //    يحفظ ظانّاً أنه فارغ.**
+          // ⛔⛔★★★ **وحارسُ `DEBT-88` صار مفتاحاً على هذا المكوّن نفسِه**
+          //    (`AM-027`) — ★ **والعلّةُ كما هي**: **[DropdownMenu] يقرأ
+          //    `initialSelection` عند إنشائه**، ⟵ **وقائمةٌ تصل بعده لا
+          //    تُحدِّث النصَّ المعروض** ⟹ ⛔⛔ **فيُفتَح نموذجُ التعديل بحقل
+          //    نوعٍ يبدو فارغاً والنوعُ مختارٌ فعلاً.**
           //
           // ★ **والمفتاح يجمع المختارَ وعددَ الخيارات وحدَهما** —
           //    ⛔ **لا نصَّ الفلترة**: ⟵ **فلا يُهدَم المنسدلُ وهو يُكتَب
           //    فيه** (**عددُ الخيارات لا يتبدّل بالكتابة** — `enableFilter`
           //    يُصفّي داخلياً).
-          key: ValueKey<String>('$selectedId:${options.length}'),
+          controller: _search,
           // ⛔⛔★★★ **وعرضٌ محدودٌ صريح** — `DEBT-63`: ★ **[DropdownMenu]
           //    بلا `width` يطلب عرضَه من محتواه**، ⟵ **وابنٌ غيرُ مرنٍ
           //    في `Row` بعرضٍ غير محدود قيدٌ مستحيل** ⛔ **لا يُخطَّط.**
           width: constraints.maxWidth,
-          initialSelection: selectedId,
-          label: Text(label),
+          initialSelection: widget.selectedId,
+          label: Text(widget.label),
           // ★★★ **الكتابةُ تُصفّي** — ⟵ **وهو جوهرُ `AM-009` ④.**
           enableFilter: true,
           enableSearch: true,
           requestFocusOnTap: true,
           menuHeight: Sizes.listRowHeight * 4,
           onSelected: (String? value) {
-            if (value != null) onSelected(value);
+            if (value != null) widget.onSelected(value);
           },
           dropdownMenuEntries: <DropdownMenuEntry<String>>[
-            for (final QtmsItemOption option in options)
+            for (final QtmsItemOption option in widget.options)
               DropdownMenuEntry<String>(value: option.id, label: option.label),
           ],
+        ),
+      );
+}
+
+/// ★★★ **زرُّ إنشاء نوعٍ جديد من داخل نموذج الإدخال** — `AM-027` ②.
+///
+/// ═══════════════════════════════════════════════════════════════════════
+/// ⛔⛔★★★ **والعطلُ الذي يعالجه طريقٌ مسدود:** ★ **حين لا يكون للمصدر نوعٌ
+/// مرتبط، تعرض شاشاتُ الوارد «لا توجد أنواع مرتبطة بهذا المصدر.»** ⛔ **بلا
+/// أيِّ زرّ** ⟹ **فيخرج المستخدم من النموذج إلى شاشة «الأنواع» ثم يعود.**
+///
+/// ★ **وهو غيرُ [QtmsAddLineButton] ولا يُغني عنه:** ⟵ **ذاك يُنشئ *صفّاً*
+/// لنوعٍ قائم**، ★ **وهذا يُنشئ *سجلَّ النوع* نفسَه.**
+/// ═══════════════════════════════════════════════════════════════════════
+///
+/// ⛔ **ولا يبني نموذجاً ثانياً** — §8 المحظور 11: ★ **يفتح نموذجَ النوع
+/// القائم مُهيَّأً** ⟵ **فمنعُ التكرار وقواعدُ التحقق كما هي بلا نسخة.**
+class QtmsCreateItemButton extends StatelessWidget {
+  /// ينشئ الزرّ.
+  const QtmsCreateItemButton({
+    required this.onPressed,
+    this.label = 'إضافة نوع جديد',
+    super.key,
+  });
+
+  /// ★ يُستدعى لفتح نموذج النوع — ⛔ **ولا يُعطَّل**: ⟵ **فالكتالوجُ لا
+  /// «يُستنفَد» من جهة الإنشاء أبداً.**
+  final VoidCallback onPressed;
+
+  /// نصُّ الزرّ.
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: const Icon(Icons.category_outlined),
+          label: Text(label),
         ),
       );
 }

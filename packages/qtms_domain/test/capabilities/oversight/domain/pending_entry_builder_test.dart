@@ -3,11 +3,19 @@ import 'package:test/test.dart';
 
 final CalendarDay day = CalendarDay(2026, 8, 30);
 
+/// ★ اليومُ التالي ليوم المخزون — ⏳ **وبه وحدَه يستحقّ بندُ «الوزن الضائع»
+/// أن يُكتب** (`OQ-002` الخيار ب · `CR-013` · `FR-M7-19`).
+final CalendarDay tomorrow = CalendarDay(2026, 8, 31);
+
 PendingEntrySet sackSet({
   bool hasTax = true,
   bool hasLines = true,
   SackWeightState weightState = SackWeightState.fullyExplained,
   bool isCancelled = false,
+  // ⏳ **والافتراضُ «اليومُ التالي»** — ⟵ **فحالاتُ هذه المجموعة مكتوبةٌ
+  //    لجونيةٍ تغيّر تاريخُ مخزونها**، ★ **وتوقيتُ اليوم نفسِه له حالاتُه.**
+  CalendarDay? today,
+  bool unknownToday = false,
 }) =>
     describeSackPending(
       sackId: 'SCK-1',
@@ -18,6 +26,7 @@ PendingEntrySet sackSet({
       hasTax: hasTax,
       hasLines: hasLines,
       weightState: weightState,
+      today: unknownToday ? null : (today ?? tomorrow),
       isCancelled: isCancelled,
     );
 
@@ -92,6 +101,100 @@ void main() {
             ),
         isEmpty,
       );
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ⏳★★★ توقيتُ «الوزن الضائع لم يُؤكَّد» — `OQ-002` (الخيار ب) · `CR-013`
+  // ═══════════════════════════════════════════════════════════════════════
+
+  group('isSackLostWeightDue — OQ-002 (ب) · FR-M7-19 · CR-013', () {
+    test('⛔ في يوم المخزون نفسِه ⟵ لم يحن بعد', () {
+      expect(isSackLostWeightDue(stockDate: day, today: day), isFalse);
+    });
+
+    test('✅ وبعد تغيّر تاريخ المخزون ⟵ حان', () {
+      expect(isSackLostWeightDue(stockDate: day, today: tomorrow), isTrue);
+    });
+
+    test('✅ ويومُ مخزونٍ قديم يبقى مستحقّاً — لا مهلةَ تنتهي', () {
+      expect(
+        isSackLostWeightDue(
+          stockDate: CalendarDay(2026, 8, 1),
+          today: tomorrow,
+        ),
+        isTrue,
+      );
+    });
+
+    test('⛔ ويومُ منصّةٍ لم يصل ⟵ لا حكمَ يُبنى عليه — GR-54', () {
+      expect(isSackLostWeightDue(stockDate: day, today: null), isFalse);
+    });
+  });
+
+  group('describeSackPending — توقيتُ بند الوزن الضائع (OQ-002 ب)', () {
+    final String lostWeightId = pendingEntryId(
+      kind: PendingDocumentKind.sack,
+      documentId: 'SCK-1',
+      field: PendingMissingField.sackLostWeight,
+    );
+
+    test('⏳★★★ وزنٌ غير مفسَّر في يوم إدخاله ⛔ لا بندَ له', () {
+      final PendingEntrySet set = sackSet(
+        weightState: SackWeightState.unexplained,
+        today: day,
+      );
+      expect(fieldsOf(set), isNot(contains(PendingMissingField.sackLostWeight)));
+      // ★★ **ويدخل قائمةَ المحو** — ⟵ **فبندٌ كُتب بالسلوك القديم يُمحى
+      //    عند أوّلِ عمليةٍ تمسّ الجونية بعد هذا التغيير.**
+      expect(set.clearedIds, contains(lostWeightId));
+    });
+
+    test('⏳★★★ ونفسُ الحالة بعد تغيّر التاريخ ⟵ يظهر البند', () {
+      final PendingEntrySet set = sackSet(
+        weightState: SackWeightState.unexplained,
+        today: tomorrow,
+      );
+      expect(fieldsOf(set), contains(PendingMissingField.sackLostWeight));
+      expect(set.clearedIds, isNot(contains(lostWeightId)));
+    });
+
+    test('⏳★★ ويومُ منصّةٍ لم يصل ⟵ تأجيلٌ لا ظهورٌ بالشكّ', () {
+      final PendingEntrySet set = sackSet(
+        weightState: SackWeightState.unexplained,
+        unknownToday: true,
+      );
+      expect(fieldsOf(set), isNot(contains(PendingMissingField.sackLostWeight)));
+      expect(set.clearedIds, contains(lostWeightId));
+    });
+
+    test('⛔⛔★★ والتأجيلُ لهذا الحقل وحدَه — E-06 يبقى فورياً', () {
+      final PendingEntrySet set = sackSet(
+        hasTax: false,
+        hasLines: false,
+        weightState: SackWeightState.unexplained,
+        today: day,
+      );
+      expect(
+        fieldsOf(set),
+        <PendingMissingField>{
+          PendingMissingField.sackTax,
+          PendingMissingField.sackLines,
+        },
+      );
+    });
+
+    test('★★ والمجموعتان تبقيان متكاملتين مهما كان التوقيت', () {
+      for (final CalendarDay today in <CalendarDay>[day, tomorrow]) {
+        final PendingEntrySet set = sackSet(
+          weightState: SackWeightState.unexplained,
+          today: today,
+        );
+        expect(
+          set.drafts.length + set.clearedIds.length,
+          sackPendingFields.length,
+        );
+      }
     });
   });
 

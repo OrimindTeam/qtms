@@ -51,6 +51,12 @@ final class FakeStocktakeAdminRepository implements StocktakeAdminRepository {
   /// أرقام ما طُلب إلغاؤه.
   final List<String> cancelled = <String>[];
 
+  /// ★★ **أسبابُ الإلغاء كما وصلت** — `AM-021` ⑤.
+  ///
+  /// ⛔⛔ **وتُقاس لأن الحقلَ الواحد كان يُرسَل لعمليتين** — ⟵ **فما كُتب
+  /// ملاحظةً على العدّ كان يصل سبباً للإلغاء.**
+  final List<String?> cancelReasons = <String?>[];
+
   /// نتيجة البدء التالية — ★ **لاختبار مسار الرفض كما يصل من السحابة.**
   Outcome<String> nextStart = const Success<String>('STK-20260905-001');
 
@@ -112,6 +118,7 @@ final class FakeStocktakeAdminRepository implements StocktakeAdminRepository {
     String? cancelReason,
   }) async {
     cancelled.add(documentNumber);
+    cancelReasons.add(cancelReason);
     return nextCancel == null ? const Success<void>(null) : await nextCancel!;
   }
 }
